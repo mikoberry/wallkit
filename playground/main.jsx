@@ -79,8 +79,13 @@ const DEMO_OFFSET_Y = 4
 // button rather than silently disappearing from the picker.
 const ANCHOR_LABELS = {
   'top-left': '左上',
+  'top-center': '上中',
   'top-right': '右上',
+  'center-left': '左中',
+  center: '居中',
+  'center-right': '右中',
   'bottom-left': '左下',
+  'bottom-center': '下中',
   'bottom-right': '右下',
 }
 

@@ -248,7 +248,8 @@ body {
    matches the corner it selects. ANCHORS is ordered row by row for this. */
 .anchors {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Three per row, matching how `ANCHORS` is ordered: the grid is the picker. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
 }
 

@@ -20,6 +20,9 @@ import { fileURLToPath, URL } from 'node:url'
 // In development you do not need this file: `npm run dev` already serves
 // `playground/wallpaper.html` at http://localhost:5174/wallpaper.html.
 export default defineConfig({
+  // Pinned to this folder so `outDir` and `publicDir` below resolve to
+  // `playground/…` no matter which directory the build is launched from.
+  root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react()],
   // Relative asset paths so the folder works no matter how the host serves it.
   base: './',
@@ -38,7 +41,14 @@ export default defineConfig({
     // failures. The library uses optional chaining, which esbuild lowers.
     target: 'es2019',
     rollupOptions: {
-      input: fileURLToPath(new URL('./wallpaper.html', import.meta.url)),
+      // Two pages, one build: the cycling testbed and the geometry proof. Both
+      // land in `dist-wallpaper/`, so `deploy:wallpaper` copies them together
+      // and Wallpaper Engine can show either by pointing `project.json` → "file"
+      // at `wallpaper.html` or `layout.html`.
+      input: {
+        wallpaper: fileURLToPath(new URL('./wallpaper.html', import.meta.url)),
+        layout: fileURLToPath(new URL('./layout.html', import.meta.url)),
+      },
     },
   },
 })

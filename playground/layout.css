@@ -1,0 +1,129 @@
+/* Stage, guides and captions for the layout proof page.
+   Nothing here belongs to the library — the components bring their own CSS. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #0a0c12;
+}
+
+.lp-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 74% 18%, rgba(88, 122, 214, 0.34), transparent 48%),
+    radial-gradient(circle at 16% 78%, rgba(156, 92, 214, 0.24), transparent 52%),
+    linear-gradient(158deg, #070a14 0%, #111a2e 58%, #05070d 100%);
+}
+
+/* An inset outline makes "flush with the edge" verifiable: the bottom spectrum
+   has to touch it with no seam, and the clock has to start 100px inside the
+   corner marker. */
+.lp-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(140, 180, 255, 0.22);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Guides
+   ========================================================================== */
+
+.lp-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.lp-line {
+  position: absolute;
+  background: repeating-linear-gradient(
+    to right,
+    rgba(120, 220, 255, 0.55) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.lp-line--v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(120, 220, 255, 0.55) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.lp-line--h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+/* The point both scene-3 widgets have to agree on. */
+.lp-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #7fe0ff;
+  box-shadow: 0 0 0 3px rgba(127, 224, 255, 0.22);
+}
+
+/* The clock's 100px gutter, drawn from the top-left corner. */
+.lp-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-right: 1px dashed rgba(255, 210, 120, 0.7);
+  border-bottom: 1px dashed rgba(255, 210, 120, 0.7);
+}
+
+/* ==========================================================================
+   Captions
+   ========================================================================== */
+
+.lp-caption {
+  position: absolute;
+  z-index: 21;
+  padding: 4px 8px;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #cfe0ff;
+  background: rgba(8, 12, 22, 0.72);
+  border: 1px solid rgba(140, 180, 255, 0.22);
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Below the full-width spectrum, so it never overlaps the bars. */
+.lp-caption--bottom {
+  right: 16px;
+  bottom: calc(14vh + 10px);
+}
+
+.lp-caption--top {
+  left: 100px;
+  top: 22px;
+}
+
+/* Under the record, clear of the ring's radius. */
+.lp-caption--centre {
+  left: calc(20% - 120px);
+  top: calc(50% + 24vh);
+}
+
+.lp-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: rgba(180, 200, 235, 0.5);
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>WallKit Layout Proof</title>
+    <style>
+      /* Avoid a white flash before the module CSS arrives. */
+      html,
+      body {
+        margin: 0;
+        background: #0a0c12;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Geometry proof page. No Wallpaper Engine bridges on purpose: it renders
+      from synthetic data so it can be checked in a plain browser, and the three
+      compositions it shows are about *placement*, not about the audio bridge.
+
+      Wallpaper Engine loads `project.json` → "file". To look at this page inside
+      the engine, point that at `layout.html`; `deploy:wallpaper` copies it next
+      to `wallpaper.html`.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./layout.jsx"></script>
+  </body>
+</html>

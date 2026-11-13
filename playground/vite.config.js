@@ -6,6 +6,9 @@ import { fileURLToPath, URL } from 'node:url'
 // exercises the working tree, with no build step and no link round-trip.
 // `base: './'` keeps the built demo portable, matching what a wallpaper needs.
 export default defineConfig({
+  // Pinned to this folder so index.html and the two testbed pages are served
+  // from `playground/` regardless of the launching directory.
+  root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react()],
   base: './',
   // `public/` holds the Wallpaper Engine project.json, which belongs to the
