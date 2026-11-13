@@ -7,6 +7,67 @@
         "text": "schemecolor",
         "type": "color",
         "value": "0 0 0"
+      },
+      "accentColor": {
+        "index": 0,
+        "order": 100,
+        "text": "强调色",
+        "type": "color",
+        "value": "168 196 255"
+      },
+      "sizeScale": {
+        "fraction": true,
+        "index": 1,
+        "max": 2,
+        "min": 0,
+        "order": 101,
+        "precision": 2,
+        "step": 0.1,
+        "text": "尺寸倍率",
+        "type": "slider",
+        "value": 1
+      },
+      "showSeconds": {
+        "index": 2,
+        "order": 102,
+        "text": "显示秒",
+        "type": "bool",
+        "value": true
+      },
+      "clockAnchor": {
+        "index": 3,
+        "options": [
+          { "label": "左下", "value": "bottom-left" },
+          { "label": "右下", "value": "bottom-right" },
+          { "label": "左上", "value": "top-left" },
+          { "label": "右上", "value": "top-right" }
+        ],
+        "order": 103,
+        "text": "时钟锚点",
+        "type": "combo",
+        "value": "bottom-right"
+      },
+      "captionText": {
+        "index": 4,
+        "order": 104,
+        "text": "副标题",
+        "type": "textinput",
+        "value": ""
+      },
+      "imageDir": {
+        "index": 5,
+        "mode": "ondemand",
+        "order": 105,
+        "text": "图片目录",
+        "type": "directory",
+        "value": ""
+      },
+      "customImage": {
+        "index": 6,
+        "order": 106,
+        "text": "自定义图片",
+        "type": "file",
+        "value": ""
       }
     },
     "supportsaudioprocessing": true

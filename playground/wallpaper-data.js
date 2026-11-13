@@ -8,12 +8,15 @@
 //   - `useWallpaperAudioStatus()` / STALE_MS — debug HUD internals (engine
 //     probe, frame counter, frame age). They are diagnostics, not props, so
 //     they never entered the public API (see docs/we-design.md §2.1).
+//   - `useWallpaperPropertyLog()` — the push log the HUD prints. Diagnostics
+//     too: the library exposes the *values*, not a record of when they arrived.
 //
 // Nothing here fabricates audio. In a plain browser there is no host, the frame
 // stays null, and the widgets draw an empty graph — the honest answer to "no
 // data".
 
 import { useEffect, useState } from 'react'
+import { isWallpaperEngine } from '../src/core/index.js'
 
 // A frame older than this makes the HUD call the audio stale.
 export const STALE_MS = 1500
@@ -48,10 +51,7 @@ export function useWallpaperAudioStatus() {
         lastStatusAt = time
         const at = window.__wallkitAudioAt || 0
         setStatus({
-          engine: Boolean(
-            typeof window.wallpaperRegisterAudioListener === 'function' ||
-              window.wallpaperPropertyListener,
-          ),
+          engine: isWallpaperEngine(),
           frames,
           ageMs: at ? Date.now() - at : null,
         })
@@ -64,6 +64,35 @@ export function useWallpaperAudioStatus() {
   }, [])
 
   return status
+}
+
+/**
+ * Wallpaper Engine property pushes, as `{ at, keys }` entries (newest last).
+ *
+ * The ring buffer is written by the `<head>` bridge, not by React: WE sends the
+ * full property set while the page loads, before this component exists. Polling
+ * an array is enough — a human drags a slider at most a few times a second, so
+ * there is nothing to gain from a subscription here, and polling costs one
+ * comparison every 500 ms.
+ *
+ * @returns {{ at: number, keys: string[] }[]}
+ */
+export function useWallpaperPropertyLog() {
+  const [log, setLog] = useState(() => (typeof window === 'undefined' ? [] : window.__wallkitPropertyLog || []))
+
+  useEffect(() => {
+    let last = window.__wallkitPropertyLog
+    const id = setInterval(() => {
+      const next = window.__wallkitPropertyLog
+      if (next && next !== last) {
+        last = next
+        setLog(next)
+      }
+    }, 500)
+    return () => clearInterval(id)
+  }, [])
+
+  return log
 }
 
 /**

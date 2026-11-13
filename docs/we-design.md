@@ -40,6 +40,8 @@
 | `useWallpaperPaused()` | `boolean` | 订阅 `wallkit-pause-change` |
 | `useWallpaperBeat()` | `number` | 0..1 bass 标量，供 `Clock.beat` 与未来的 `BeatGlow` |
 | `useWallpaperTimeline()` | `{ position, duration } \| null` | 仅当插件开启 `timeline` 时可能有值 |
+| `useWallpaperProperties()` | `Record<string, unknown>` | project.json 用户属性快照，引用仅在推送时变化 |
+| `useWallpaperProperty(key, fallback)` | `unknown` | 单键读取，未声明时返回 `fallback` |
 
 后两个是在 §7.2 三个 hooks 之上的**可选增量**，不改变前三个的语义。
 
@@ -57,10 +59,10 @@
 ### 2.2 插件选项
 
 ```js
-wallkitWE({ audio: true, media: true, pause: true, timeline: false })
+wallkitWE({ audio: true, media: true, properties: true, pause: true, timeline: false })
 ```
 
-- 前三项默认 `true`，`timeline` 默认 **`false`**。
+- 前四项默认 `true`，`timeline` 默认 **`false`**。
 - `timeline` 默认关的理由：WE 官方 `wallpaperRegisterMediaTimelineListener` 提供 `position` / `duration`，但文档明确警告「不是所有播放器支持，要假设这个回调永远不被调用」；当前四个控件都不消费它。默认开等于凭空多一路很可能永远为空的数据源。它是后续 `TrackTimeline` 组件的前置，需要时显式打开。
 - 用 `transformIndexHtml` 的 `order: 'pre'`，以 `injectTo: 'head-prepend'` 注入 `<script>` tag（`children` 里放脚本正文，**不带** `type="module"`），保证早于 Vite 的 module 入口。
 - **幂等**：每段脚本带一个 HTML 注释标记（`<!-- wallkit-we:audio -->` 等），钩子先检查 `html.includes(MARKER)`，已存在就原样返回。**实现细节**：标记必须写回 `transformIndexHtml` 返回的 `html` 字符串，而不只是放进 tag descriptor —— 否则第二个插件实例收到的仍是原始 HTML，会重复注入。最终返回 `{ html, tags }`：`html` 只多出注释标记，`tags` 才是 classic script。
@@ -69,9 +71,9 @@ wallkitWE({ audio: true, media: true, pause: true, timeline: false })
 
 ### 2.3 内联脚本做成字符串常量
 
-- 放 `src/we/inline/`，按 audio / media / timeline / pause 分文件，每个导出一个字符串常量；插件 import 后拼接。
-- 内容与 `playground/wallpaper.html` 现有三段**逐字等价**（那段是从 `we-integration.md` 复制、并已在 WE 实机验证过的）：边界检查、`Float32Array.from()` 缓冲区复制、`wallpaperMediaIntegration` 常量判断全部原样保留。
-- 注入顺序固定 **audio → media → timeline → pause**。暂停桥接靠 `wallpaperRegisterAudioListener` 是否存在判断宿主就绪，必须在音频脚本之后；顺序要求见 `we-integration.md` §2.3。
+- 放 `src/we/inline/`，按 audio / media / properties / timeline / pause 分文件，每个导出一个字符串常量；插件 import 后拼接。
+- 内容与 `playground/wallpaper.html` 现有各段**逐字等价**（那段是从 `we-integration.md` 复制、并已在 WE 实机验证过的）：边界检查、`Float32Array.from()` 缓冲区复制、`wallpaperMediaIntegration` 常量判断全部原样保留。
+- 注入顺序固定 **audio → media → properties → timeline → pause**。暂停桥接靠 `wallpaperRegisterAudioListener` 是否存在判断宿主就绪，必须在音频脚本之后；属性桥接要在暂停之前，因为暂停段只是往前者创建的对象上补 `setPaused`。顺序要求见 `we-integration.md` §2.3。
 - `we-integration.md` 保留人类可读的可粘贴版本，作为「不用插件」路径与排查依据。**两份内容必须一致**，改动时同步。
 
 ---
@@ -86,6 +88,8 @@ wallkitWE({ audio: true, media: true, pause: true, timeline: false })
 | `window.__wallkitAudioAt` | `number`（`Date.now()`） | audio 脚本 |
 | `window.__wallkitMedia` | `{ thumbnail, title, artist, albumTitle, primaryColor, textColor, playback, enabled, updatedAt }` | media 脚本 |
 | `window.__wallkitTimeline` | `{ position, duration } \| null`（仅开启时） | timeline 脚本 |
+| `window.__wallkitUserProperties` | `Record<string, unknown>`，每次推送换新对象（合并后的全量快照） | properties 脚本 |
+| `window.__wallkitPropertyLog` | `{ at, keys }[]`，最多 8 条（诊断用） | properties 脚本 |
 | `window.__wallkitPaused` | `boolean` | pause 脚本 |
 | `wallkit-pause-change` | `CustomEvent<boolean>` | pause 脚本 |
 
@@ -107,13 +111,17 @@ src/we/                     ✅ 已落地
 ├── vite-plugin.js           # wallkitWE()
 ├── audio.js                 # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
 ├── media.js                 # useWallpaperMedia / useWallpaperTimeline
+├── properties.js            # useWallpaperProperties / useWallpaperProperty
 ├── pause.js                 # useWallpaperPaused
-└── inline/                  # 四段字符串常量
+└── inline/                  # 五段字符串常量
     ├── audio.js
     ├── media.js
+    ├── properties.js
     ├── timeline.js
     └── pause.js
 ```
+
+`properties` 是 P4 收口后追加的一段（2026-11-13），它不改动 `exports`，仅给 `wallkitWE()` 多一个开关和 `wallkit/we` 多两个 hook。
 
 这正对应 architecture.md §4 原有的「尚未创建」清单，现已全部落地。`package.json` 的 `exports` 原已备好 `./we` 与 `./we/vite` 两个条目，**只填实现，未新增子路径**。
 
@@ -166,6 +174,10 @@ wallkit:  ../src/index.js
 
 **当前状态**：全部通过。实现阶段用静态验证确认了插件幂等 / classic script / 注入顺序 / 隔离开关 / 四段脚本语法 / 两份 config 可加载（直接调用 `transformIndexHtml.handler()`、`node --check`、esbuild 语法解析，未跑浏览器自动化）。随后经用户确认执行 `npm run deploy:wallpaper`：在真实 `build:wallpaper` 产物中确认 3 段 classic script 位于 `<head>` 最前、顺序 `audio → media → pause`、`timeline` 按默认关闭、`Float32Array.from` 等约束保留，`dist-wallpaper/wallpaper.html` 与 WE 工程文件 md5 一致；最后在 WE 中复验，用户确认结果正常。这次验的是**接线**，不是控件。
 
+**追加段（2026-11-13）**：`properties` 段与其 hooks 是在 P4 收口之后加进来的。已完成静态验证（esbuild 解析内联脚本与 hook 源码、`project.json` JSON 解析、`env.js` 证据链复查、插件注入顺序 `audio → media → properties → pause` 与二次注入 0 段）；并已 `deploy:wallpaper` 到 WE 测试工程，同时把 `playground/public/project.json` 覆盖过去（原编辑器导出的那份备份为 `project.json.bak`）。**WE 实机行为待用户确认**，待验项：改一项设置后 `window.__wallkitUserProperties` 只更新对应 key、HUD 的 `events` 行新增一条且只列该 key；`applyUserProperties` 与 `setPaused` 共存于同一个监听对象上；`accentColor` / `clockAnchor` / `sizeScale` 三项能改变画面。
+
+诊断手段：桥接自带 `window.__wallkitPropertyLog`（`{ at, keys }[]`，上限 8 条，只记本次推送带来的 key）。它必须写在内联桥里而不是 React 侧——加载期那次全量推送早于 React 挂载。测试页用 `useWallpaperPropertyLog()` 轮询数组引用读取，HUD 的 `events` 行显示总次数与最近 3 条。
+
 验证按 AGENTS.md 的规矩执行：不自行启动 dev server、不跑浏览器自动化；`build:wallpaper` / `deploy:wallpaper` 是在用户确认后才运行的，用于生成 WE 实际加载的产物。需要渲染检查时用无头截图并立即关闭。
 
 ---
@@ -177,7 +189,7 @@ wallkit:  ../src/index.js
 | `AGENTS.md` | 入口表的「P4 占位」改为正式 hooks；Reference documents 加本文件 |
 | `README.md` | 撤掉 §WE 集成 的 ⚠️ 警告块，改为正式用法；状态表 P4 标完成 |
 | `docs/architecture.md` | §7.2 状态、§14 阶段表、§4「尚未创建」备注 |
-| `docs/we-integration.md` | 文首状态、§2.1「现在不要用」、§7 的 P4 提示、§8 速查表 |
+| `docs/we-integration.md` | 文首状态、§2.1「现在不要用」、§8 的 P4 提示、§9 速查表 |
 | `docs/extraction-map.md` | §2.3、§6 步骤 5、§7 未决项 |
 | `docs/spectrum-design.md` | 不受影响 |
 

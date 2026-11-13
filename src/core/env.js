@@ -7,10 +7,18 @@
 // unconditionally assigned `window.wallpaperPropertyListener` once made the
 // app believe it was running inside the engine while served in a plain
 // browser, which hid the model picker and collapsed the settings drawer.
+//
+// `wallpaperPropertyListener` is deliberately NOT part of the evidence any
+// more. The user-property bridge in src/we/inline/properties.js has to install
+// that object unconditionally (the engine's docs warn that a later assignment
+// misses the payload sent during page load), so its presence says "a bridge is
+// loaded", not "a host is present".
 
 const AUDIO_GLOBAL = 'wallpaperRegisterAudioListener'
-const PROPERTY_LISTENER = 'wallpaperPropertyListener'
 const MEDIA_GLOBAL = 'wallpaperRegisterMediaStatusListener'
+// Injected only by the engine, never by us: present as soon as the project has
+// any `directory` property, which keeps property-only wallpapers detectable.
+const DIRECTORY_GLOBAL = 'wallpaperRequestRandomFileForProperty'
 
 /**
  * True when the page is running inside Wallpaper Engine.
@@ -21,8 +29,8 @@ export function isWallpaperEngine() {
   if (typeof window === 'undefined') return false
   return (
     typeof window[AUDIO_GLOBAL] === 'function' ||
-    Boolean(window[PROPERTY_LISTENER]) ||
-    typeof window[MEDIA_GLOBAL] === 'function'
+    typeof window[MEDIA_GLOBAL] === 'function' ||
+    typeof window[DIRECTORY_GLOBAL] === 'function'
   )
 }
 

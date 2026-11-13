@@ -336,17 +336,21 @@ React 侧用便利 hooks 把桥接数据变成 props（组件本身仍只认 pro
 import {
   useWallpaperAudio, useWallpaperBeat,
   useWallpaperMedia, useWallpaperPaused,
+  useWallpaperProperties,
 } from 'wallkit/we'
 
 const bars = useWallpaperAudio()       // Float32Array：稳定引用、原地改写；无数据时全零
 const beat = useWallpaperBeat()        // 0..1，供 Clock.beat
 const paused = useWallpaperPaused()
 const track = useWallpaperMedia(paused)
+const props = useWallpaperProperties() // project.json 里声明的用户属性快照
 ```
+
+用户属性是 `project.json` → 页面的单向推送，没有双向绑定：在 `general.properties` 声明 key，`wallpaperPropertyListener.applyUserProperties` 推给页面（加载时全量，之后只推变化的 key），`useWallpaperProperties()` 读快照。值的量纲要留神——`color` 推下来是 `0..1` 浮点（manifest 里写的是 `0..255`），`file` / `directory` 的路径要拼 `file:///`，未声明的 key 是 `undefined` 而不是 `false`。
 
 `timeline` 默认关闭：WE 官方明确警告 `wallpaperRegisterMediaTimelineListener` 可能永不触发。需要 `useWallpaperTimeline()` 时显式打开；取不到值就保持 `null`，不要用 `0:00` 兜底。
 
-不使用 Vite 的项目仍可手动粘贴三段（加可选 timeline 共四段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
+不使用 Vite 的项目仍可手动粘贴四段（加可选 timeline 共五段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
 
 ---
 
@@ -362,7 +366,7 @@ const track = useWallpaperMedia(paused)
 | `wallkit/components/album-art` | 专辑卡片控件 |
 | `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
 | `wallkit/components/ambient-fx` | 全屏氛围粒子层（飘雪 / 樱花 / 气泡） |
-| `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
+| `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/styles` | 主题变量 |
 
@@ -431,13 +435,15 @@ WE_PROJECT_DIR="D:\path\to\your\we\project" npm run deploy:wallpaper
 
 同步只覆盖构建产物（`assets/`、`wallpaper.html`），**不动** WE 编辑器写的 `preview.gif` 和 `project.json`；`assets/` 会整体替换，避免旧 hash 文件堆积。壁纸正在运行时文件被占用，先切走再重试。`deploy:wallpaper` 只负责拷贝，所以第一次仍需要在 WE 里新建 Web 壁纸并让它指向那个目录。
 
-内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、`type` 必须大写）见 [WE 集成指南](./docs/we-integration.md)。
+内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、属性值的量纲）见 [WE 集成指南](./docs/we-integration.md)。
 
 ---
 
 ## 状态
 
 P0–P4 已完成，并全部在 Wallpaper Engine 中对接验证正常。P4 验的是插件注入 + hooks 这条新接线，控件 API 未变；P5 起未开始。
+
+P4 之后追加了 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`）：静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认能改画面颜色，其余属性的渲染映射与 `PointerFx` / `AmbientFx` 两个增量组件见各自设计文档。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|

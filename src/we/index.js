@@ -12,3 +12,4 @@
 export { useWallpaperAudio, useWallpaperBeat } from './audio.js'
 export { useWallpaperMedia, useWallpaperTimeline } from './media.js'
 export { useWallpaperPaused } from './pause.js'
+export { useWallpaperProperties, useWallpaperProperty } from './properties.js'

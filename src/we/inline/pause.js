@@ -5,7 +5,10 @@
 // wallpaperRegisterAudioListener to tell whether the host is ready.
 //
 // Never create wallpaperPropertyListener unconditionally — that makes a plain
-// browser look like Wallpaper Engine to any environment probe.
+// browser look like Wallpaper Engine to any environment probe. In the default
+// segment order the properties bridge has already installed the object, so the
+// first branch is the one that runs; the second covers that segment being
+// disabled.
 
 export const pauseBridgeScript = `window.__wallkitPaused = false;
 
@@ -16,9 +19,7 @@ function __wallkitSetPaused(value) {
   window.dispatchEvent(new CustomEvent('wallkit-pause-change', { detail: next }));
 }
 
-// Only attach to an object the host already created. Creating
-// \`wallpaperPropertyListener\` unconditionally would make the environment
-// probe report "inside Wallpaper Engine" in a plain browser.
+// Reuse the object the host — or the properties bridge — already created.
 if (window.wallpaperPropertyListener) {
   window.wallpaperPropertyListener.setPaused = __wallkitSetPaused;
 } else if (typeof window.wallpaperRegisterAudioListener === 'function') {

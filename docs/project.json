@@ -1,0 +1,100 @@
+{
+	"file" : "wallpaper.html",
+	"general" : 
+	{
+		"properties" : 
+		{
+			"checkbox" : 
+			{
+				"index" : 2,
+				"order" : 102,
+				"text" : "复选框",
+				"type" : "bool",
+				"value" : true
+			},
+			"color" : 
+			{
+				"index" : 0,
+				"order" : 100,
+				"text" : "color",
+				"type" : "color",
+				"value" : "1 0 0"
+			},
+			"mulu" : 
+			{
+				"index" : 5,
+				"mode" : "ondemand",
+				"order" : 105,
+				"text" : "mulu",
+				"type" : "directory",
+				"value" : ""
+			},
+			"newproperty" : 
+			{
+				"index" : 3,
+				"options" : 
+				[
+					{
+						"label" : "label1",
+						"value" : "1"
+					}
+				],
+				"order" : 103,
+				"text" : "组合框",
+				"type" : "combo",
+				"value" : "1"
+			},
+			"newproperty1" : 
+			{
+				"index" : 4,
+				"order" : 104,
+				"text" : "文本框",
+				"type" : "textinput",
+				"value" : ""
+			},
+			"newproperty2" : 
+			{
+				"index" : 6,
+				"order" : 106,
+				"text" : "文件",
+				"type" : "file",
+				"value" : ""
+			},
+			"newproperty3" : 
+			{
+				"index" : 7,
+				"order" : 107,
+				"text" : "分组",
+				"type" : "group",
+				"value" : ""
+			},
+			"schemecolor" : 
+			{
+				"order" : 0,
+				"text" : "schemecolor",
+				"type" : "color",
+				"value" : "0 0 0"
+			},
+			"slider" : 
+			{
+				"fraction" : true,
+				"index" : 1,
+				"max" : 2,
+				"min" : 0,
+				"order" : 101,
+				"precision" : 2,
+				"step" : 0.1,
+				"text" : "slider",
+				"type" : "slider",
+				"value" : 1
+			}
+		},
+		"supportsaudioprocessing" : true
+	},
+	"preview" : "preview.gif",
+	"snapshotformat" : 1,
+	"snapshotoverlay" : "",
+	"title" : "WallKit Testbed",
+	"type" : "web",
+	"version" : 0
+}

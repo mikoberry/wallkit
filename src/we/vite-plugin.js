@@ -13,14 +13,20 @@
 import { audioBridgeScript } from './inline/audio.js'
 import { mediaBridgeScript } from './inline/media.js'
 import { timelineBridgeScript } from './inline/timeline.js'
+import { propertiesBridgeScript } from './inline/properties.js'
 import { pauseBridgeScript } from './inline/pause.js'
 
-// Order is part of the contract: the pause bridge decides whether the host is
+// Order is part of the contract. The pause bridge decides whether the host is
 // ready by looking for wallpaperRegisterAudioListener, so it follows the audio
-// bridge. timeline is off by default — WE warns most players never call it.
+// bridge; it also attaches `setPaused` to whatever `wallpaperPropertyListener`
+// object already exists, which is the one the properties bridge installs. Both
+// bridges merge into that object, so properties has to come first — otherwise
+// the per-property payload would land on an object pause created.
+// timeline is off by default — WE warns most players never call it.
 const SEGMENTS = [
   { key: 'audio', defaultOn: true, marker: '<!-- wallkit-we:audio -->', script: audioBridgeScript },
   { key: 'media', defaultOn: true, marker: '<!-- wallkit-we:media -->', script: mediaBridgeScript },
+  { key: 'properties', defaultOn: true, marker: '<!-- wallkit-we:properties -->', script: propertiesBridgeScript },
   { key: 'timeline', defaultOn: false, marker: '<!-- wallkit-we:timeline -->', script: timelineBridgeScript },
   { key: 'pause', defaultOn: true, marker: '<!-- wallkit-we:pause -->', script: pauseBridgeScript },
 ]
@@ -28,8 +34,8 @@ const SEGMENTS = [
 /**
  * Inject the WE bridges into every HTML entry, in dev and in build alike.
  *
- * @param {{ audio?: boolean, media?: boolean, pause?: boolean, timeline?: boolean }} [options]
- *   The first three default to true. `timeline` defaults to false: WE's
+ * @param {{ audio?: boolean, media?: boolean, properties?: boolean, pause?: boolean, timeline?: boolean }} [options]
+ *   The first four default to true. `timeline` defaults to false: WE's
  *   `wallpaperRegisterMediaTimelineListener` is unsupported by most players and
  *   the current controls do not consume it. Enable it only when needed.
  * @returns {import('vite').Plugin}

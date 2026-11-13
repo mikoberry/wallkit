@@ -23,14 +23,15 @@ import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
 import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
 import { AmbientFx } from '../src/components/ambient-fx/index.js'
-import { ambientCount } from '../src/core/index.js'
+import { ANCHORS, ambientCount } from '../src/core/index.js'
 import {
   useWallpaperAudio,
   useWallpaperBeat,
   useWallpaperMedia,
   useWallpaperPaused,
+  useWallpaperProperties,
 } from 'wallkit/we'
-import { useNow, useWallpaperAudioStatus, STALE_MS } from './wallpaper-data.js'
+import { useNow, useWallpaperAudioStatus, useWallpaperPropertyLog, STALE_MS } from './wallpaper-data.js'
 import { accentFromTrack, toHexColor, DEFAULT_ACCENT } from './accent.js'
 import '../src/styles/index.css'
 import './wallpaper.css'
@@ -81,6 +82,68 @@ const ACCENT = {
 }
 
 const ACCENT_MODES = ['follow', 'fixed', 'off']
+
+// Property keys the HUD reports, in the order they appear in project.json.
+//
+// The HUD prints them raw, including the untouched colour string, because that
+// is the only way to see what the engine actually sends. It is also the whole
+// verification story for the property bridge: change one setting in WE and the
+// matching field here must change — nothing else in the page needs to.
+const PROPERTY_KEYS = [
+  'accentColor',
+  'sizeScale',
+  'showSeconds',
+  'clockAnchor',
+  'captionText',
+  'customImage',
+  'imageDir',
+]
+
+function describeProperties(properties) {
+  const entries = PROPERTY_KEYS.map((key) => {
+    const value = properties[key]
+    if (value === undefined) return `${key} —`
+    if (typeof value !== 'string') return `${key} ${String(value)}`
+    if (value === '') return `${key} ""`
+    const shown = value.length > 26 ? `${value.slice(0, 26)}…` : value
+    return `${key} "${shown}"`
+  })
+
+  // Two lines: seven full entries on one line runs off a 1080p wallpaper.
+  const mid = Math.ceil(entries.length / 2)
+  return [entries.slice(0, mid).join(' · '), entries.slice(mid).join(' · ')]
+}
+
+function clockOf(at) {
+  return new Date(at).toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+/**
+ * The last few pushes WE made, newest last.
+ *
+ * This is the difference between "the value is wrong" and "nothing ever
+ * arrived": an all-`—` props line is ambiguous, a `0 次` event count is not.
+ */
+function describePropertyEvents(log) {
+  if (!log || log.length === 0) {
+    return ['events   0 次（浏览器里正常；WE 里说明桥接没生效）']
+  }
+
+  const shown = log.slice(-3)
+  const lines = [`events   ${log.length} 次 · 最近 ${clockOf(log[log.length - 1].at)}`]
+
+  shown.forEach((entry, index) => {
+    const ordinal = log.length - shown.length + index + 1
+    const keys = entry.keys.length === 0
+      ? '（空）'
+      : entry.keys.length === 1
+        ? entry.keys[0]
+        : `${entry.keys.length} key: ${entry.keys.join(',')}`
+    lines.push(`         #${ordinal} ${clockOf(entry.at)}  ${keys}`)
+  })
+
+  return lines
+}
 
 /**
  * @param {{ primaryColor?: string } | null} track
@@ -146,7 +209,7 @@ const SCENE_AMBIENT = {
 // HUD
 // ---------------------------------------------------------------------------
 
-function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, paused, accent, mode, preview, hidden }) {
+function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, paused, accent, mode, preview, propertyLines, fromProperty, eventLines, hidden }) {
   const lines = [
     `scene    ${SCENES.indexOf(scene) + 1}/${SCENES.length}  ${scene.label}`,
     `clock    ${clock} · anchor ${anchor}`,
@@ -167,14 +230,23 @@ function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, pau
     // way to see which format the engine actually sends, and whether the clamp
     // moved the colour or the parse bailed out. When a preview cover is selected
     // but the mode is not `follow`, say so — otherwise it looks like A is broken.
-    preview
-      ? `accent   ${mode} · 预览「${preview.label}」raw "${preview.primaryColor}" → ${
-          accent || `${DEFAULT_ACCENT} (默认)`
-        }${mode === 'follow' ? '' : ' （非 follow，封面被忽略）'}`
-      : `accent   ${mode} · ${accent || `${DEFAULT_ACCENT} (默认)`} · raw "${
-          (media && media.primaryColor) || '—'
-        }"`,
+    fromProperty
+      ? // The property wins over both the cover and the preview, so say so first —
+        // otherwise the preview line would claim a colour the card is not using.
+        `accent   ${mode} · ${accent}（属性覆盖封面）`
+      : preview
+        ? `accent   ${mode} · 预览「${preview.label}」raw "${preview.primaryColor}" → ${
+            accent || `${DEFAULT_ACCENT} (默认)`
+          }${mode === 'follow' ? '' : ' （非 follow，封面被忽略）'}`
+        : `accent   ${mode} · ${accent || `${DEFAULT_ACCENT} (默认)`} · raw "${
+            (media && media.primaryColor) || '—'
+          }"`,
     `paused   ${paused}`,
+    // In the engine these come from project.json; in a browser every field reads
+    // "—" because no host ever pushes them. That is the honest state, not a bug.
+    `props    ${propertyLines[0]}`,
+    ...propertyLines.slice(1).map((line) => `         ${line}`),
+    ...eventLines,
     `keys     ← → 步进 · ↑ ↓ 换场景 · 空格 停/启循环 · H 显隐 · A 预览封面色 · M 强调色模式`,
   ]
 
@@ -207,10 +279,12 @@ function Wallpaper() {
   const beat = useWallpaperBeat()
   const status = useWallpaperAudioStatus()
   const track = useWallpaperMedia(paused)
+  const userProperties = useWallpaperProperties()
+  const propertyLog = useWallpaperPropertyLog()
 
   const albumVariant = ALBUM_ART_VARIANTS[step % ALBUM_ART_VARIANTS.length]
   const clockPlacement = CLOCK_PLACEMENTS[step % CLOCK_PLACEMENTS.length]
-  const clockAnchor = CLOCK_ANCHORS[step % CLOCK_ANCHORS.length]
+  const cycleAnchor = CLOCK_ANCHORS[step % CLOCK_ANCHORS.length]
   const spectrumVariant = SPECTRUM_STYLES[step % SPECTRUM_STYLES.length]
   const scene = SCENES[Math.floor(step / LAYOUTS_PER_SCENE) % SCENES.length]
 
@@ -261,7 +335,24 @@ function Wallpaper() {
   // or `off` still produced three colours, which reads as "M does nothing".
   const preview = previewCover == null ? null : PREVIEW_COVERS[previewCover]
   const accentSource = preview ? { primaryColor: preview.primaryColor } : themedTrack
-  const accent = pickAccent(accentSource, scene.theme, accentMode)
+
+  // A configured accent outranks the cover. Dragging the colour picker is an
+  // explicit instruction, so it must not be overruled by whatever is playing —
+  // and `toHexColor` is the same parser the cover path uses, which is what makes
+  // the 0..1 host format work without special-casing it here.
+  const propertyAccent = toHexColor(userProperties.accentColor)
+  const accent = propertyAccent || pickAccent(accentSource, scene.theme, accentMode)
+
+  // Two more properties wired to real props, to prove the mapping is just data →
+  // props. Both fall back to the demo cycle when the host never sent them, which
+  // is what happens in a browser — an invalid combo value is ignored the same way
+  // rather than handing the component an anchor it does not know.
+  const propertyAnchor = userProperties.clockAnchor
+  const clockAnchor = ANCHORS.includes(propertyAnchor) ? propertyAnchor : cycleAnchor
+  const propertySize = userProperties.sizeScale
+  const clockSize = typeof propertySize === 'number' ? Math.round(100 * propertySize) : 100
+  const propertyLines = describeProperties(userProperties)
+  const eventLines = describePropertyEvents(propertyLog)
 
   const ambient = SCENE_AMBIENT[scene.id] || { variant: 'snow' }
 
@@ -283,7 +374,7 @@ function Wallpaper() {
         now={now}
         placement={clockPlacement}
         theme={scene.theme}
-        size={100}
+        size={clockSize}
         anchor={clockAnchor}
         offsetX={6}
         offsetY={6}
@@ -337,6 +428,9 @@ function Wallpaper() {
         accent={accent}
         mode={accentMode}
         preview={preview}
+        propertyLines={propertyLines}
+        fromProperty={Boolean(propertyAccent)}
+        eventLines={eventLines}
         paused={paused}
         hidden={!hudVisible}
       />

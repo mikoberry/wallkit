@@ -235,9 +235,10 @@ wallkit/
 │   │   ├── index.js          # hooks 统一 re-export
 │   │   ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
 │   │   ├── media.js          # useWallpaperMedia / useWallpaperTimeline
+│   │   ├── properties.js     # useWallpaperProperties / useWallpaperProperty
 │   │   ├── pause.js          # useWallpaperPaused
 │   │   ├── vite-plugin.js    # wallkitWE()
-│   │   └── inline/           # audio / media / timeline / pause 四段脚本常量
+│   │   └── inline/           # audio / media / properties / timeline / pause 五段脚本常量
 │   └── styles/
 │       └── index.css         # CSS 变量与基础 token
 └── playground/               # 本地开发预览（不参与分发）
@@ -557,7 +558,7 @@ import {
 
 `bars` 刻意不返回 `null`：两个频谱组件对 `bars == null` 会连 DOM 都不渲染，而实机验证过的「无数据」表现是空图。`status` / `staleMs` 这类 HUD 诊断、以及 `now` 的 tick 都留在应用层，不进库 API。
 
-**Vite 插件** `wallkitWE()`（`wallkit/we/vite`）通过 `transformIndexHtml` 的 `order: 'pre'` + `head-prepend`，把 classic script 注入 `<head>` 最前面；前三段默认开，`timeline` 默认关。顺序 audio → media → timeline → pause，每段带 HTML 注释标记保证幂等。不用插件的项目按 [we-integration.md](./we-integration.md) §2.2 手动粘贴。
+**Vite 插件** `wallkitWE()`（`wallkit/we/vite`）通过 `transformIndexHtml` 的 `order: 'pre'` + `head-prepend`，把 classic script 注入 `<head>` 最前面；前四段默认开，`timeline` 默认关。顺序 audio → media → properties → timeline → pause，每段带 HTML 注释标记保证幂等。不用插件的项目按 [we-integration.md](./we-integration.md) §2.2 手动粘贴。
 
 接口与接线细节见 [`wallkit/we` 设计规格](./we-design.md)。
 

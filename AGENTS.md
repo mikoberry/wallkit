@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有两个增量组件：`PointerFx`（鼠标拖尾 / 点击特效）与 `AmbientFx`（氛围粒子层），前者需在 WE 里开启鼠标交互才能实机看到。
+当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有三个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
 
 ## Execution rules
 
@@ -32,12 +32,13 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 ## WE testbed
 
-`playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `wallkitWE()` 注入 `<head>` 的内联脚本（音频 / 媒体 / 暂停，timeline 可选），与真实壁纸的接线方式完全一致；React 侧由 `wallkit/we` 的 hooks 消费。
+`playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `wallkitWE()` 注入 `<head>` 的内联脚本（音频 / 媒体 / 用户属性 / 暂停，timeline 可选），与真实壁纸的接线方式完全一致；React 侧由 `wallkit/we` 的 hooks 消费。
 
 - 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`、`bars` 保持全零，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。
 - WE 预览：`npm run deploy:wallpaper`（构建 + 同步到 WE 项目目录）。**不要**把 Vite 的 `outDir` 指到 WE 目录：那里有编辑器写的 `preview.gif` 与改过的 `project.json`，`emptyOutDir` 会把它们吃掉。同步规则是「`assets/` 整体替换，其余文件只覆盖同名产物，`project.json` 只在缺失时创建」。
 - 页面自己**按 8 秒轮换**布局：专辑 6 种、时钟 10 种、频谱 9 种，每跑完一圈换一次背景（2 深 2 亮），主题随背景走。原因很实际——WE 里没有鼠标和键盘焦点，任何控制面板都点不到。
-- 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused）就是排查音频时的第一手信息。
+- 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused、props、events）就是排查音频与属性时的第一手信息。`props` 是合并后的当前快照，`events` 是推送流水（`window.__wallkitPropertyLog`，写在内联桥里，因为加载期那次全量推送早于 React 挂载）。
+- 用户属性**只在应用层映射**：`useWallpaperProperties()` 拿到的是宿主原值（颜色是 0–1 浮点、slider 是 0–1、file 缺 `file:///`），校验/换算/回落全部写在 `wallpaper.jsx`，组件只收干净的 props。判断「没收到」用 `undefined` 而不是 falsy；没有对应 prop 的属性宁可先不接，也不要把原值硬塞给组件（`showSeconds`、`captionText` 属于这一类）。
 - 数据层已收进 `wallkit/we`：`useWallpaperAudio()` 返回长期复用、原地改写的 `Float32Array`（无数据时全零，**不是 `null`**，否则频谱组件连 DOM 都不画），控件在自己的绘制循环里读它，60Hz 音频零 React 重渲染；`useWallpaperBeat()` 单独拆出，不需要时钟的项目不付重渲染成本。`playground/wallpaper-data.js` 退役为应用层残留，只保留 `useNow()` 与 HUD 诊断采集。
 
 `playground/layout.html` 是**几何验证页**，与测试页分开：一屏同时摆三种定位（贴底满宽频谱、距角 100px 的时钟、同心唱片 + 环形频谱），带参考线（`G` 显隐）。数据是合成的，所以不依赖 WE 回调、浏览器里就能看。`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`；要在 WE 里看它，把 `project.json` 的 `"file"` 改成 `layout.html`。
@@ -70,7 +71,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
 | `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
 | `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡氛围层） |
-| `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
+| `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
 
@@ -129,9 +130,10 @@ src/
     ├── index.js          # hooks 统一 re-export
     ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
     ├── media.js          # useWallpaperMedia / useWallpaperTimeline
+    ├── properties.js     # useWallpaperProperties / useWallpaperProperty（project.json 用户属性）
     ├── pause.js          # useWallpaperPaused
     ├── vite-plugin.js    # wallkitWE()
-    └── inline/           # 四段可注入 / 可粘贴的脚本字符串常量
+    └── inline/           # 五段可注入 / 可粘贴的脚本字符串常量
 ```
 
 ### Clock 组件
