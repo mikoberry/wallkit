@@ -58,7 +58,7 @@
 
 **为什么 `colorHex` 而不是 `color`**：组件需要一个可解析的十六进制值来推导渐变停靠点（见 §7），只接受 `#rrggbb`。用 `colorHex` 把契约写进名字，避免 `color="red"` 被静默忽略的意外。
 
-**响应参数怎么归一化**：`intensity` / `curve` 的钳制与整型走 `shapeSpectrumLevel()`（§3），组件只持有最终倍数；默认值 `{ intensity: 100, curve: 1 }` 与原实现（直接用原始柱高）完全一致。
+**响应参数怎么归一化**：组件的 `intensity`（百分比，默认 100）先被钳制到边界并换算成倍数（`intensity / 100`），再和 `curve` 一起交给 `shapeSpectrumLevel()` 应用到每根柱（§3，其自身默认 `{ intensity: 1, curve: 1 }` 等于原值）。因此默认 `{ intensity: 100, curve: 1 }` 与原实现直接用原始柱高完全一致。
 
 **为什么 `bars` 而不是原始帧**：抽取、降噪、左右声道镜像属于数据加工，放在 core 纯函数里由使用方调用（§3）。组件只消费最终柱高，和 Clock 只消费 `now` 是同一个模式。
 
@@ -79,7 +79,8 @@
 | `DEFAULT_SPECTRUM_COLOR = '#a8c4ff'` | 回退色，与 `--wallkit-accent` 一致 |
 | `SPECTRUM_INTENSITY_MIN/MAX/DEFAULT` | 响应强度百分比边界（0 / 1000 / 100） |
 | `SPECTRUM_CURVE_MIN/MAX/DEFAULT` | 响应曲线指数边界（0.2 / 2 / 1） |
-| `shapeSpectrumLevel(level, { intensity, curve })` | 对单根柱应用响应强度与曲线，结果钳到 0..1；默认值下等于原值 |
+| `isHexColor(value)` | 校验 `#rrggbb` 字符串 |
+| `shapeSpectrumLevel(level, { intensity, curve })` | 对单根柱应用响应强度（倍数）与曲线，结果钳到 0..1；默认 `{ intensity: 1, curve: 1 }` 等于原值 |
 | `spectrumGradientStops(hex)` | `#rrggbb` → `{ top, bottom }` 渐变停靠点；非法输入返回 `null` |
 | `extractSpectrumBars(frame, out?)` | 原始 128 帧 → 128 柱（降噪 + 左右声道镜像），不可用返回 `null` |
 | `resampleBars(bars, count?, out?)` | 把柱数组折叠成 `count` 根（相邻求平均，顺序保持），用于调整绘制密度；不可用返回 `null` |
@@ -152,8 +153,8 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 - **renderer 归属**：暂放 `src/components/spectrum/renderers.js`，组件内部模块，不导出。P3 的 `MiniSpectrum` / `AlbumArt` 若要复用 `drawBars`，届时再抽共享模块（**不提前抽象**）。
 - **state bag**：`ripples` 需要跨帧保留涟漪数组，由组件持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
 - **自转速度**：`ring` / `ringwave` 共用 `RING_SPIN`。`variant` 不再进入绘制循环的依赖，切换时在循环内换 renderer 与 state，`elapsed` 保留，因此相位**确实**连续。
-- **渐变**：柱子用 `createLinearGradient`，环用 `createRadialGradient`；每帧每柱单独建渐变是浪费，按原实现复用。
-- **响应整形**：绘制前对每根柱调用 `shapeSpectrumLevel(level, { intensity, curve })`，再由 `smoothAudioLevel` 平滑。
+- **渐变**：柱子用 `createLinearGradient`，环用 `createRadialGradient`；每帧每柱单独建渐变是浪费，按原实现复用（`pill` 例外，实色填充，见 §12）。
+- **响应整形**：绘制前对每根柱调用 `shapeSpectrumLevel(level, shape)`（`shape` = `intensity` 百分比换算出的倍数 + `curve`），再由 `smoothAudioLevel` 平滑。
 
 ---
 
@@ -181,8 +182,9 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 
 ## 7. 颜色与主题
 
-- `color` 省略时，从渲染元素上读 `--wallkit-accent`（`getComputedStyle`），失败回退 `DEFAULT_SPECTRUM_COLOR`。
+- `colorHex` 省略时，从渲染元素上读 `--wallkit-accent`（`getComputedStyle`），失败回退 `DEFAULT_SPECTRUM_COLOR`。
 - 传入 `#rrggbb` 时经 `spectrumGradientStops()` 转成上下两个停靠点；非法值同样回退默认色，绝不画空。
+- `pill` 不用停靠点：直接以解析后的 `#rrggbb` 实色填充（唯一不建渐变的样式）。
 - 颜色变化经 ref 送进循环，不重建动画（沿用原实现）。
 - CSS 变量全部 `--wallkit-spectrum-*` 前缀；引用共享变量时给回退值。
 

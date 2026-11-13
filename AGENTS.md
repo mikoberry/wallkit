@@ -131,7 +131,7 @@ src/
 - **柱数 = `bars.length`**，组件不自带 `barCount`。要调整柱数，用 core 的 `resampleBars(bars, count)` 折叠后再传入（数据加工归 core）。
 - `visible` 与 `paused` 不同：`visible={false}` 不渲染 DOM；`paused` 保留在屏上但冻结。两者都停止绘制循环。
 - `variant` 是形态（不是 `style`，避免与 DOM `style` 冲突）；`colorHex` 只接受 `#rrggbb`，非法值回退 `--wallkit-accent` → `#a8c4ff`。
-- `intensity`（0–1000，默认 100）/ `curve`（0.2–2，默认 1）经 `shapeSpectrumLevel()` 应用，默认值等于原始柱高。
+- `intensity`（0–1000，默认 100）/ `curve`（0.2–2，默认 1）：组件把 `intensity` 百分比换算成倍数，连同 `curve` 交给 core 的 `shapeSpectrumLevel()`；默认值等于原始柱高。
 - 绘制循环 effect 只依赖 `[visible, hasBars, paused]`；`elapsed` 与 renderer state 存 ref，`variant` 在循环内切换——暂停恢复与切换样式都不重置相位。
 
 ## Conventions
