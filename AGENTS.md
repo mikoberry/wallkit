@@ -40,6 +40,8 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 - 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused）就是排查音频时的第一手信息。
 - 数据层在 `playground/wallpaper-data.js`，它是**消费方那层的示范实现**：`bars` 用一个长期复用的 `Float32Array` 原地改写，控件在自己的绘制循环里读它，因此 60Hz 的音频不需要任何 React 重渲染。P4 的 `wallkit/we` 落地后应当由它取代这个文件，届时测试页只换 import。
 
+`playground/layout.html` 是**几何验证页**，与测试页分开：一屏同时摆三种定位（贴底满宽频谱、距角 100px 的时钟、同心唱片 + 环形频谱），带参考线（`G` 显隐）。数据是合成的，所以不依赖 WE 回调、浏览器里就能看。`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`；要在 WE 里看它，把 `project.json` 的 `"file"` 改成 `layout.html`。
+
 ## Architecture
 
 ### 分层边界（硬约束）

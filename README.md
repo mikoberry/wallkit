@@ -86,8 +86,9 @@ function Controls() {
 // 主题：dark = 深色文字（配浅色壁纸），light = 浅色文字（配深色壁纸）
 <Clock now={now} theme="light" />
 
-// 位置：先选角落，再从该角落向内偏移。0 = 完全贴角
+// 位置：先选锚点，再从锚点向内偏移。0 = 完全贴角；偏移可以是 CSS 长度
 <Clock now={now} anchor="top-right" offsetX={4} offsetY={4} />
+<Clock now={now} anchor="top-left" offsetX="100px" offsetY="100px" />
 <Clock now={now} anchor="bottom-left" size={120} />   // 默认锚点
 
 // 指针倾斜：false 关闭，或传对象调强度
@@ -106,8 +107,8 @@ function Controls() {
 | `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
 | `use24Hour` | `true` | 12 / 24 小时制 |
 | `size` | `100` | 尺寸百分比，40–200 |
-| `anchor` | `'bottom-left'` | 贴哪个角落：`top-left` / `top-right` / `bottom-left` / `bottom-right` |
-| `offsetX` / `offsetY` | `0` | 从锚点角落**向内**的视口百分比，0 完全贴角 |
+| `anchor` | `'bottom-left'` | 贴哪个锚点：四角 + 四边中点 + 居中，共 9 个，见下方「锚点与偏移」 |
+| `offsetX` / `offsetY` | `0` | 从锚点**向内**的偏移。数字 = 视口百分比，字符串 = 任意 CSS 长度（`'100px'`）。0 完全贴边 |
 | `beat` | `0` | 音频节拍 0..1，由使用方算好传入。组件按帧缓动它，直接把原始值喂进来即可 |
 | `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
 | `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
@@ -115,7 +116,29 @@ function Controls() {
 | `labels` | `{}` | `{ locale, weekday, dateWithWeekday, aria }`，见上文 |
 | `onToggleHourFormat` | — | 可选回调，参数为 `'12'` 或 `'24'` |
 
-**关于 `anchor` 与偏移**：三个浮动控件（`Clock` / `Spectrum` / `AlbumArt`）用同一套定位。`anchor` 选角落，`offsetX` / `offsetY` 是**从该角落向内**的视口百分比，所以 `0` 永远等于“完全贴角”，把控件从左下换到右下不需要改偏移量的正负。`offset` 支持负值，用于有意让控件出血到屏幕外。`ANCHORS` 从 `wallkit/core` 导出，可直接拿来生成四角选择器。
+**锚点与偏移**：三个浮动控件（`Clock` / `Spectrum` / `AlbumArt`）用同一套定位。`anchor` 描述**两个点重合**：视口上的一个点，和控件上的同名点。`top-left` 把控件左上角钉在视口左上角；`center-left` 把控件左中点钉在视口左中点；`center` 让两个中心重合——所以两个不同尺寸的控件写同一个 `anchor` + 同一个 `offsetX` 就必然同心。
+
+```
+top-left    top-center    top-right
+center-left    center     center-right
+bottom-left bottom-center bottom-right
+```
+
+`offsetX` / `offsetY` 从锚点向内计：数字是视口百分比，字符串是任意 CSS 长度（`'100px'`）。所以 `0` 永远等于“完全贴边”，把控件从左边换到右边不需要改偏移量的正负。居中轴上偏移是**带符号的位移**（正 = 右 / 下），这是唯一会用负值的方向；`offset` 一律支持负值，用于有意让控件出血到屏幕外。`ANCHORS` 从 `wallkit/core` 导出，按行排列，可直接拿来生成 3×3 选择器。
+
+这套组合能表达三种常用几何：
+
+```jsx
+// 贴底满宽：宽度交给视口，厚度固定
+<Spectrum bars={bars} anchor="bottom-center" width="100vw" height="14vh" />
+
+// 距角固定像素：偏移量用 CSS 长度
+<Clock now={now} anchor="top-left" offsetX="100px" offsetY="100px" />
+
+// 同心：两个控件钉在同一个点，尺寸各写各的绝对长度
+<AlbumArt track={track} variant="vinyl" anchor="center" offsetX={-30} size="34vh" />
+<Spectrum bars={bars} variant="ring" anchor="center" offsetX={-30} width="46vh" height="46vh" />
+```
 
 ### Spectrum
 
@@ -135,9 +158,10 @@ const bars = frame ? extractSpectrumBars(frame) : null
 | `visible` | `true` | `false` 不渲染 DOM，也不启动绘制循环 |
 | `variant` | `'bars'` | `bars` / `mirror` / `curve` / `pill` / `ring` / `ringwave` / `dots` / `ripples` / `aurora` |
 | `colorHex` | — | 只接受 `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
-| `size` | `100` | 20–500。100 = 正常大小（条状基准 `30vw × 15vh`） |
-| `anchor` | `'bottom-left'` | 同 Clock，四个角落 |
-| `offsetX` / `offsetY` | `0` | 从锚点角落向内，0 完全贴角 |
+| `size` | `100` | 20–500。100 = 正常大小（条状基准 `30vw × 15vh`）。两轴同比缩放 |
+| `width` / `height` | — | 精确覆盖盒子尺寸，优先于 `size` 与各 variant 的规则。数字 = px，字符串 = 任意 CSS 长度。要“贴边满宽、厚度固定”就两个都给 |
+| `anchor` | `'bottom-left'` | 同 Clock，9 个锚点 |
+| `offsetX` / `offsetY` | `0` | 从锚点向内，0 完全贴边；可传 CSS 长度 |
 | `intensity` | `100` | 0–1000。100 = 原始柱高 |
 | `curve` | `1` | 0.2–2。响应曲线指数 |
 | `paused` | `false` | `true` 冻结画面（取消 rAF），保留控件在屏上 |
@@ -190,9 +214,9 @@ import { AlbumArt } from 'wallkit/components/album-art'
 | `variant` | `'classic'` | 6 种布局；`vinyl` 无频谱。列表见 `ALBUM_ART_VARIANTS` |
 | `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把默认 accent 压暗 |
 | `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
-| `size` | `100` | 20–300（`ALBUM_ART_SIZE_MIN/MAX`）。100 = 正常大小（封面直径基准 `18vh`） |
-| `anchor` | `'bottom-left'` | 同 Clock / Spectrum，四个角落 |
-| `offsetX` / `offsetY` | `0` | 从锚点角落向内，0 完全贴角 |
+| `size` | `100` | 数字：20–300（`ALBUM_ART_SIZE_MIN/MAX`），100 = 正常大小（封面直径基准 `18vh`）。字符串：封面直径的绝对长度（`'34vh'`），整张卡片都由它派生 |
+| `anchor` | `'bottom-left'` | 同 Clock / Spectrum，9 个锚点 |
+| `offsetX` / `offsetY` | `0` | 从锚点向内，0 完全贴边；可传 CSS 长度 |
 | `paused` | `false` | 停转封面并冻结频谱 |
 | `labels` | `{}` | `{ aria, coverAlt }`。`coverAlt` 原样使用（传 `''` 表示装饰图），否则回退到曲名、专辑名 |
 
@@ -296,6 +320,15 @@ npm run dev                    # 浏览器预览 http://localhost:5174/wallpaper
 npm run build:wallpaper        # 产出 dist-wallpaper/，含 project.json
 npm run deploy:wallpaper       # 构建并直接同步到 WE 项目目录
 ```
+
+同一份构建里还有第二个页面 **`layout.html`**（几何验证页）：它同时展示「贴底满宽频谱」「距角 100px 的时钟」「同心唱片 + 环形频谱」三种定位，带参考线（`G` 显隐）和锚点十字。数据是合成的，所以浏览器里就能看，不依赖 WE 回调：
+
+```bash
+cd playground
+npm run dev                    # http://localhost:5174/layout.html
+```
+
+`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`。想在 WE 里看这一页，把项目里 `project.json` 的 `"file"` 改成 `"layout.html"`。
 
 `deploy:wallpaper` 默认同步到 `F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\wallpaper`，换机器时用环境变量覆盖：
 

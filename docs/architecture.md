@@ -199,7 +199,8 @@ wallkit/
 │   │   ├── storage.js        # createStore(namespace)
 │   │   ├── clock.js          # 时间格式化、倾斜、缓动、进度 / 周数
 │   │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、重采样、整形）
-│   │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
+│   │   ├── anchor.js         # 锚点：ANCHORS / anchorStyle / anchorOrigin
+│   │   ├── length.js         # toLength：数字与 CSS 长度的统一归一
 │   │   └── types.js          # JSDoc 类型约定（无运行时导出）
 │   ├── components/
 │   │   ├── index.js          # 便利 barrel
@@ -271,19 +272,22 @@ wallkit/
  */
 ```
 
-**定位不走 `Placement` 对象，但支持四角锚点。** 所有浮层控件用同样的四个平铺 prop：
+**定位不走 `Placement` 对象，但支持 9 个锚点。** 所有浮层控件用同样的平铺 prop：
 
 | prop | 含义 |
 |---|---|
-| `anchor` | `top-left` / `top-right` / `bottom-left`（默认）/ `bottom-right` |
-| `offsetX` / `offsetY` | 从锚点角落**向内**的视口百分比，0 = 完全贴角 |
-| `size` | 整体缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300） |
+| `anchor` | 四角 + 四边中点 + `center`，共 9 个，默认 `bottom-left` |
+| `offsetX` / `offsetY` | 从锚点**向内**的偏移。数字 = 视口百分比，字符串 = 任意 CSS 长度（`'100px'`），0 = 完全贴边 |
+| `size` | 基准缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300）。`AlbumArt` 还接受 CSS 长度字符串，含义是封面直径 |
+| `width` / `height` | 仅 `Spectrum`：精确覆盖盒子尺寸，优先于 `size` 与各 variant 规则 |
 
-早前设想的 `{ anchor, offsetX, offsetY, scale }` 对象形态仍然不采用——四个平铺 prop 更短，也不需要调用方构造对象。但 `anchor` 本身在 P3 之后补上了：一块壁纸里同时挂时钟、频谱、专辑卡时，全部挤在左下角不现实。
+早前设想的 `{ anchor, offsetX, offsetY, scale }` 对象形态仍然不采用——平铺 prop 更短，也不需要调用方构造对象。但 `anchor` 本身在 P3 之后补上了：一块壁纸里同时挂时钟、频谱、专辑卡时，全部挤在左下角不现实。
 
-**偏移只向内**，这是为了不出现符号翻转：`offsetX` 在 `left` 锚点时写 `left`，在 `right` 锚点时写 `right`，两者都是“距该边的距离”，所以 `0` 在四个角落都等于“贴角”，把一个控件从左下搬到右下只改 `anchor`，不动数字。
+**锚点描述的是“两个点重合”**：视口上的一个点，与控件上的同名点。`top-left` = 左上角对左上角，`center-left` = 左中点对左中点，`center` = 中心对中心。后两者让“两个不同尺寸的控件共享同一个圆心”变成纯声明式的写法，不必去猜尺寸的一半。
 
-实现只写两个 CSS inset（一个水平 + 一个垂直）。写四个会把盒子拉伸到四条边之间。`anchorOrigin()` 另外给 `Clock` 提供 `transform-origin`，让 `top-*` 锚点的 beat 放大向下生长而不是冲出屏幕。细节见 [spectrum-design.md](./spectrum-design.md) §4。
+**偏移只向内**，这是为了不出现符号翻转：`offsetX` 在 `left` 锚点时写 `left`，在 `right` 锚点时写 `right`，两者都是“距该边的距离”，所以 `0` 在所有边锚点都等于“贴边”，把一个控件从左下搬到右下只改 `anchor`，不动数字。居中轴例外——它是带符号的位移（正 = 右 / 下），因为“向内”在中心没有意义。
+
+实现上，角锚点仍然只写两个 CSS inset（一个水平 + 一个垂直）；写四个会把盒子拉伸到四条边之间。只有居中轴额外加一条 `translate(-50%, …)`，把盒子拉回半个自身尺寸。`anchorOrigin()` 另外给 `Clock` 提供 `transform-origin`，让 `top-*` 锚点的 beat 放大向下生长而不是冲出屏幕，`center` 锚点则从中心对称放大。细节见 [spectrum-design.md](./spectrum-design.md) §4。
 
 ### 5.3 组件清单
 

@@ -33,8 +33,9 @@
   variant="bars"              // 9 种样式之一
   colorHex={undefined}        // 省略时读 --wallkit-accent
   size={100}                  // 尺寸百分比，100 = 正常大小
-  anchor="bottom-left"        // 四个视口角落之一
-  offsetX={0} offsetY={0}     // 从锚点向内，0 = 贴角（同 Clock）
+  width={undefined} height={undefined}  // 精确盒子尺寸，覆盖 size
+  anchor="bottom-left"        // 9 个锚点之一
+  offsetX={0} offsetY={0}     // 从锚点向内，0 = 贴边（同 Clock）
   intensity={100} curve={1}   // 响应强度 / 响应曲线
   paused={false}
 />
@@ -46,10 +47,11 @@
 | `visible` | `true` | — | `false` 时不渲染 DOM，也不启动循环 |
 | `variant` | `'bars'` | 见 §5 | 无效值回退 `bars` |
 | `colorHex` | `undefined` | `#rrggbb` | 省略时从 `--wallkit-accent` 解析，失败回退 `#a8c4ff` |
-| `size` | `100` | 20–500 | 整体缩放百分比，**100 = 正常控件大小**（见 §4） |
-| `anchor` | `'bottom-left'` | 四个视口角落之一 | 非法值回退 `bottom-left` |
-| `offsetX` | `0` | 不限 | 从锚点水平向内，负值可出血到屏幕外 |
-| `offsetY` | `0` | 不限 | 从锚点垂直向内 |
+| `size` | `100` | 20–500 | 两轴同比缩放，**100 = 正常控件大小**（见 §4）。要特定形状用 `width` / `height` |
+| `width` / `height` | — | 数字 = px，字符串 = CSS 长度 | 精确盒子尺寸，内联样式因此优先于 `size` 与各 variant 的规则。贴边满宽 = `width="100vw" height="14vh"` |
+| `anchor` | `'bottom-left'` | 9 个锚点之一 | 非法值回退 `bottom-left` |
+| `offsetX` | `0` | 不限 | 从锚点水平向内，负值可出血到屏幕外；可传 CSS 长度（`'100px'`） |
+| `offsetY` | `0` | 不限 | 从锚点垂直向内，规则同上 |
 | `intensity` | `100` | 0–1000 | 响应强度百分比。100 = 原始柱高，>100 抬升弱信号，0 = 压平 |
 | `curve` | `1` | 0.2–2 | 响应曲线指数。<1 抬升安静段（更敏感），>1 收紧成尖峰，1 = 线性 |
 | `paused` | `false` | — | `true` 时冻结画面（见 §6） |
@@ -101,18 +103,20 @@
 与 Clock 完全一致，便于同一壁纸里两块控件用同一套坐标心智：
 
 ```
-anchor：贴哪个视口角落（top-left / top-right / bottom-left / bottom-right），默认 bottom-left
-offsetX / offsetY：从锚点角落向内的视口百分比，0 = 完全贴角
-size：整体缩放百分比，100 = 正常大小
+anchor：视口上的点与控件上的同名点重合（四角 + 四边中点 + center，共 9 个），默认 bottom-left
+offsetX / offsetY：从锚点向内，数字 = 视口百分比（0 = 完全贴边），字符串 = 任意 CSS 长度
+size：两轴同比缩放百分比，100 = 正常大小；width / height 可直接给盒子尺寸
 ```
 
-偏移**只向内**，所以从左下换到右下不需要翻转符号：`anchor` 换边后，同一个 `offsetX` 表示“距右边多远”。
+偏移**只向内**，所以从左下换到右下不需要翻转符号：`anchor` 换边后，同一个 `offsetX` 表示“距右边多远”。居中轴上偏移是带符号的位移（正 = 右 / 下）。
 
-DOM 结构（定位由 `core/anchor.js` 的 `anchorStyle()` 生成，只写两个 inset）：
+`width` / `height` 是对 `size` 的补充而不是替代：条状样式本来就是“一个宽高独立的盒子”，贴满底边需要的是 `100vw × 14vh` 这种写法，而单一缩放无法表达（乘宽度时高度跟着变）。径向样式则相反，`size` 与 `width/height` 都归结为同一个正方形。
+
+DOM 结构（定位由 `core/anchor.js` 的 `anchorStyle()` 生成，角锚点只写两个 inset，居中轴额外加一条 `translate`）：
 
 ```jsx
 <div className="wallkit-spectrum__anchor" style={anchorStyle(anchor, offsetX, offsetY)}>
-  <div className={`wallkit-spectrum wallkit-spectrum--variant-${variant}`} style={{ '--wallkit-spectrum-scale': size/100 }}>
+  <div className={`wallkit-spectrum wallkit-spectrum--variant-${variant}`} style={boxStyle}>
     <canvas className="wallkit-spectrum__canvas" />
   </div>
 </div>
