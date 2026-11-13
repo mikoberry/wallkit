@@ -3,7 +3,7 @@
 export { default as Spectrum } from './Spectrum.jsx'
 export { default } from './Spectrum.jsx'
 export { SPECTRUM_SIZE_MIN, SPECTRUM_SIZE_MAX } from './Spectrum.jsx'
-export { SPECTRUM_STYLES } from './renderers.js'
+export { SPECTRUM_STYLES } from '../shared/renderers.js'
 export {
   SPECTRUM_INTENSITY_MIN,
   SPECTRUM_INTENSITY_MAX,

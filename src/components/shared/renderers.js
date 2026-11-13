@@ -505,3 +505,21 @@ export const SPECTRUM_STYLES = [
 export function createRendererState(style) {
   return style === 'ripples' ? createRippleState() : {}
 }
+
+// The renderer for each style, in one table so a draw loop never has to branch
+// on a string every frame. Styles that need the state bag or the frame metadata
+// (time, bass) take the trailing arguments; the flat ones ignore them.
+export const SPECTRUM_RENDERERS = {
+  bars: (ctx, levels, w, h, color) => drawBars(ctx, levels, w, h, color),
+  mirror: (ctx, levels, w, h, color) => drawMirror(ctx, levels, w, h, color),
+  curve: (ctx, levels, w, h, color) => drawCurve(ctx, levels, w, h, color),
+  pill: (ctx, levels, w, h, color) => drawPill(ctx, levels, w, h, color),
+  ring: (ctx, levels, w, h, color, state, meta) => drawRing(ctx, levels, w, h, color, meta),
+  ringwave: (ctx, levels, w, h, color, state, meta) =>
+    drawRingWave(ctx, levels, w, h, color, meta),
+  dots: (ctx, levels, w, h, color) => drawDots(ctx, levels, w, h, color),
+  ripples: (ctx, levels, w, h, color, state, meta) =>
+    drawRipples(ctx, levels, w, h, color, state, meta),
+  aurora: (ctx, levels, w, h, color, state, meta) =>
+    drawAurora(ctx, levels, w, h, color, state, meta),
+}
