@@ -87,6 +87,7 @@ function ClockCard({ placement, index, view }) {
           offsetY={view.offsetY}
           beat={view.beat}
           beatIntensity={view.beatIntensity}
+          beatCurve={view.beatCurve}
           tilt={view.tilt}
           visible={view.visible}
           labels={labelsFor(view.now, view.locale)}
@@ -149,6 +150,10 @@ function App() {
   const [beatOn, setBeatOn] = useState(false)
   const [beat, setBeat] = useState(0)
   const [beatIntensity, setBeatIntensity] = useState(100)
+  const [beatCurve, setBeatCurve] = useState(0.62)
+  // Tempo of the synthetic waveform. 120 BPM is a typical pop tempo; the
+  // 2.6 s cycle the demo originally used worked out to roughly 46 BPM.
+  const [bpm, setBpm] = useState(120)
 
   // Appearance.
   const [theme, setTheme] = useState('dark')
@@ -171,6 +176,11 @@ function App() {
   // A synthetic beat drives the audio-reactive path so the swell and glow can
   // be inspected without a Wallpaper Engine audio source. The library itself
   // never synthesises data: the demo does, and only here.
+  //
+  // The shape is a decaying envelope rather than a sine: real audio arrives as
+  // distinct hits, and a sine reads as slow breathing even at a dance tempo.
+  // `beatsPerBar` of 1 keeps it simple; the exponent controls how sharply each
+  // hit decays.
   useEffect(() => {
     if (!beatOn) {
       setBeat(0)
@@ -178,15 +188,18 @@ function App() {
     }
     let frame = 0
     const started = performance.now()
+    const fullBeatMs = 60000 / bpm
     const tick = (t) => {
-      const elapsed = (t - started) / 1000
-      const wobble = 0.5 + 0.5 * Math.sin(elapsed * 2.4)
-      setBeat(Math.pow(wobble, 2))
+      const elapsed = t - started
+      // Position within the current beat, 0..1.
+      const phase = (elapsed % fullBeatMs) / fullBeatMs
+      // Sharp attack, quick decay: full at the hit, near zero by the next one.
+      setBeat(Math.pow(1 - phase, 2.5))
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [beatOn])
+  }, [beatOn, bpm])
 
   // Clicking a clock flips the hour format, exactly what a wallpaper would wire
   // its `onToggleHourFormat` callback to.
@@ -202,12 +215,13 @@ function App() {
       offsetY,
       beat,
       beatIntensity,
+      beatCurve,
       tilt: tiltOn ? { maxTilt, speed: tiltSpeed } : false,
       visible,
       locale,
       onToggleHourFormat,
     }),
-    [now, theme, use24Hour, size, offsetX, offsetY, beat, beatIntensity, tiltOn, maxTilt, tiltSpeed, visible, locale],
+    [now, theme, use24Hour, size, offsetX, offsetY, beat, beatIntensity, beatCurve, tiltOn, maxTilt, tiltSpeed, visible, locale],
   )
 
   return (
@@ -328,6 +342,15 @@ function App() {
 
         <Row title="音频 beat">
           <Slider
+            label="节奏 BPM"
+            value={bpm}
+            min={40}
+            max={200}
+            step={2}
+            disabled={!beatOn}
+            onChange={setBpm}
+          />
+          <Slider
             label="响应强度 beatIntensity"
             value={beatIntensity}
             min={0}
@@ -336,6 +359,15 @@ function App() {
             suffix="%"
             disabled={!beatOn}
             onChange={setBeatIntensity}
+          />
+          <Slider
+            label="响应曲线 beatCurve"
+            value={beatCurve}
+            min={0.2}
+            max={2}
+            step={0.02}
+            disabled={!beatOn}
+            onChange={setBeatCurve}
           />
           <span className="ctl ctl--note">
             当前 beat <b>{beat.toFixed(2)}</b>
@@ -362,6 +394,7 @@ function App() {
               offsetY={offsetY}
               beat={beat}
               beatIntensity={beatIntensity}
+              beatCurve={beatCurve}
               tilt={tiltOn ? { maxTilt, speed: tiltSpeed } : false}
               visible={visible}
               labels={labelsFor(now, locale)}
@@ -382,6 +415,7 @@ function App() {
               offsetY={offsetY}
               beat={beat}
               beatIntensity={beatIntensity}
+              beatCurve={beatCurve}
               tilt={tiltOn ? { maxTilt, speed: tiltSpeed } : false}
               visible={visible}
               labels={labelsFor(now, locale)}

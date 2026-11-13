@@ -24,10 +24,19 @@ const BEAT_SCALE = 0.34
 // gradient: a larger factor saturates by mid volume and the halo stops
 // responding exactly when the music gets loud.
 const BEAT_GLOW = 1
+
+// Default response curve for the beat level.
+//
 // Bass drives the response less than linearly: real music rarely pushes the
 // low bands past half scale, so lifting the curve keeps ordinary levels inside
 // the visible part of the range while true peaks still read as full strength.
-const BEAT_CURVE = 0.62
+//
+// The exponent is exposed as the `beatCurve` prop. Raising it sharpens the
+// response into distinct hits; lowering it flattens the motion into a steady
+// swell that barely reacts to individual beats.
+const BEAT_CURVE_DEFAULT = 0.62
+const BEAT_CURVE_MIN = 0.2
+const BEAT_CURVE_MAX = 2
 
 function viewportBounds() {
   return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
@@ -98,6 +107,9 @@ function normalizeTilt(tilt) {
  * @param {number} [props.offsetY=0]            Vertical offset, viewport percentage.
  * @param {number} [props.beat]                 Audio beat level 0..1, when reactive.
  * @param {number} [props.beatIntensity=100]    How strongly `beat` scales the card.
+ * @param {number} [props.beatCurve=0.62]       Response curve exponent for `beat`
+ *   (clamped to 0.2..2). Lower lifts quiet levels into a steady swell; higher
+ *   sharpens the swing into distinct hits.
  * @param {boolean|Object} [props.tilt=true]    Follow the pointer with a 3D tilt.
  *   `false` disables it. Pass an object to tune it:
  *   `{ maxTilt?: number, speed?: number }`, where `maxTilt` is the angle in
@@ -121,6 +133,7 @@ export default function Clock({
   offsetY = 0,
   beat = 0,
   beatIntensity = 100,
+  beatCurve = BEAT_CURVE_DEFAULT,
   tilt = true,
   labels = {},
   onToggleHourFormat,
@@ -237,8 +250,12 @@ export default function Clock({
     clamp(Number(beatIntensity) || 0, CLOCK_BEAT_INTENSITY_MIN, CLOCK_BEAT_INTENSITY_MAX) / 100
 
   // Lift ordinary bass levels into the visible part of the range (see
-  // BEAT_CURVE). Clamped so a stray frame above 1 cannot overshoot.
-  const response = clamp(Number(beat) || 0, 0, 1) ** BEAT_CURVE
+  // BEAT_CURVE_DEFAULT). `beat` is clamped before the exponent so a stray frame
+  // above 1 cannot overshoot and a negative value cannot invert the curve.
+  const curve = Number.isFinite(beatCurve)
+    ? clamp(beatCurve, BEAT_CURVE_MIN, BEAT_CURVE_MAX)
+    : BEAT_CURVE_DEFAULT
+  const response = clamp(Number(beat) || 0, 0, 1) ** curve
 
   // The glow is multiplied into a spread radius and an alpha. Keep it at or
   // below 1 so the alpha term never saturates: past 1 the halo stops gaining

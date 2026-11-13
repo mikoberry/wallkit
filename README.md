@@ -78,6 +78,9 @@ function Controls() {
 // 指针倾斜：false 关闭，或传对象调强度
 <Clock now={now} tilt={false} />
 <Clock now={now} tilt={{ maxTilt: 25, speed: 4 }} />
+
+// 音频响应：beat 是使用方算好的 0..1 数值
+<Clock now={now} beat={bass} beatIntensity={150} beatCurve={1.2} />
 ```
 
 | 选项 | 默认 | 说明 |
@@ -85,6 +88,8 @@ function Controls() {
 | `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节 |
 | `maxTilt` | `14` | 鼠标到窗口边缘时的最大倾角（度），0–45 |
 | `speed` | `8` | 跟手快慢，越大越跟手，0.5–30 |
+| `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
+| `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
 | `theme` | `'dark'` | 文字色，需与壁纸底色相配 |
 | `size` | `100` | 尺寸百分比，40–200 |
 

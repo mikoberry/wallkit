@@ -89,7 +89,7 @@ src/
   placement="card"             // card | bar | minimal | cyberpunk | infobar | split | poster
   theme="dark"                 // dark = 深色文字（用于浅色壁纸）
   use24Hour size offsetX offsetY
-  beat beatIntensity           // 音频响应走 prop
+  beat beatIntensity beatCurve  // 音频响应走 prop
   tilt                         // 见下方
   onToggleHourFormat           // 可选回调，参数为 '12' | '24'
 />
@@ -97,7 +97,7 @@ src/
 
 - `now` **必须由使用方传入**。轮询属于数据层，WE 暂停时要能停止。
 - `labels` 是**字符串对象**，不是函数。格式化逻辑在使用方（它有语言包）。
-- `beat` 由使用方计算传入，组件不读音频。
+- `beat` 由使用方计算传入，组件不读音频。`beatCurve`（默认 0.62，钳制 0.2–2）是响应曲线指数：越小越平坦饱和，越大越尖锐；它与 `beatIntensity` 同属渲染参数，一起暴露。
 - `tilt` 接受三种形态，由 `normalizeTilt()` 归一化：
   - `false` — 关闭跟随
   - `true` / 不传 — 默认 14° / 8
