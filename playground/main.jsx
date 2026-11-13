@@ -60,7 +60,7 @@ function sizeFor(placement, size) {
   return WIDE_LAYOUTS.has(placement) ? Math.min(size, WIDE_LAYOUT_SIZE) : size
 }
 
-function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100 }) {
+function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100, tilt }) {
   return (
     <figure className="cell">
       <div className={`stage stage--${title % 2 === 0 ? 'a' : 'b'}`}>
@@ -70,6 +70,7 @@ function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100 }) {
           theme={theme}
           size={sizeFor(placement, size)}
           beat={beat}
+          tilt={tilt}
           offsetX={DEMO_OFFSET_X}
           offsetY={DEMO_OFFSET_Y}
           labels={labelsFor(it.now, 'zh-CN')}
@@ -85,6 +86,10 @@ function App() {
   const [beatOn, setBeatOn] = useState(false)
   const [beat, setBeat] = useState(0)
   const [theme, setTheme] = useState('dark')
+  const [tiltOn, setTiltOn] = useState(true)
+  // Start from the library defaults so the first render matches a bare <Clock />.
+  const [maxTilt, setMaxTilt] = useState(14)
+  const [tiltSpeed, setTiltSpeed] = useState(8)
   // 100% is the real wallpaper default. The cell is sized large enough to hold
   // the full type scale at that setting, so the demo shows the widget as it
   // actually ships rather than a shrunken approximation.
@@ -114,6 +119,10 @@ function App() {
 
   const it = useMemo(() => ({ now }), [now])
 
+  // `tilt` accepts false, true, or a settings object. The demo passes the
+  // object form so both dials can be felt; the library defaults to 14° / 8.
+  const tilt = tiltOn ? { maxTilt, speed: tiltSpeed } : false
+
   return (
     <div className="page">
       <header className="bar">
@@ -124,6 +133,9 @@ function App() {
           </button>
           <button type="button" onClick={() => setBeatOn((v) => !v)}>
             {beatOn ? '关闭节拍' : '模拟节拍'}
+          </button>
+          <button type="button" onClick={() => setTiltOn((v) => !v)}>
+            {tiltOn ? '关闭倾斜' : '开启倾斜'}
           </button>
           <label>
             主题
@@ -143,12 +155,38 @@ function App() {
               onChange={(e) => setSize(Number(e.target.value))}
             />
           </label>
+          <label title="鼠标移到窗口边缘时的最大倾斜角度">
+            最大倾角 {maxTilt}°
+            <input
+              type="range"
+              min="0"
+              max="45"
+              step="1"
+              value={maxTilt}
+              disabled={!tiltOn}
+              onChange={(e) => setMaxTilt(Number(e.target.value))}
+            />
+          </label>
+          <label title="越大越跟手，越小越柔和">
+            跟手速度 {tiltSpeed}
+            <input
+              type="range"
+              min="1"
+              max="20"
+              step="1"
+              value={tiltSpeed}
+              disabled={!tiltOn}
+              onChange={(e) => setTiltSpeed(Number(e.target.value))}
+            />
+          </label>
         </div>
       </header>
 
       <p className="hint">
         时钟是纯展示组件：时间由本页驱动，指针倾斜跟随鼠标。节拍数据由本页合成——库本身不会
         生成假数据。每格背景左右交替，用来检查深浅两种壁纸底下的可读性。
+        倾斜可在右上角调整：<code>maxTilt</code> 是窗口边缘处的最大角度，
+        <code>speed</code> 是跟手快慢（库默认 14° / 8）。
       </p>
 
       <section className="grid">
@@ -161,6 +199,7 @@ function App() {
             beat={beat}
             theme={theme}
             size={size}
+            tilt={tilt}
           />
         ))}
       </section>
@@ -174,6 +213,7 @@ function App() {
               theme={theme}
               size={size}
               beat={beat}
+              tilt={tilt}
               offsetX={DEMO_OFFSET_X}
               offsetY={DEMO_OFFSET_Y}
               labels={labelsFor(now, 'zh-CN')}
@@ -190,6 +230,7 @@ function App() {
               use24Hour={false}
               size={size}
               beat={beat}
+              tilt={tilt}
               offsetX={DEMO_OFFSET_X}
               offsetY={DEMO_OFFSET_Y}
               labels={labelsFor(now, 'zh-CN')}

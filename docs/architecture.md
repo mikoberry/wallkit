@@ -334,6 +334,31 @@ useEffect(() => {
 - 字符串是纯数据，更符合「只接收纯数据」的原则。
 - 传函数会让组件承担调用时机与缓存的责任，增加不必要的耦合。
 
+#### Clock：指针倾斜可配置
+
+`tilt` 接受布尔或配置对象，由 `normalizeTilt()` 归一化：
+
+```jsx
+<Clock now={now} tilt={false} />                       // 关闭
+<Clock now={now} />                                    // 默认 14° / 8
+<Clock now={now} tilt={{ maxTilt: 25 }} />             // 更大的倾角
+<Clock now={now} tilt={{ maxTilt: 8, speed: 4 }} />    // 轻微、更慢
+```
+
+| 字段 | 默认 | 范围 | 含义 |
+|---|---|---|---|
+| `maxTilt` | 14 | 0–45 | 鼠标位于窗口边缘时的最大倾角（度） |
+| `speed` | 8 | 0.5–30 | 每秒追上目标的速度，越大越跟手 |
+
+设计要点：
+
+- **向后兼容**：`tilt={false}` 与 `tilt`（布尔）行为不变，对象形态是纯增量。
+- **`maxTilt: 0` 等同关闭**：此时不启动 rAF 循环，避免跑一个永远不动的动画。
+- **钳制上下限**：`maxTilt` 超过 45 度会让卡片翻向观察者之外；`speed` 过小接近冻结，过大则失去缓动效果。
+- **尊重 `prefers-reduced-motion`**：系统要求减弱动效时直接不跟随，不看配置值。
+
+底层 `computeClockTilt(point, bounds, { maxTilt })` 本身已支持该参数，组件只是把它透出。
+
 #### Spectrum：排在 Clock 之后实现
 
 `Spectrum` **在计划内**，但实现顺序排在 `Clock` 之后：先完成并验证 Clock 的接口设计，再做 Spectrum。

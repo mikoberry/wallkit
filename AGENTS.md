@@ -90,7 +90,7 @@ src/
   theme="dark"                 // dark = 深色文字（用于浅色壁纸）
   use24Hour size offsetX offsetY
   beat beatIntensity           // 音频响应走 prop
-  tilt                         // 指针倾斜开关
+  tilt                         // 见下方
   onToggleHourFormat           // 可选回调，参数为 '12' | '24'
 />
 ```
@@ -98,6 +98,11 @@ src/
 - `now` **必须由使用方传入**。轮询属于数据层，WE 暂停时要能停止。
 - `labels` 是**字符串对象**，不是函数。格式化逻辑在使用方（它有语言包）。
 - `beat` 由使用方计算传入，组件不读音频。
+- `tilt` 接受三种形态，由 `normalizeTilt()` 归一化：
+  - `false` — 关闭跟随
+  - `true` / 不传 — 默认 14° / 8
+  - `{ maxTilt, speed }` — `maxTilt` 是窗口边缘处的最大角度（钳制到 0–45），`speed` 是每秒追上速度（钳制到 0.5–30，越大越跟手）
+  - `maxTilt: 0` 等同于关闭，此时不启动 rAF 循环
 
 ## Conventions
 

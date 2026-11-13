@@ -63,6 +63,31 @@ function Controls() {
 
 数据由使用方构建。没有数据时组件不渲染——**不会用假数据兜底**。
 
+### 常用配置
+
+```jsx
+// 布局：card | bar | minimal | cyberpunk | infobar | split | poster
+<Clock now={now} placement="minimal" />
+
+// 主题：dark = 深色文字（配浅色壁纸），light = 浅色文字（配深色壁纸）
+<Clock now={now} theme="light" />
+
+// 位置：相对左下角的百分比，0 贴边
+<Clock now={now} offsetX={4} offsetY={4} size={120} />
+
+// 指针倾斜：false 关闭，或传对象调强度
+<Clock now={now} tilt={false} />
+<Clock now={now} tilt={{ maxTilt: 25, speed: 4 }} />
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节 |
+| `maxTilt` | `14` | 鼠标到窗口边缘时的最大倾角（度），0–45 |
+| `speed` | `8` | 跟手快慢，越大越跟手，0.5–30 |
+| `theme` | `'dark'` | 文字色，需与壁纸底色相配 |
+| `size` | `100` | 尺寸百分比，40–200 |
+
 ### WE 集成（可选）
 
 若需要拿到真实的音频频谱与媒体信息，安装 Vite 插件自动注入 WE 监听器：

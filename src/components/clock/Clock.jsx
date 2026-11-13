@@ -37,6 +37,47 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
+// Pointer tilt defaults. `maxTilt` is the angle reached at the viewport edge;
+// `speed` is roughly how quickly the card catches up per second.
+const TILT_DEFAULTS = { maxTilt: 14, speed: 8 }
+
+// Bounds that keep a caller-supplied tilt physical: a large maxTilt would flip
+// the card away from the viewer, and an extreme speed would either freeze the
+// motion or remove the easing entirely.
+const TILT_MAX_TILT_MAX = 45
+const TILT_SPEED_MIN = 0.5
+const TILT_SPEED_MAX = 30
+
+/**
+ * Resolve the `tilt` prop into concrete settings.
+ *
+ * Accepts `false` to disable, `true`/undefined for the defaults, or an object
+ * to tune either value independently.
+ *
+ * @param {boolean|{ maxTilt?: number, speed?: number, enabled?: boolean }} [tilt]
+ * @returns {{ enabled: boolean, maxTilt: number, speed: number }}
+ */
+function normalizeTilt(tilt) {
+  if (tilt === false) return { ...TILT_DEFAULTS, enabled: false }
+  if (tilt === true || tilt == null) return { ...TILT_DEFAULTS, enabled: true }
+  if (typeof tilt !== 'object') return { ...TILT_DEFAULTS, enabled: true }
+
+  const maxTilt = Number.isFinite(tilt.maxTilt)
+    ? clamp(tilt.maxTilt, 0, TILT_MAX_TILT_MAX)
+    : TILT_DEFAULTS.maxTilt
+  const speed = Number.isFinite(tilt.speed)
+    ? clamp(tilt.speed, TILT_SPEED_MIN, TILT_SPEED_MAX)
+    : TILT_DEFAULTS.speed
+
+  // A maxTilt of 0 is indistinguishable from "off", so treat it as such
+  // instead of running a rAF loop that can never move.
+  return {
+    enabled: tilt.enabled !== false && maxTilt > 0,
+    maxTilt,
+    speed,
+  }
+}
+
 /**
  * Wallpaper Engine style clock overlay.
  *
@@ -57,7 +98,11 @@ function clamp(value, min, max) {
  * @param {number} [props.offsetY=0]            Vertical offset, viewport percentage.
  * @param {number} [props.beat]                 Audio beat level 0..1, when reactive.
  * @param {number} [props.beatIntensity=100]    How strongly `beat` scales the card.
- * @param {boolean} [props.tilt=true]           Follow the pointer with a 3D tilt.
+ * @param {boolean|Object} [props.tilt=true]    Follow the pointer with a 3D tilt.
+ *   `false` disables it. Pass an object to tune it:
+ *   `{ maxTilt?: number, speed?: number }`, where `maxTilt` is the angle in
+ *   degrees at the viewport edge (default 14) and `speed` is how quickly the
+ *   card catches up per second (default 8; lower is softer, higher is snappier).
  * @param {Object} [props.labels]               Caller-supplied strings.
  * @param {string} [props.labels.locale]        Locale for date/time formatting.
  * @param {string} [props.labels.aria]          Accessible name.
@@ -90,7 +135,8 @@ export default function Clock({
   const frameRef = useRef(0)
   const lastTimeRef = useRef(0)
 
-  const active = visible && tilt
+  const { enabled: tiltEnabled, maxTilt, speed } = normalizeTilt(tilt)
+  const active = visible && tiltEnabled
 
   // Pointer tracking drives the tilt target. It listens on window because the
   // wallpaper's canvas owns the pointer events.
@@ -109,6 +155,7 @@ export default function Clock({
       targetRef.current = computeClockTilt(
         { x: event.clientX, y: event.clientY },
         viewportBounds(),
+        { maxTilt },
       )
     }
 
@@ -125,7 +172,7 @@ export default function Clock({
       window.removeEventListener('pointerleave', handleLeave)
       document.removeEventListener('pointerleave', handleLeave)
     }
-  }, [active])
+  }, [active, maxTilt])
 
   // Ease the rendered tilt toward the target every frame.
   useEffect(() => {
@@ -140,8 +187,8 @@ export default function Clock({
       const current = currentRef.current
       const target = targetRef.current
       const next = {
-        rotateX: smoothStep(current.rotateX, target.rotateX, delta),
-        rotateY: smoothStep(current.rotateY, target.rotateY, delta),
+        rotateX: smoothStep(current.rotateX, target.rotateX, delta, speed),
+        rotateY: smoothStep(current.rotateY, target.rotateY, delta, speed),
       }
 
       // Only re-render when the angle actually moved; a settled card costs
@@ -163,7 +210,7 @@ export default function Clock({
       window.cancelAnimationFrame(frameRef.current)
       frameRef.current = 0
     }
-  }, [active])
+  }, [active, speed])
 
   // Reset the eased state when the overlay is hidden so it reappears flat.
   useEffect(() => {
