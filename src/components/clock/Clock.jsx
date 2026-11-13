@@ -121,11 +121,12 @@ function normalizeTilt(tilt) {
  *   paints its own card reinterprets the theme against that card instead.
  * @param {boolean} [props.use24Hour=true]      24-hour or 12-hour clock.
  * @param {number} [props.size=100]             Size percentage.
- * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
- *   Viewport corner the clock pins to. Invalid values fall back to the default.
- * @param {number} [props.offsetX=0]            Distance from the anchored side,
- *   viewport percentage, growing inward. 0 sits flush against the corner.
- * @param {number} [props.offsetY=0]            Same, vertically.
+ * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport point the clock pins to. Invalid values fall back to the default.
+ * @param {number|string} [props.offsetX=0]     Distance from the anchored side.
+ *   A number is a viewport percentage growing inward; a string is any CSS length
+ *   (`'100px'`). 0 sits flush against the corner.
+ * @param {number|string} [props.offsetY=0]     Same, vertically.
  * @param {number} [props.beat]                 Audio beat level 0..1, when reactive.
  * @param {number} [props.beatIntensity=100]    How strongly `beat` scales the card.
  * @param {number} [props.beatCurve=0.62]       Response curve exponent for `beat`

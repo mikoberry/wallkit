@@ -1,5 +1,6 @@
 import { SPECTRUM_CURVE_DEFAULT, SPECTRUM_INTENSITY_DEFAULT } from '../../core/index.js'
 import { ANCHOR_DEFAULT, anchorStyle } from '../../core/anchor.js'
+import { toLength } from '../../core/length.js'
 import SpectrumCanvas from '../shared/SpectrumCanvas.jsx'
 import { SPECTRUM_STYLES } from '../shared/renderers.js'
 import './Spectrum.css'
@@ -37,12 +38,18 @@ function clamp(value, min, max) {
  *   Visual style. Invalid values fall back to `bars`.
  * @param {string} [props.colorHex]             `#rrggbb`. Defaults to `--wallkit-accent`.
  * @param {number} [props.size=100]             Size percentage. 100 is the normal
- *   widget size; range 20..500.
- * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
- *   Viewport corner to pin to. Invalid values fall back to the default.
- * @param {number} [props.offsetX=0]            Distance from the anchored side,
- *   viewport percentage, growing inward.
- * @param {number} [props.offsetY=0]            Same, vertically.
+ *   widget size; range 20..500. Multiplies the base box in both axes, so it is a
+ *   scale: for a box of a specific shape use `width` / `height` instead.
+ * @param {number|string} [props.width]         Exact box width, overriding both
+ *   the base box and `size`. A number is pixels; a string is any CSS length
+ *   (`'100vw'`, `'46vh'`). Use both axes to span an edge at a fixed thickness.
+ * @param {number|string} [props.height]        Exact box height, same rules.
+ * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport point the widget pins to. Invalid values fall back to the default.
+ * @param {number|string} [props.offsetX=0]     Distance from the anchored side.
+ *   A number is a viewport percentage growing inward; a string is any CSS length
+ *   (`'100px'`).
+ * @param {number|string} [props.offsetY=0]     Same, vertically.
  * @param {number} [props.intensity=100]        Response strength, percent (0..1000).
  *   100 leaves the bars unchanged, higher boosts quiet bands, 0 flattens them.
  * @param {number} [props.curve=1]              Response curve exponent (0.2..2).
@@ -56,6 +63,8 @@ export default function Spectrum({
   variant = 'bars',
   colorHex,
   size = 100,
+  width,
+  height,
   anchor = ANCHOR_DEFAULT,
   offsetX = 0,
   offsetY = 0,
@@ -70,6 +79,14 @@ export default function Spectrum({
 
   const clampedSize = clamp(Number(size) || 100, SPECTRUM_SIZE_MIN, SPECTRUM_SIZE_MAX)
 
+  // Explicit dimensions beat both the base box and the per-variant rules
+  // (a radial style forces a square; a caller asking for a specific box is
+  // doing so on purpose). Inline styles outrank those class rules, so leaving
+  // one axis unset keeps the stylesheet's value for it.
+  const boxStyle = { '--wallkit-spectrum-scale': clampedSize / 100 }
+  if (width != null) boxStyle.width = toLength(width, { number: 'px' })
+  if (height != null) boxStyle.height = toLength(height, { number: 'px' })
+
   return (
     <div
       className="wallkit-spectrum__anchor"
@@ -77,7 +94,7 @@ export default function Spectrum({
     >
       <div
         className={`wallkit-spectrum wallkit-spectrum--variant-${resolvedVariant}`}
-        style={{ '--wallkit-spectrum-scale': clampedSize / 100 }}
+        style={boxStyle}
       >
         <SpectrumCanvas
           className="wallkit-spectrum__canvas"

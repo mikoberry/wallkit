@@ -123,13 +123,18 @@ function Meta({ track, compact = false }) {
  * @param {string} [props.colorHex]   `#rrggbb` for the **inline spectrum only**;
  *   the card's own tint comes from `track.primaryColor`. Defaults to
  *   `--wallkit-accent`.
- * @param {number} [props.size=100]   Size percentage, range 20..300. 100 is the
- *   normal card (cover diameter is 18vh).
- * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
- *   Viewport corner to pin to. Invalid values fall back to the default.
- * @param {number} [props.offsetX=0]  Distance from the anchored side, viewport
- *   percentage, growing inward. 0 sits flush against the corner.
- * @param {number} [props.offsetY=0]  Same, vertically.
+ * @param {number|string} [props.size=100]   Size. A number is a percentage of the
+ *   normal card (cover diameter 18vh), range 20..300. A string is an **absolute
+ *   cover diameter** in any CSS length (`'34vh'`, `'320px'`) — the whole card
+ *   derives from that one length, so this is the way to pin the record to an
+ *   exact size and make two widgets line up.
+ * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport point the card pins to. `center` makes two centre-anchored widgets
+ *   share an exact centre. Invalid values fall back to the default.
+ * @param {number|string} [props.offsetX=0]  Distance from the anchored side. A
+ *   number is a viewport percentage growing inward; a string is any CSS length
+ *   (`'100px'`). 0 sits flush against the corner.
+ * @param {number|string} [props.offsetY=0]  Same, vertically.
  * @param {boolean} [props.paused=false] Freeze the cover rotation and spectrum.
  * @param {{ aria?: string, coverAlt?: string }} [props.labels]  Caller-supplied
  *   strings. `coverAlt` is used verbatim when set (pass `''` for a decorative
@@ -172,10 +177,17 @@ export default function AlbumArt({
     .filter(Boolean)
     .join(' ')
 
-  const style = {
-    ...anchorStyle(anchor, offsetX, offsetY),
-    '--wallkit-album-art-scale':
-      clamp(Number(size) || 100, ALBUM_ART_SIZE_MIN, ALBUM_ART_SIZE_MAX) / 100,
+  // `size` is either a scale percentage or, when it is a string, the cover
+  // diameter itself. The CSS derives every other dimension from
+  // `--wallkit-album-art-unit`, so overriding that single variable is enough —
+  // the scale multiplier is dropped in that case rather than compounding with
+  // it, which would make `size="34vh"` mean something nobody asked for.
+  const style = anchorStyle(anchor, offsetX, offsetY)
+  if (typeof size === 'string' && size.trim()) {
+    style['--wallkit-album-art-unit'] = size.trim()
+  } else {
+    style['--wallkit-album-art-scale'] =
+      clamp(Number(size) || 100, ALBUM_ART_SIZE_MIN, ALBUM_ART_SIZE_MAX) / 100
   }
   // The cover's dominant colour tints the glass panel and the wall's edge.
   if (track.primaryColor) style['--wallkit-album-art-tint'] = track.primaryColor

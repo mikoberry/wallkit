@@ -3,6 +3,7 @@
 export { isWallpaperEngine, isWallpaperAudioAvailable } from './env.js'
 export { createStore } from './storage.js'
 export { ANCHORS, ANCHOR_DEFAULT, normalizeAnchor, anchorStyle, anchorOrigin } from './anchor.js'
+export { toLength } from './length.js'
 export {
   AUDIO_BANDS,
   SPECTRUM_BARS,
