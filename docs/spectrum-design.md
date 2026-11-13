@@ -150,11 +150,13 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 | `ripples` | 低频驱动的同心涟漪 | bass + 时间 |
 | `aurora` | 低频驱动的柔光带 | bass + 时间 |
 
-- **renderer 归属**：暂放 `src/components/spectrum/renderers.js`，组件内部模块，不导出。P3 的 `MiniSpectrum` / `AlbumArt` 若要复用 `drawBars`，届时再抽共享模块（**不提前抽象**）。
-- **state bag**：`ripples` 需要跨帧保留涟漪数组，由组件持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
+- **renderer 归属**：P2 时放在 `src/components/spectrum/renderers.js`、组件内部不导出；P3 的 `MiniSpectrum` 成为第二个消费者后，已提到 **`src/components/shared/renderers.js`**（含 `SPECTRUM_RENDERERS` 注册表），由 `Spectrum` 与 `MiniSpectrum` 共用。这是"第二个真实消费者出现后才抽象"的落地，不是提前设计。
+- **绘制循环归属**：同样在 P3 提到 **`src/components/shared/SpectrumCanvas.jsx`**。两个控件的像素完全一致，差别只在盒子怎么来的（视口 vs 父容器），所以循环、平滑、`ResizeObserver`、reduced-motion 处理都只有一份，避免两边行为漂移。
+- **state bag**：`ripples` 需要跨帧保留涟漪数组，由 `SpectrumCanvas` 持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
 - **自转速度**：`ring` / `ringwave` 共用 `RING_SPIN`。`variant` 不再进入绘制循环的依赖，切换时在循环内换 renderer 与 state，`elapsed` 保留，因此相位**确实**连续。
 - **渐变**：柱子用 `createLinearGradient`，环用 `createRadialGradient`；每帧每柱单独建渐变是浪费，按原实现复用（`pill` 例外，实色填充，见 §12）。
 - **响应整形**：绘制前对每根柱调用 `shapeSpectrumLevel(level, shape)`（`shape` = `intensity` 百分比换算出的倍数 + `curve`），再由 `smoothAudioLevel` 平滑。
+- **柱数折叠**：`SpectrumCanvas` 有一个可选的 `barCount`，在循环内用 `resampleBars(bars, count, out)` 逐帧折叠。`Spectrum` 不传（保持"柱数由调用方决定"），`MiniSpectrum` 传 32 —— 小尺寸下 128 根柱子会变成一条条线，折叠是这个控件存在的前提。折叠放在循环内而不是 render，是因为调用方通常原地复用同一个 `Float32Array`，render 期的 memo 会永远画第一帧。
 
 ---
 
@@ -203,24 +205,31 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 ```
 src/
 ├── core/
-│   ├── audio.js                 # 新增：纯函数（§3）
+│   ├── audio.js                 # 纯函数（§3）
 │   └── index.js                 # 追加 audio.js 的 re-export
 ├── components/
 │   ├── index.js                 # 追加 Spectrum re-export
-│   └── spectrum/
+│   ├── shared/                  # 内部模块，不对 package.json 暴露
+│   │   ├── renderers.js         # 9 种绘制函数 + SPECTRUM_RENDERERS 注册表
+│   │   └── SpectrumCanvas.jsx   # 共用画布与绘制循环
+│   ├── spectrum/
+│   │   ├── index.js
+│   │   ├── Spectrum.jsx         # 只剩定位外壳
+│   │   └── Spectrum.css
+│   └── mini-spectrum/           # P3
 │       ├── index.js
-│       ├── Spectrum.jsx
-│       ├── Spectrum.css
-│       └── renderers.js
+│       ├── MiniSpectrum.jsx
+│       └── MiniSpectrum.css
 ```
 
-`package.json` 的 `exports` 新增：
+`package.json` 的 `exports` 新增（封闭映射，必须显式添加，否则外部无法导入）：
 
 ```json
-"./components/spectrum": "./src/components/spectrum/index.js"
+"./components/spectrum": "./src/components/spectrum/index.js",
+"./components/mini-spectrum": "./src/components/mini-spectrum/index.js"
 ```
 
-（封闭映射，必须显式添加，否则外部无法导入。）
+`components/shared/` **不进 `exports`**：它是两个组件的共同实现，不是对外接口。外部只认 `spectrum` / `mini-spectrum`。
 
 ---
 

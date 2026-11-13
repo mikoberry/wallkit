@@ -1,9 +1,11 @@
 # WallKit 架构方案
 
-> 状态：设计定稿，未开始实现
+> 状态：P0–P3 已实现（Clock / Spectrum / MiniSpectrum / AlbumArt），P2–P3 待实机验证；P4 起未开始
 > 最后更新：2026-11-13
 >
 > 相关文档：[WE 集成指南](./we-integration.md) · [抽取映射](./extraction-map.md) · [Spectrum 设计](./spectrum-design.md)
+>
+> 本文锁定的是**分层与接口原则**，具体 Props 以 `src/` 源码的 JSDoc 为准。阶段进度见 §14，与源码不一致时以源码为准。
 
 ## 1. 项目定位
 
@@ -182,41 +184,56 @@ import { Spectrum } from 'wallkit/components/spectrum'
 wallkit/
 ├── package.json              # 唯一
 ├── README.md
+├── AGENTS.md                 # 给 AI / 协作者的执行规则与边界
+├── LICENSE
 ├── docs/
 │   ├── architecture.md       # 本文件
+│   ├── spectrum-design.md    # Spectrum 接口与渲染方案
 │   ├── we-integration.md     # WE 工程集成与排查
 │   └── extraction-map.md     # 与原项目的抽取映射
 ├── src/
-│   ├── index.js              # "." 入口
-│   ├── core/                 # 环境探测、hooks 工具、存储、类型约定
-│   │   ├── index.js
-│   │   ├── env.js            # isWallpaperEngine()
+│   ├── index.js              # "." 入口，re-export core + components
+│   ├── core/                 # 纯函数与工具，无 React
+│   │   ├── index.js          # 统一 re-export
+│   │   ├── env.js            # isWallpaperEngine / isWallpaperAudioAvailable
 │   │   ├── storage.js        # createStore(namespace)
-│   │   ├── pausable.js       # 暂停感知工具
-│   │   └── types.js          # JSDoc 类型约定
+│   │   ├── clock.js          # 时间格式化、倾斜、缓动、进度 / 周数
+│   │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、重采样、整形）
+│   │   └── types.js          # JSDoc 类型约定（无运行时导出）
 │   ├── components/
 │   │   ├── index.js          # 便利 barrel
+│   │   ├── shared/           # 内部模块，不进 exports
+│   │   │   ├── renderers.js          # 9 种绘制函数 + SPECTRUM_RENDERERS
+│   │   │   └── SpectrumCanvas.jsx    # Spectrum / MiniSpectrum 共用画布与循环
 │   │   ├── clock/
 │   │   │   ├── index.js
 │   │   │   ├── Clock.jsx
 │   │   │   └── Clock.css
 │   │   ├── spectrum/
+│   │   │   ├── index.js
+│   │   │   ├── Spectrum.jsx          # 定位外壳：视口锚点 + size + variant 类名
+│   │   │   └── Spectrum.css
 │   │   ├── mini-spectrum/
+│   │   │   ├── index.js
+│   │   │   ├── MiniSpectrum.jsx      # 填满父容器，默认折叠到 32 柱
+│   │   │   └── MiniSpectrum.css
 │   │   └── album-art/
-│   ├── we/                   # 可选：WE 数据源 hooks + 内联脚本
+│   │       ├── index.js
+│   │       ├── AlbumArt.jsx          # 6 种布局，内嵌 MiniSpectrum
+│   │       └── AlbumArt.css
+│   ├── we/                   # P4 占位：WE 数据源 hooks + 内联脚本
 │   │   ├── index.js
-│   │   ├── audio.js
-│   │   ├── media.js
-│   │   ├── pause.js
-│   │   ├── vite-plugin.js
-│   │   └── inline/
-│   │       ├── audio.js      # 内联脚本原文（字符串常量）
-│   │       ├── media.js
-│   │       └── pause.js
+│   │   └── vite-plugin.js
 │   └── styles/
 │       └── index.css         # CSS 变量与基础 token
 └── playground/               # 本地开发预览（不参与分发）
 ```
+
+**尚未创建**（计划中，不要在不存在的目录里放代码）：`we/audio.js`、`we/media.js`、`we/pause.js`、`we/inline/`（P4）。
+
+`components/shared/` 是两个频谱控件的共同实现，**有意不进 `exports`**：它不是对外接口，外部只认 `spectrum` / `mini-spectrum`。
+
+早前设计里的 `core/pausable.js` **不会实现**：暂停感知统一由 `wallkit/we` 的 hook 承担（见 §10），`core` 保持纯函数、不订阅事件。
 
 ---
 
@@ -236,8 +253,9 @@ wallkit/
 
 ```js
 /**
- * @typedef {Object} SpectrumBars
- * @property {Float32Array|number[]} values   归一化到 0..1 的柱状值
+ * @typedef {Float32Array|number[]} SpectrumBars
+ *   归一化到 0..1 的柱状值。长度即柱数（规范 128），
+ *   null/空数组表示无数据，组件直接返回 null。
  */
 
 /**
@@ -250,29 +268,38 @@ wallkit/
  * @property {string} textColor      宿主提供的文字色，可为空
  * @property {'playing'|'paused'|'stopped'|null} playback  null 表示未知
  */
-
-/**
- * @typedef {Object} Placement
- * @property {'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'} anchor
- * @property {number} offsetX        相对锚点的百分比偏移
- * @property {number} offsetY
- */
 ```
+
+**定位不走 `Placement` 对象。** 早前设想的 `{ anchor, offsetX, offsetY, scale }` 未采用：所有浮层控件统一用三个平铺 prop，锚点固定为定位上下文的**左下角**。
+
+| prop | 含义 |
+|---|---|
+| `offsetX` / `offsetY` | 距左边缘 / 底边缘的视口百分比，0 贴边 |
+| `size` | 整体缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300） |
+
+这样同一壁纸里挂两块控件时坐标心智一致，也不必为"锚点在右上角"维护一套换算。细节见 [spectrum-design.md](./spectrum-design.md) §4。
 
 ### 5.3 组件清单
 
-| 组件 | 入口 | 职责 | 阶段 |
-|---|---|---|---|
-| `Clock` | `wallkit/components/clock` | 日期时间显示，10 种布局，可选 3D 指针倾斜 | P1 |
-| `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 |
-| `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 |
-| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱 | P2 |
+| 组件 | 入口 | 职责 | 阶段 | 状态 |
+|---|---|---|---|---|
+| `Clock` | `wallkit/components/clock` | 日期时间显示，10 种布局，可选 3D 指针倾斜 | P1 | ✅ |
+| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱，9 种样式 | P2 | ✅ 待实机验证 |
+| `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 | ✅ |
+| `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
 
-**实现顺序：Clock 优先，完成并验证后再做 Spectrum。**
+**实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
 `Spectrum` 排在 `MiniSpectrum` / `AlbumArt` 之前，因为它与 `Clock` 同属「独立浮层」类控件，各自需要自己的定位与挂载方式；而 `MiniSpectrum` 是被 `AlbumArt` 内部消费的子组件，一起做更合理。
 
-具体 Props 在实现阶段定义，本方案只锁定原则与数据形状。
+已落地的 Props 以源码 JSDoc 为准：`Clock` 见 `src/components/clock/Clock.jsx`，`Spectrum` 见 `src/components/spectrum/Spectrum.jsx` 与 [spectrum-design.md](./spectrum-design.md)，`MiniSpectrum` / `AlbumArt` 见各自目录。
+
+**P3 的两个取舍**（原「未决事项」，现已定）：
+
+- **共享绘图层**：`MiniSpectrum` 是第二个消费者，因此 `renderers.js` 提到 `components/shared/`，并把绘制循环一并抽成 `SpectrumCanvas`。两个控件像素一致，差别只在盒子怎么来的。
+- **`AlbumArt` 的 `bars` 可选**：没有频谱时卡片仍显示封面与文字；`vinyl` 布局本来就没有图，`bar` 布局会把那条 38% 的频谱槽位一起收掉。
+
+**`AlbumArt` 的 `theme`**（P3 补齐）：与 `Clock` 同一套约定——名字指**文字色**，`light` 是浅色文字（深色壁纸），`dark` 是深色文字（浅色壁纸）。`--theme-dark` 除了换 ink 变量，还会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把 `--wallkit-accent` 压暗，否则浅底上的频谱看不见。唱片本体与木架保持深色：它们是物件，不是文字底板。
 
 ### 5.4 组件不做的事
 
@@ -322,16 +349,26 @@ useEffect(() => {
 <Clock
   now={now}
   labels={{
-    date: '2026年11月13日',
-    weekday: '星期四',
+    locale: 'zh-CN',
+    weekday: '周四',
+    aria: '当前时间与日期',
   }}
 />
 ```
 
+| 字段 | 作用 |
+|---|---|
+| `locale` | 交给 `Intl.DateTimeFormat` 决定月名与日期格式（`zh-CN` → `2026年11月13日`，`en-GB` → `13 November 2026`） |
+| `weekday` | 星期文本，覆盖 `Intl` 的结果 |
+| `dateWithWeekday` | 直接给出「日期 星期」整行，覆盖组件的拼接结果 |
+| `aria` | 无障碍名称 |
+
+**不要传 `date`**：该字段不存在，会被静默忽略。日期文本由 core 的 `formatClockDateParts(now, locale)` 生成，`labels.dateWithWeekday` 是唯一的一行级覆盖手段。
+
 理由：
 
-- 格式化逻辑属于使用方（它有 i18n 语言包），组件只负责排版与倾斜。
-- 字符串是纯数据，更符合「只接收纯数据」的原则。
+- 时间 / 日期的数值永不通过 `labels` 传：它们从 `now` 派生，重复传入会让两块数据互相打架。
+- 需要承载语言差异的只有文本与格式：`locale` 决定格式，`weekday` / `dateWithWeekday` 兜住 `Intl` 表达不了的写法（如「周四」这种中文简写）。
 - 传函数会让组件承担调用时机与缓存的责任，增加不必要的耦合。
 
 #### Clock：指针倾斜可配置
@@ -403,33 +440,15 @@ useEffect(() => {
 
 #### Spectrum：排在 Clock 之后实现
 
-`Spectrum` **在计划内**，但实现顺序排在 `Clock` 之后：先完成并验证 Clock 的接口设计，再做 Spectrum。
+`Spectrum` **在计划内**，实现顺序排在 `Clock` 之后：先完成并验证 Clock 的接口设计，再做 Spectrum。（已完成。）
 
 顺序安排的理由：
 
 - Clock 是最简单的独立浮层控件，适合用来验证「纯 props、无状态」的接口模式。
 - 该模式确认有效后，Spectrum 沿同一套模式实现，风险更低。
-- Spectrum 的定位系统（`Placement` 抽象）较复杂，等 Clock 验证过基础模式后再设计，能避免一上来就抽象错误。
+- Spectrum 的定位方式较复杂，等 Clock 验证过基础模式后再定，能避免一上来就抽象错误。
 
-**Spectrum 待定的设计**（在 Clock 完成后确定）：
-
-```js
-/**
- * @typedef {Object} Placement
- * @property {'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'} anchor
- * @property {number} offsetX        相对锚点的百分比偏移
- * @property {number} offsetY
- * @property {number} scale          整体缩放
- */
-```
-
-三选一方案（Clock 完成时决策）：
-
-| 方案 | 形态 | 特点 |
-|---|---|---|
-| A | `{ anchor, offsetX, offsetY, scale }` | 锚点语义清晰，需实现换算 |
-| B | `position="bottom-left" offset={{x,y}} scale` | 同上，参数更分散 |
-| C | `{ x, y, scale }` 视口中心百分比 | 沿用原语义，改动最小 |
+**定位设计已定（原三选一方案作废）**：没有 `Placement` 对象、没有 `anchor`，直接用 `offsetX` / `offsetY` / `size` 三个平铺 prop，锚点固定左下角（见 §5.2）。当初列的三个方案（`{anchor,…}` / `position + offset` / 视口中心 `{x,y,scale}`）都引入了"锚点在哪"的换算，而两种控件实际只需要一个锚点，平铺三个数字更短也更好记。
 
 **必须保留的约束**：Canvas 尺寸必须用 `offsetWidth` / `offsetHeight` 测量，不能用 `getBoundingClientRect`——后者返回缩放后的尺寸，会导致双重缩放。
 
@@ -467,9 +486,11 @@ useEffect(() => {
 - 数据构建（音频帧、媒体信息）
 - 应用状态（选中模型、偏好持久化）
 
-### 7.2 由 WallKit 负责（可选模块 `wallkit/we`）
+### 7.2 由 WallKit 负责（可选模块 `wallkit/we`，P4 未实现）
 
-**数据源 hooks**（保留，第二个壁纸项目会需要）：
+> 现状：`src/we/index.js` 只有 `export {}`（导入 hooks 会在构建期报错），`src/we/vite-plugin.js` 返回空 plugin（不注入脚本、也不报错）。**目前唯一可用路径是手动粘贴内联脚本**，见 [we-integration.md](./we-integration.md) §2.2。
+
+**数据源 hooks**（计划中，第二个壁纸项目会需要）：
 
 ```js
 import { useWallpaperAudio, useWallpaperMedia, useWallpaperPaused } from 'wallkit/we'
@@ -481,7 +502,7 @@ const paused = useWallpaperPaused() // boolean
 
 这些 hooks **只是便利封装**，不是必须的。使用方完全可以自己实现数据采集，组件不关心数据来源。
 
-**Vite 插件**：自动向 `index.html` 的 `<head>` 最前面注入 WE 监听器内联脚本。
+**Vite 插件**：计划自动向 `index.html` 的 `<head>` 最前面注入 WE 监听器内联脚本。
 
 详见 [we-integration.md](./we-integration.md)。
 
@@ -512,20 +533,24 @@ export function isWallpaperEngine(): boolean
 
 ## 9. 国际化
 
-**库内不提供 i18n。**
+**库内不提供 i18n**：没有语言包、没有语言切换、没有 `t()`。
 
-所有面向用户的文案通过 props 传入：
+库只提供两件事：`locale` 透传给 `Intl`，以及几个可覆盖的文本字段。其余全部由使用方传入：
 
 ```jsx
 <Clock
-  now={date}
-  labels={{ locale: 'zh-CN', dateFormat: 'yyyy-MM-dd' }}
-/>
-<AlbumArt
-  track={track}
-  emptyLabel="暂无播放"
+  now={now}
+  labels={{
+    locale: 'zh-CN',            // 决定 Intl 的日期 / 月名格式
+    weekday: '周四',            // 覆盖 Intl 的星期文本
+    aria: '当前时间与日期',
+  }}
 />
 ```
+
+- **没有 `dateFormat` 之类的格式串**：格式由 `Intl.DateTimeFormat` 按 `locale` 决定，不手写 `yyyy-MM-dd` 这种模板。要完全自定义日期行，用 `labels.dateWithWeekday` 给整行字符串。
+- 字段清单见 §5.5「文案通过字符串传入」。
+- `AlbumArt` 只认 `labels.aria` / `labels.coverAlt` 两个字段。**没有空态文案**：`track == null` 时整块不渲染，要不要显示"暂无播放"由使用方在自己的容器里决定。
 
 使用方自己维护语言包（如原项目的 `src/i18n.js`，44KB，保留在应用层）。
 
@@ -533,11 +558,13 @@ export function isWallpaperEngine(): boolean
 
 ## 10. 暂停与功耗
 
-控件层自身不轮询 WE 暂停状态。使用方需要处理时：
+控件层自身不轮询 WE 暂停状态。使用方需要处理时，按组件能力选：
 
-- 传入 `paused` prop 让组件停止动画，或
-- 使用 `wallkit/we` 的 `useWallpaperPaused()`，或
-- 在应用层卸载 / 隐藏控件
+| 组件 | 手段 |
+|---|---|
+| `Clock` | 停止更新 `now`（它没有 `paused`，也没有数据定时器）；`visible={false}` 摘掉 DOM |
+| `Spectrum` | `paused` prop：`true` 时取消 rAF，循环完全停止 |
+| 通用 | 使用 `wallkit/we` 的 `useWallpaperPaused()`（P4），或在应用层卸载控件 |
 
 原实现中 `Clock` 每秒轮询一次，`AlbumArt` 每秒轮询一次媒体状态——这些轮询属于数据构建层，随数据构建一起迁移到应用层。
 
@@ -659,15 +686,15 @@ README 与游戏仓库的 README 都必须声明这一点，避免他人误以�
 
 每个阶段的验收标准相同：**anime-model-viewer 切换过去后视觉效果与行为不变**。它是唯一的事实来源。
 
-| 阶段 | 内容 | 说明 |
-|---|---|---|
-| P0 | `core` + `styles` + 组件骨架 | 环境探测、存储工具、主题变量、LICENSE |
-| P1 | `Clock` | 首个组件，验证接口设计 |
-| P2 | `Spectrum` | 独立浮层频谱，沿用 Clock 验证过的模式 |
-| P3 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 |
-| P4 | `wallkit/we` + Vite 插件 | 第二个壁纸项目开始时再做 |
-| P5 | 新项目验证 | 用非 Spine 背景的项目验证解耦 |
-| P6 | 模板仓库 | **等第二个游戏的外壳共性暴露后再建**，不提前 |
+| 阶段 | 内容 | 说明 | 状态 |
+|---|---|---|---|
+| P0 | `core` + `styles` + 组件骨架 | 环境探测、存储工具、主题变量、LICENSE | ✅ 完成 |
+| P1 | `Clock` | 首个组件，验证接口设计 | ✅ 完成 |
+| P2 | `Spectrum` | 独立浮层频谱，沿用 Clock 验证过的模式 | ✅ 实现完成，待实机验证 |
+| P3 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 | ✅ 实现完成，待实机验证 |
+| P4 | `wallkit/we` + Vite 插件 | 第二个壁纸项目开始时再做 | 未开始（占位入口已存在） |
+| P5 | 新项目验证 | 用非 Spine 背景的项目验证解耦 | 未开始 |
+| P6 | 模板仓库 | **等第二个游戏的外壳共性暴露后再建**，不提前 | 未开始 |
 
 **顺序原则：Clock 先做完并验证，再动 Spectrum。** Clock 是最简单的独立浮层控件，用它确认「纯 props、无状态」的接口模式是否成立；确认后再实现 Spectrum，避免定位抽象设计错误。
 

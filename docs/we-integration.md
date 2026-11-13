@@ -1,5 +1,6 @@
 # Wallpaper Engine 集成指南
 
+> 状态：**P4 未实现**。本文中 §2.1 的插件与 §7 的 hooks 描述的是 P4 完成后的形态；**当前唯一可用方式是 §2.2 手动粘贴**。
 > 适用：使用 WallKit 控件库的 WE 网页壁纸项目
 > 关联：[architecture.md](./architecture.md)
 
@@ -27,9 +28,13 @@ WE 通过宿主注入的全局函数回调网页：
 
 ---
 
-## 2. 三种接入方式
+## 2. 接入方式
 
-### 2.1 Vite 插件（推荐）
+### 2.1 Vite 插件（P4 计划，当前为占位）
+
+> **现在不要用。** `src/we/vite-plugin.js` 目前只返回 `{ name: 'wallkit-we' }`，没有 `transformIndexHtml` 钩子，加进 `vite.config.js` 不会注入任何东西，也不报错——音频会静默不工作。这时请用 §2.2。
+
+P4 完成后的形态：
 
 ```js
 // vite.config.js
@@ -53,7 +58,7 @@ wallkitWE({ audio: true, media: false, pause: false })
 
 插件通过 `transformIndexHtml` 钩子把脚本插入 `<head>` 最前面（`head-prepend`），保证早于模块脚本。
 
-### 2.2 手动粘贴（不使用插件）
+### 2.2 手动粘贴（当前唯一可用）
 
 把下面三段按顺序放入 `index.html` 的 `<head>` 中，位于所有 `type="module"` 脚本之前。
 
@@ -287,18 +292,31 @@ Boolean(window.wallpaperPropertyListener) || Boolean(window.wallpaperRegisterAud
 
 WE 暂停时**冻结渲染进程**，但页面的 `requestAnimationFrame`、定时器、音频处理仍会运行。壁纸一天要跑十几个小时，不处理会持续耗电。
 
-控件层的做法：
+各组件的实际接口（**不是所有组件都有 `paused`**）：
 
-- 音频 hook 在暂停时停止轮询
-- 需要动画的组件接受 `paused` prop 并停掉 CSS 动画
-- 使用 `useWallpaperPaused()` 订阅 `wallkit-pause-change` 事件
+| 组件 | 暂停怎么做 |
+|---|---|
+| `Clock` | **没有 `paused` prop**。停止更新 `now` 即可（组件本身不持有定时器）；要彻底摘掉 DOM 用 `visible={false}` |
+| `Spectrum` | 有 `paused`。`true` 时 `cancelAnimationFrame`，循环完全停止；恢复时沿用暂停前的相位 |
+
+> 下面 `useWallpaperPaused()` 的写法属于 **P4，尚未实现**。当前请在应用层自己监听 `wallkit-pause-change` 事件（§2.2 的暂停桥接负责派发）：
+
+```js
+// 当前可用写法（不依赖 wallkit/we）
+let paused = window.__wallkitPaused === true
+window.addEventListener('wallkit-pause-change', (e) => {
+  paused = e.detail
+})
+```
+
+P4 完成后可简化为：
 
 ```jsx
 import { useWallpaperPaused } from 'wallkit/we'
 
 function Controls() {
   const paused = useWallpaperPaused()
-  return <AlbumArt track={track} bars={bars} paused={paused} />
+  return <Spectrum bars={bars} paused={paused} />
 }
 ```
 
@@ -306,11 +324,11 @@ function Controls() {
 
 ## 8. 结论速查
 
-| 事项 | 责任方 |
-|---|---|
-| `<head>` 内联脚本 | 插件自动注入，或手动粘贴 |
-| `project.json` 形状 | **使用方**（库不碰） |
-| 音频 / 媒体数据采集 | 使用方，或用 `wallkit/we` 的 hooks |
-| 控件渲染 | WallKit |
-| 暂停状态传递 | 使用方，或用 `useWallpaperPaused()` |
-| 背景层渲染 | 使用方（各项目实现不同） |
+| 事项 | 责任方 | 当前可用 |
+|---|---|---|
+| `<head>` 内联脚本 | 手动粘贴（插件 P4） | ✅ §2.2 |
+| `project.json` 形状 | **使用方**（库不碰） | — |
+| 音频 / 媒体数据采集 | 使用方自己写（hooks P4） | ✅ 读 `window.__wallkitAudioFrame` |
+| 控件渲染 | WallKit | ✅ Clock / Spectrum |
+| 暂停状态传递 | 应用层监听 `wallkit-pause-change` | ✅ |
+| 背景层渲染 | 使用方（各项目实现不同） | — |

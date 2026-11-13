@@ -2,7 +2,7 @@
 
 Wallpaper Engine 网页壁纸的**控件浮层库**。
 
-提供时钟、音频频谱、专辑封面等可复用控件，叠加在壁纸背景之上。不包含背景渲染，不包含数据采集。
+提供时钟、音频频谱、专辑卡片等可复用控件，叠加在壁纸背景之上。不包含背景渲染，不包含数据采集。
 
 ---
 
@@ -55,13 +55,24 @@ function Controls() {
   return (
     <Clock
       now={now}
-      labels={{ date: '2026年11月13日', weekday: '周四', aria: '当前时间与日期' }}
+      labels={{ locale: 'zh-CN', weekday: '周四', aria: '当前时间与日期' }}
     />
   )
 }
 ```
 
 数据由使用方构建。没有数据时组件不渲染——**不会用假数据兜底**。
+
+`labels` 只承载**需要本地化的文本**，全部字段都是可选的：
+
+| 字段 | 作用 |
+|---|---|
+| `locale` | 交给 `Intl` 决定月名与日期格式（默认 `en-GB`） |
+| `weekday` | 星期文本，覆盖 `Intl` 的结果 |
+| `dateWithWeekday` | 整行「日期 星期」，覆盖组件的拼接 |
+| `aria` | 无障碍名称 |
+
+日期文本由组件内部的 `formatClockDateParts(now, locale)` 生成，**没有 `date` 或 `dateFormat` 字段**——格式交给 `Intl`，要完全自定义就传 `dateWithWeekday`。
 
 ### 常用配置
 
@@ -88,17 +99,113 @@ function Controls() {
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节 |
-| `maxTilt` | `14` | 鼠标到窗口边缘时的最大倾角（度），0–45 |
-| `speed` | `8` | 跟手快慢，越大越跟手，0.5–30 |
-| `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
-| `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
-| `theme` | `'dark'` | 文字色，需与壁纸底色相配 |
+| `now` | — | **必选**。`Date`，由使用方驱动，组件不持有定时器 |
+| `visible` | `true` | `false` 时不渲染 DOM（倾斜的 rAF 也停止） |
+| `placement` | `'card'` | 10 种布局之一，非法值回退 `card` |
+| `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
+| `use24Hour` | `true` | 12 / 24 小时制 |
 | `size` | `100` | 尺寸百分比，40–200 |
+| `offsetX` / `offsetY` | `0` | 距左 / 底边缘的视口百分比，0 贴边 |
+| `beat` | `0` | 音频节拍 0..1，由使用方算好传入 |
+| `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
+| `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
+| `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节；`maxTilt: 0` 等同关闭 |
+| `labels` | `{}` | `{ locale, weekday, dateWithWeekday, aria }`，见上文 |
+| `onToggleHourFormat` | — | 可选回调，参数为 `'12'` 或 `'24'` |
+
+### Spectrum
+
+```jsx
+import { Spectrum } from 'wallkit/components/spectrum'
+import { extractSpectrumBars } from 'wallkit/core'
+
+// 原始 128 帧（0..1）→ 128 根柱；没有数据时得到 null
+const bars = frame ? extractSpectrumBars(frame) : null
+
+<Spectrum bars={bars} variant="mirror" colorHex="#7dd3fc" size={100} />
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `bars` | — | **必选**。`Float32Array \| number[]`，各值 0..1。**长度即柱数**（规范 128）；`null` 时不渲染 |
+| `visible` | `true` | `false` 不渲染 DOM，也不启动绘制循环 |
+| `variant` | `'bars'` | `bars` / `mirror` / `curve` / `pill` / `ring` / `ringwave` / `dots` / `ripples` / `aurora` |
+| `colorHex` | — | 只接受 `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
+| `size` | `100` | 20–500。100 = 正常大小（条状基准 `30vw × 15vh`） |
+| `offsetX` / `offsetY` | `0` | 同 Clock，左下锚点 |
+| `intensity` | `100` | 0–1000。100 = 原始柱高 |
+| `curve` | `1` | 0.2–2。响应曲线指数 |
+| `paused` | `false` | `true` 冻结画面（取消 rAF），保留控件在屏上 |
+
+**柱数不由组件决定**：要画更少/更多柱子，先 `resampleBars(bars, count)` 折叠再传入。`dots` 按画布宽度自动折成 6–48 列，`aurora` 固定 7 条带。
+
+`visible` 与 `paused` 的区别：前者完全不渲染，后者保留画面但冻结，两者都停止绘制循环。
+
+### MiniSpectrum
+
+填满父容器的频谱，**没有尺寸与位置 props**——盒子由父容器决定，所以能嵌进卡片。与 `Spectrum` 共用同一套绘制循环（`components/shared/`），像素完全一致，差别只在盒子怎么来的。
+
+```jsx
+import { MiniSpectrum } from 'wallkit/components/mini-spectrum'
+
+<div style={{ height: 120 }}>
+  <MiniSpectrum bars={bars} variant="curve" />
+</div>
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `bars` | — | **必选**。同 `Spectrum`；`null` 时不渲染 |
+| `variant` | `'bars'` | 同 `Spectrum` 的 9 种 |
+| `colorHex` | — | 同 `Spectrum` |
+| `barCount` | `32` | 折叠到几根柱子。小尺寸下 128 根会变成一条条线；传 `bars.length` 可关闭折叠 |
+| `intensity` / `curve` | `100` / `1` | 同 `Spectrum` |
+| `visible` / `paused` | `true` / `false` | 同 `Spectrum` |
+
+> 父容器必须有确定高度，否则 `height: 100%` 会塌成 0。
+
+### AlbumArt
+
+```jsx
+import { AlbumArt } from 'wallkit/components/album-art'
+
+<AlbumArt
+  track={track}        // { title, artist, albumTitle, thumbnail, primaryColor, playback }
+  bars={bars}          // 可选，卡片内嵌频谱
+  variant="classic"    // classic | glass | vinyl | minimal | bar | wall
+  theme="light"        // light = 浅色文字（深色壁纸），dark = 深色文字（浅色壁纸）
+  labels={{ aria: '正在播放' }}
+/>
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `track` | — | **必选**。`null` 时不渲染 |
+| `bars` | — | 可选。没有时卡片照常显示，只是少了频谱；`bar` 布局会连频谱槽位一起收掉 |
+| `variant` | `'classic'` | 6 种布局；`vinyl` 无频谱。列表见 `ALBUM_ART_VARIANTS` |
+| `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把默认 accent 压暗 |
+| `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
+| `size` | `100` | 20–300（`ALBUM_ART_SIZE_MIN/MAX`）。100 = 正常大小（封面直径基准 `18vh`） |
+| `offsetX` / `offsetY` | `0` | 同 Clock / Spectrum |
+| `paused` | `false` | 停转封面并冻结频谱 |
+| `labels` | `{}` | `{ aria, coverAlt }`。`coverAlt` 原样使用（传 `''` 表示装饰图），否则回退到曲名、专辑名 |
+
+内嵌频谱的强度与曲线是**内部常量**（130 / 0.7），不暴露成 props：这组值是为卡片尺寸定的，放出去只能把它改坏；要调响应请直接用 `MiniSpectrum`。
+
+**两种"不渲染"**：`track == null` 不渲染；`track.playback === 'stopped'` 也不渲染。`playback === null` 表示**未知**，按正在播放处理——引擎只在切歌时推送，把未知当成停止会让封面永久消失。
+
+六种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无图。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
 
 ### WE 集成（可选）
 
-若需要拿到真实的音频频谱与媒体信息，安装 Vite 插件自动注入 WE 监听器：
+> ⚠️ **`wallkit/we` 与 `wallkit/we/vite` 目前是空占位（P4 未实现）。**
+>
+> - `wallkit/we/vite` 可以导入，但插件是空的：**不注入任何脚本，也不报错**，音频会静默不工作。
+> - `wallkit/we` 目前只有 `export {}`，导入 hooks 会在构建期报 `does not provide an export named 'useWallpaperAudio'`。
+>
+> 现在要拿真实音频，请手动把内联脚本粘进 `index.html` 的 `<head>`，见 [WE 集成指南](./docs/we-integration.md) §2.2。
+
+P4 完成后的用法是安装 Vite 插件自动注入监听器：
 
 ```js
 // vite.config.js
@@ -127,9 +234,11 @@ const track = useWallpaperMedia()
 | 入口 | 内容 |
 |---|---|
 | `wallkit` | 根入口 |
-| `wallkit/core` | 环境探测、存储工具、时钟纯函数、类型约定 |
+| `wallkit/core` | 环境探测、存储工具、时钟与音频纯函数、类型约定 |
 | `wallkit/components/clock` | 日期时间控件 |
-| `wallkit/components/spectrum` | 音频频谱控件 |
+| `wallkit/components/spectrum` | 独立浮动的音频频谱控件 |
+| `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
+| `wallkit/components/album-art` | 专辑卡片控件 |
 | `wallkit/we` | WE 数据源 hooks（P4 计划中，暂无实现） |
 | `wallkit/we/vite` | Vite 插件（P4 计划中，暂无实现） |
 | `wallkit/styles` | 主题变量 |
@@ -169,21 +278,22 @@ npm install
 npm run dev          # http://localhost:5174/
 ```
 
-演示页包含全部 7 种时钟布局、深浅主题、尺寸缩放、以及合成节拍（用于检查音频响应动画）。**合成数据只存在于 playground**，库本身不会生成假数据。
+演示页分四个画廊：**Clock**（10 种布局、深浅主题、尺寸缩放、合成节拍）、**Spectrum**（9 种 `variant`）、**MiniSpectrum**（填满父容器的 9 种样式）和 **AlbumArt**（6 种卡片布局、3 组合成曲目、6 种运行状态）。**合成数据只存在于 playground**，库本身不会生成假数据。
 
 ---
 
 ## 状态
 
-设计中，尚未实现。
+P0–P3 已完成，P2–P3 待实机验证；P4 起未开始。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | P0 | `core` + `styles` 骨架 | ✅ 完成 |
 | P1 | `Clock` | ✅ 完成 |
 | P2 | `Spectrum` | ✅ 实现完成，待实机验证 |
-| P3 | `MiniSpectrum` + `AlbumArt` | 未开始 |
-| P4 | `wallkit/we` + Vite 插件 | 未开始 |
+| P3 | `MiniSpectrum` + `AlbumArt` | ✅ 实现完成，待实机验证 |
+| P4 | `wallkit/we` + Vite 插件 | 未开始（`exports` 占位入口已存在） |
+| P5 | 新项目验证 | 未开始 |
 | P6 | 模板仓库 | 未开始（等第二个游戏落地后） |
 
 ---

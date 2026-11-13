@@ -100,7 +100,9 @@ function normalizeTilt(tilt) {
  * @param {Object} props
  * @param {Date} props.now                      Current time. Required: the caller drives it.
  * @param {boolean} [props.visible=true]        Render nothing when false.
- * @param {'card'|'minimal'|'cyberpunk'|'infobar'|'bar'|'split'|'poster'} [props.placement='card']
+ * @param {'card'|'bar'|'minimal'|'cyberpunk'|'infobar'|'split'|'poster'|'ring'|'segments'|'stamp'} [props.placement='card']
+ *   `card` / `bar` / `minimal` / `cyberpunk` / `infobar` / `split` / `poster` are typographic;
+ *   `ring` / `segments` / `stamp` express time through geometry.
  * @param {'light'|'dark'} [props.theme='dark'] Text colour. 'dark' renders dark
  *   text over bright artwork; 'light' renders light text. Each layout that
  *   paints its own card reinterprets the theme against that card instead.

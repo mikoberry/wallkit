@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0（基础层）、P1（Clock）、P2（Spectrum）已完成。
+当前进度：P0（基础层）、P1（Clock）、P2（Spectrum）、P3（MiniSpectrum / AlbumArt）已完成；P2–P3 待实机验证。
 
 ## Execution rules
 
@@ -51,6 +51,9 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./core` | `src/core/index.js` | 环境探测、存储、时钟纯函数 |
 | `./components` | `src/components/index.js` | 组件便利 barrel |
 | `./components/clock` | `src/components/clock/index.js` | Clock 组件 |
+| `./components/spectrum` | `src/components/spectrum/index.js` | Spectrum 组件（浮动） |
+| `./components/mini-spectrum` | `src/components/mini-spectrum/index.js` | MiniSpectrum 组件（填满父容器） |
+| `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（P4 占位） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件（P4 占位） |
 | `./styles` | `src/styles/index.css` | 主题变量 |
@@ -71,15 +74,25 @@ src/
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
 ├── components/
 │   ├── index.js
+│   ├── shared/           # 内部模块，不进 exports
+│   │   ├── renderers.js          # 9 种绘制函数 + SPECTRUM_RENDERERS
+│   │   └── SpectrumCanvas.jsx    # 两个频谱控件共用的画布与绘制循环
 │   ├── clock/
 │   │   ├── index.js
 │   │   ├── Clock.jsx
 │   │   └── Clock.css
-│   └── spectrum/
+│   ├── spectrum/
+│   │   ├── index.js
+│   │   ├── Spectrum.jsx          # 定位外壳
+│   │   └── Spectrum.css
+│   ├── mini-spectrum/
+│   │   ├── index.js
+│   │   ├── MiniSpectrum.jsx
+│   │   └── MiniSpectrum.css
+│   └── album-art/
 │       ├── index.js
-│       ├── Spectrum.jsx
-│       ├── Spectrum.css
-│       └── renderers.js
+│       ├── AlbumArt.jsx
+│       └── AlbumArt.css
 ├── styles/index.css      # --wallkit-* 变量
 └── we/                   # P4 占位
 ```
@@ -134,11 +147,53 @@ src/
 - `intensity`（0–1000，默认 100）/ `curve`（0.2–2，默认 1）：组件把 `intensity` 百分比换算成倍数，连同 `curve` 交给 core 的 `shapeSpectrumLevel()`；默认值等于原始柱高。
 - 绘制循环 effect 只依赖 `[visible, hasBars, paused]`；`elapsed` 与 renderer state 存 ref，`variant` 在循环内切换——暂停恢复与切换样式都不重置相位。
 
+### MiniSpectrum 组件
+
+填满父容器的频谱。与 `Spectrum` **共用** `shared/SpectrumCanvas.jsx` 的绘制循环，像素完全一致，差别只在盒子怎么来的：`Spectrum` 自己算视口尺寸，`MiniSpectrum` 交给父容器。
+
+```jsx
+<MiniSpectrum
+  bars={bars}                  // 必选，同 Spectrum
+  variant="curve"              // 同 Spectrum 的 9 种
+  colorHex barCount={32}       // barCount 默认 32：小尺寸下 128 根柱子会变成细线
+  intensity={100} curve={1}
+  visible paused
+/>
+```
+
+- **没有 `size` / `offsetX` / `offsetY`**：父容器决定盒子，组件是 `width/height: 100%`。父容器必须有确定高度，否则塌成 0。
+- `barCount` 是**唯一的例外**：`Spectrum` 坚持"柱数由调用方决定"，而 `MiniSpectrum` 的折叠是它存在的前提（否则在小盒子里不可读），所以在组件内部用 `resampleBars` 逐帧折叠。传 `bars.length` 可关闭。
+- 折叠必须在**绘制循环内**做，不能在 render 里 memo：调用方通常原地复用同一个 `Float32Array`，memo 会永远画第一帧。
+
+### AlbumArt 组件
+
+专辑卡片。纯展示：接收 `track`，**不轮询、不读 storage、不含 i18n**。
+
+```jsx
+<AlbumArt
+  track={track}                // 必选，TrackInfo | null
+  bars={bars}                  // 可选，卡片内嵌频谱
+  variant="classic"            // classic | glass | vinyl | minimal | bar | wall
+  theme="light"                // light = 浅色文字，dark = 深色文字（名字指文字色）
+  colorHex size={100} offsetX={0} offsetY={0}
+  paused
+  labels={{ aria, coverAlt }}
+/>
+```
+
+- **两种不渲染**：`track == null`；`track.playback === 'stopped'`。`playback === null`（未知）**必须渲染**，见下方数据约定。
+- `bars` 可选：没有时卡片照常显示，只是少了频谱（`vinyl` 布局永远没有图）。`bar` 布局的频谱槽位是 `flex: 0 0 38%`，**没有 bars 时必须不渲染那个槽位**，否则条子右侧空出一截。
+- 六种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无图。绑定表在 `AlbumArt.jsx` 的 `SPECTRUM_VARIANT_BY_CARD`，不要在 CSS 里做这种判断。
+- 封面 24s 转一圈；`paused` 或 `playback === 'paused'` 停转；`prefers-reduced-motion` 下不转。卡片里的频谱用绝对定位铺满 body，文字浮在其上——这个覆盖写在 `AlbumArt.css`，`MiniSpectrum` 自己只管 100% 填充。
+- `theme` 与 `Clock` 同一套约定（类名指**文字色**）：`--theme-dark` 只换 `--wallkit-album-art-fg*` 等变量，**外加**把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把 `--wallkit-accent` 压暗让频谱在浅底上可见。唱片本体与木架刻意保持深色——它们是物件，不是文字底板。
+- 内嵌频谱的 `intensity` / `curve` 是内部常量（130 / 0.7），**不要暴露成 props**：这组值是为卡片尺寸定的，放出去只能被改坏。
+- `ALBUM_ART_VARIANTS`、`ALBUM_ART_SIZE_MIN/MAX` 从 `components/album-art` 导出；新增布局时改那一处，调用方的选择器就会自动跟上。
+
 ## Conventions
 
 ### 样式
 
-- 类名统一 `wallkit-clock__*`（BEM），主题修饰 `wallkit-clock--theme-dark` / `--theme-light`。
+- 类名统一 `<组件>__*`（BEM），前缀 `wallkit-`：`wallkit-clock__*`、`wallkit-spectrum__*`、`wallkit-mini-spectrum__*`、`wallkit-album-art__*`。主题修饰如 `wallkit-clock--theme-dark`。
 - **`--theme-light` 是默认态，没有专门规则**；只有 `--theme-dark` 做覆盖。这是原设计，不是遗漏。
 - CSS 变量全部 `--wallkit-` 前缀。组件内部的局部变量用 `--wallkit-clock-*`。
 - 引用共享主题变量时**必须给回退值**，例如 `var(--wallkit-gutter, clamp(14px, 1.2vh, 22px))`，保证使用方只引入组件 CSS 也能正确渲染。
@@ -158,7 +213,7 @@ src/
 
 - 无 TypeScript：用 JSDoc 标注类型，没有编译步骤。
 - 无测试套件：验收依赖用户在实际环境目视。
-- Spectrum 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。
+- Spectrum / MiniSpectrum 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。两者共用同一个绘制循环，所以这是同一处债。
 
 ## Migration reference
 
