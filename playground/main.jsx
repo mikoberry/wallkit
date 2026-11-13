@@ -16,6 +16,14 @@ const PLACEMENTS = [
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
+// The clock anchors to the bottom-left of its positioning context, and the
+// library's default offsets are 0 — meaning it sits flush against the edge.
+// The demo nudges it in so the whole widget is visible instead of being
+// clipped by the cell's rounded corners. This is demo framing, not a library
+// default: a wallpaper picks whatever offset suits its artwork.
+const DEMO_OFFSET_X = 4
+const DEMO_OFFSET_Y = 4
+
 /**
  * The clock is a pure view, so the demo owns the tick exactly as a wallpaper
  * would. Pausing the demo stops the interval, which mirrors how a wallpaper
@@ -41,6 +49,17 @@ function labelsFor(now, locale) {
   }
 }
 
+// Horizontal layouts carry a long single line, so at the full 100% type scale
+// they overflow a gallery cell even at a generous width. Real wallpapers give
+// them a full viewport; the demo renders them a step smaller so the whole line
+// stays visible. Everything else shows at the shipped size.
+const WIDE_LAYOUTS = new Set(['infobar', 'bar'])
+const WIDE_LAYOUT_SIZE = 55
+
+function sizeFor(placement, size) {
+  return WIDE_LAYOUTS.has(placement) ? Math.min(size, WIDE_LAYOUT_SIZE) : size
+}
+
 function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100 }) {
   return (
     <figure className="cell">
@@ -49,8 +68,10 @@ function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100 }) {
           now={it.now}
           placement={placement}
           theme={theme}
-          size={size}
+          size={sizeFor(placement, size)}
           beat={beat}
+          offsetX={DEMO_OFFSET_X}
+          offsetY={DEMO_OFFSET_Y}
           labels={labelsFor(it.now, 'zh-CN')}
         />
       </div>
@@ -153,6 +174,8 @@ function App() {
               theme={theme}
               size={size}
               beat={beat}
+              offsetX={DEMO_OFFSET_X}
+              offsetY={DEMO_OFFSET_Y}
               labels={labelsFor(now, 'zh-CN')}
             />
           </div>
@@ -167,6 +190,8 @@ function App() {
               use24Hour={false}
               size={size}
               beat={beat}
+              offsetX={DEMO_OFFSET_X}
+              offsetY={DEMO_OFFSET_Y}
               labels={labelsFor(now, 'zh-CN')}
             />
           </div>
@@ -176,8 +201,9 @@ function App() {
 
       <footer className="foot">
         <span>
-          每格右下角是 <code>wallkit-clock__anchor</code> 的默认锚点（
-          <code>offsetX=0, offsetY=0</code>）。
+          时钟锚定在定位容器的左下角。库的默认偏移是{' '}
+          <code>offsetX=0, offsetY=0</code>（紧贴边缘），本页统一传{' '}
+          <code>offsetX={DEMO_OFFSET_X}, offsetY={DEMO_OFFSET_Y}</code> 留出边距，方便完整查看。
         </span>
       </footer>
     </div>

@@ -88,13 +88,13 @@ body {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(640px, 1fr));
   gap: 20px;
 }
 
 .grid--wide {
   margin-top: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(680px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(760px, 1fr));
 }
 
 .cell {
