@@ -1,0 +1,544 @@
+/* Clock overlay. The anchor and tilt wrapper, the shared theme palettes, and one
+   block per layout variant rendered by Clock.jsx. */
+
+/* Type scale. Deliberately larger than body copy so the time reads from across
+   the room, as it does on a wallpaper. Defined here rather than in the shared
+   theme so the clock renders correctly with no stylesheet beyond its own; a
+   consumer can still override any of these. */
+.wallkit-clock__anchor {
+  --wallkit-clock-time-size: clamp(38px, 5.2vh, 84px);
+  --wallkit-clock-date-size: clamp(14px, 1.5vh, 24px);
+  --wallkit-clock-zone-size: clamp(11px, 0.95vh, 16px);
+}
+
+/* Clock overlay: sits above the canvas but never intercepts clicks, so the
+   click-to-action gesture still works wherever the clock is displayed.
+
+   The clock is deliberately chrome-less: no background, border or card shadow.
+   Text floats directly over the wallpaper, with a soft shadow only to keep it
+   legible over bright artwork. */
+.wallkit-clock__anchor {
+  position: absolute;
+  bottom: var(--wallkit-gutter, clamp(14px, 1.2vh, 22px));
+  left: var(--wallkit-gutter, clamp(14px, 1.2vh, 22px));
+  z-index: 5;
+  pointer-events: none;
+}
+
+.wallkit-clock__tilt {
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+  /* No transition: Clock.jsx eases the angles itself in a rAF loop. Adding a
+     CSS transition here would restart on every pointer move and stutter. */
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* ==========================================================================
+   Clock Themes & Styles
+   ========================================================================== */
+
+/* Text-colour palettes. The class name matches the user-facing theme: the
+   "light" theme renders light text on the wallpaper, the "dark" theme renders
+   dark text. Layouts that opt out define their own palette (cyberpunk, infobar). */
+.wallkit-clock--theme-dark {
+  color: #1a1e28;
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+/* 1. 极简数字时钟（Minimal Digital） */
+.wallkit-clock__minimal {
+  /* Light text on wallpaper (the default). */
+  --wallkit-clock-fg: #f4f7ff;
+  --wallkit-clock-fg-dim: rgba(238, 242, 252, 0.82);
+  --wallkit-clock-fg-faint: rgba(238, 242, 252, 0.62);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--wallkit-clock-fg);
+  user-select: none;
+  cursor: pointer;
+  text-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.72),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 26px) rgba(168, 196, 255, calc(var(--wallkit-clock-glow, 0) * 0.85));
+}
+
+/* Dark text: swap the palette and the halo so it reads on bright artwork. */
+.wallkit-clock__minimal.wallkit-clock--theme-dark {
+  --wallkit-clock-fg: #1a1e28;
+  --wallkit-clock-fg-dim: rgba(26, 30, 40, 0.82);
+  --wallkit-clock-fg-faint: rgba(26, 30, 40, 0.62);
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+.wallkit-clock__time {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  color: var(--wallkit-clock-fg);
+  font-family: "Inter", "SF Pro", system-ui, sans-serif;
+  font-size: calc(var(--wallkit-clock-time-size) * 1.3 * var(--wallkit-clock-scale, 1));
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+}
+
+.wallkit-clock__sec {
+  opacity: 0.65;
+  font-size: 0.65em;
+  font-weight: 300;
+}
+
+.wallkit-clock__colon {
+  opacity: 0.85;
+}
+
+.wallkit-clock__ampm {
+  font-size: 0.28em;
+  margin-left: 0.35em;
+  font-weight: 500;
+  opacity: 0.75;
+  text-transform: uppercase;
+}
+
+.wallkit-clock__date {
+  margin-top: 0.25em;
+  color: var(--wallkit-clock-fg-dim);
+  font-size: calc(var(--wallkit-clock-date-size) * 1.05 * var(--wallkit-clock-scale, 1));
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.wallkit-clock__zone {
+  margin-top: 0.15em;
+  color: var(--wallkit-clock-fg-faint);
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.95 * var(--wallkit-clock-scale, 1));
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+
+/* 2. 赛博朋克霓虹时钟（Cyberpunk Neon） */
+/* This layout paints its own card, so the theme follows the card background:
+   the light theme is a pale card with dark text, the dark theme is the neon card
+   with bright text. The accent colours track the background to stay legible. */
+.wallkit-clock__cyberpunk {
+  /* Neon accents for the pale card: the same hues, darkened. */
+  --wallkit-clock-cyber-accent: #007a8a;
+  --wallkit-clock-cyber-sec: #c4006a;
+  --wallkit-clock-cyber-ampm: #8a7900;
+  --wallkit-clock-cyber-footer: #2c354f;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: calc(14px * var(--wallkit-clock-scale, 1)) calc(20px * var(--wallkit-clock-scale, 1));
+  background: rgba(240, 245, 255, 0.9);
+  border: 1px solid #ff007f;
+  border-radius: calc(8px * var(--wallkit-clock-scale, 1));
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.3);
+  color: var(--wallkit-clock-cyber-accent);
+  font-family: "JetBrains Mono", "Fira Code", monospace, sans-serif;
+  user-select: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/* Dark theme: the neon card with bright glowing accents. */
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark {
+  --wallkit-clock-cyber-accent: #00f0ff;
+  --wallkit-clock-cyber-sec: #ff2d95;
+  --wallkit-clock-cyber-ampm: #fffa65;
+  --wallkit-clock-cyber-footer: #e2f8ff;
+  background: rgba(6, 10, 20, 0.82);
+  border-color: #00f0ff;
+  box-shadow:
+    0 0 15px rgba(0, 240, 255, 0.35),
+    inset 0 0 15px rgba(0, 240, 255, 0.15);
+  color: var(--wallkit-clock-cyber-accent);
+}
+
+.wallkit-clock__scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 0, 127, 0.5);
+  box-shadow: none;
+  animation: wallkit-clock-scan 3.5s linear infinite;
+  pointer-events: none;
+}
+
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark .wallkit-clock__scanline {
+  background: rgba(0, 240, 255, 0.65);
+  box-shadow: 0 0 8px #00f0ff;
+}
+
+@keyframes wallkit-clock-scan {
+  0% { transform: translateY(-10px); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { transform: translateY(160px); opacity: 0; }
+}
+
+.wallkit-clock__time {
+  display: flex;
+  align-items: baseline;
+  color: var(--wallkit-clock-cyber-accent);
+  font-size: calc(var(--wallkit-clock-time-size) * 1.15 * var(--wallkit-clock-scale, 1));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Glow belongs to the dark neon card; the pale card keeps the text crisp. */
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark .wallkit-clock__time {
+  text-shadow:
+    0 0 10px rgba(0, 240, 255, 0.8),
+    0 0 24px rgba(0, 240, 255, 0.45);
+}
+
+.wallkit-clock__sec {
+  color: var(--wallkit-clock-cyber-sec);
+}
+
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark .wallkit-clock__sec {
+  text-shadow:
+    0 0 10px rgba(255, 45, 149, 0.8),
+    0 0 20px rgba(255, 45, 149, 0.45);
+}
+
+.wallkit-clock__ampm {
+  font-size: 0.35em;
+  margin-left: 0.5em;
+  color: var(--wallkit-clock-cyber-ampm);
+}
+
+.wallkit-clock__divider {
+  height: 1px;
+  background: linear-gradient(90deg, #c4006a, #ff007f, transparent);
+  margin: 0.2em 0;
+}
+
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark .wallkit-clock__divider {
+  background: linear-gradient(90deg, #00f0ff, #ff2d95, transparent);
+}
+
+.wallkit-clock__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  font-size: calc(var(--wallkit-clock-date-size) * 0.82 * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.05em;
+  color: var(--wallkit-clock-cyber-footer);
+}
+
+.wallkit-clock__cyberpunk.wallkit-clock--theme-dark .wallkit-clock__footer {
+  text-shadow: 0 0 6px rgba(0, 240, 255, 0.5);
+}
+
+.wallkit-clock__weekday {
+  color: var(--wallkit-clock-cyber-sec);
+  font-weight: 700;
+}
+
+/* 3. 横向信息条时钟（Horizontal Info Bar） */
+/* Like the cyberpunk card this layout paints its own pill, so the theme follows
+   the pill background: light theme = pale pill with dark text, dark theme =
+   dark pill with bright text. */
+.wallkit-clock__infobar {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(14px * var(--wallkit-clock-scale, 1));
+  padding: calc(8px * var(--wallkit-clock-scale, 1)) calc(18px * var(--wallkit-clock-scale, 1));
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  color: #1a1e28;
+  user-select: none;
+  cursor: pointer;
+  font-family: "JetBrains Mono", "SF Pro", system-ui, monospace;
+}
+
+/* Dark theme: dark pill with bright text. */
+.wallkit-clock__infobar.wallkit-clock--theme-dark {
+  background: rgba(14, 18, 28, 0.62);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  color: #f4f7ff;
+}
+
+.wallkit-clock__sep {
+  opacity: 0.35;
+}
+
+.wallkit-clock__zone {
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.95 * var(--wallkit-clock-scale, 1));
+  opacity: 0.75;
+}
+
+.wallkit-clock__date {
+  font-size: calc(var(--wallkit-clock-date-size) * 0.88 * var(--wallkit-clock-scale, 1));
+  opacity: 0.9;
+}
+
+.wallkit-clock__time {
+  font-size: calc(var(--wallkit-clock-date-size) * 1.05 * var(--wallkit-clock-scale, 1));
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* Classical Layouts (Card & Bar) */
+.wallkit-clock__card {
+  /* Light text on wallpaper (the default). */
+  --wallkit-clock-fg: #f4f7ff;
+  --wallkit-clock-fg-dim: rgba(238, 242, 252, 0.82);
+  --wallkit-clock-fg-faint: rgba(238, 242, 252, 0.62);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12em;
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.72),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 26px) rgba(168, 196, 255, calc(var(--wallkit-clock-glow, 0) * 0.85));
+  user-select: none;
+  cursor: pointer;
+}
+
+/* Dark text: swap the palette and the halo so it reads on bright artwork. */
+.wallkit-clock__card.wallkit-clock--theme-dark {
+  --wallkit-clock-fg: #1a1e28;
+  --wallkit-clock-fg-dim: rgba(26, 30, 40, 0.82);
+  --wallkit-clock-fg-faint: rgba(26, 30, 40, 0.62);
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+.wallkit-clock__date {
+  font-size: calc(var(--wallkit-clock-date-size) * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.06em;
+  color: var(--wallkit-clock-fg-dim);
+}
+
+.wallkit-clock__time {
+  color: var(--wallkit-clock-fg);
+  font-size: calc(var(--wallkit-clock-time-size) * var(--wallkit-clock-scale, 1));
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+
+.wallkit-clock__zone {
+  font-size: calc(var(--wallkit-clock-zone-size) * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.14em;
+  color: var(--wallkit-clock-fg-faint);
+}
+
+.wallkit-clock__bar {
+  /* Light text on wallpaper (the default). */
+  --wallkit-clock-fg: #f4f7ff;
+  --wallkit-clock-fg-dim: rgba(238, 242, 252, 0.82);
+  --wallkit-clock-fg-faint: rgba(238, 242, 252, 0.62);
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.72),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 26px) rgba(168, 196, 255, calc(var(--wallkit-clock-glow, 0) * 0.85));
+  user-select: none;
+  cursor: pointer;
+}
+
+/* Dark text: swap the palette and the halo so it reads on bright artwork. */
+.wallkit-clock__bar.wallkit-clock--theme-dark {
+  --wallkit-clock-fg: #1a1e28;
+  --wallkit-clock-fg-dim: rgba(26, 30, 40, 0.82);
+  --wallkit-clock-fg-faint: rgba(26, 30, 40, 0.62);
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+.wallkit-clock__time {
+  color: var(--wallkit-clock-fg);
+  font-size: calc(var(--wallkit-clock-time-size) * 0.62 * var(--wallkit-clock-scale, 1));
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.wallkit-clock__separator,
+.wallkit-clock__date {
+  font-size: calc(var(--wallkit-clock-date-size) * var(--wallkit-clock-scale, 1));
+  color: var(--wallkit-clock-fg-dim);
+}
+
+.wallkit-clock__zone {
+  font-size: calc(var(--wallkit-clock-zone-size) * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.14em;
+  color: var(--wallkit-clock-fg-faint);
+}
+
+/* Split layout: elegant dual-tier with date pill header */
+.wallkit-clock__split {
+  /* Light text on wallpaper (the default). */
+  --wallkit-clock-fg: #f4f7ff;
+  --wallkit-clock-fg-dim: rgba(240, 244, 255, 0.9);
+  --wallkit-clock-fg-faint: rgba(240, 244, 255, 0.6);
+  --wallkit-clock-badge-fg: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.72),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 26px) rgba(168, 196, 255, calc(var(--wallkit-clock-glow, 0) * 0.85));
+  user-select: none;
+}
+
+/* Dark text: swap the palette and the halo so it reads on bright artwork. */
+.wallkit-clock__split.wallkit-clock--theme-dark {
+  --wallkit-clock-fg: #1a1e28;
+  --wallkit-clock-fg-dim: rgba(26, 30, 40, 0.9);
+  --wallkit-clock-fg-faint: rgba(26, 30, 40, 0.6);
+  --wallkit-clock-badge-fg: #1a1e28;
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+.wallkit-clock__header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: calc(var(--wallkit-clock-date-size) * 0.88 * var(--wallkit-clock-scale, 1));
+}
+
+.wallkit-clock__badge {
+  display: inline-block;
+  padding: 0.12em 0.55em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--wallkit-clock-badge-fg);
+}
+
+.wallkit-clock__date {
+  letter-spacing: 0.06em;
+  color: var(--wallkit-clock-fg-dim);
+}
+
+.wallkit-clock__zone {
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.9 * var(--wallkit-clock-scale, 1));
+  color: var(--wallkit-clock-fg-faint);
+  letter-spacing: 0.1em;
+}
+
+.wallkit-clock__time {
+  color: var(--wallkit-clock-fg);
+  font-size: calc(var(--wallkit-clock-time-size) * var(--wallkit-clock-scale, 1));
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* Poster layout: bold headline hours/minutes with offset seconds */
+.wallkit-clock__poster {
+  /* Light text on wallpaper (the default). */
+  --wallkit-clock-fg: #f4f7ff;
+  --wallkit-clock-fg-dim: rgba(235, 240, 255, 0.82);
+  --wallkit-clock-fg-faint: rgba(235, 240, 255, 0.55);
+  --wallkit-clock-sec-fg: rgba(180, 205, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.78),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 26px) rgba(168, 196, 255, calc(var(--wallkit-clock-glow, 0) * 0.85));
+  user-select: none;
+}
+
+/* Dark text: swap the palette and the halo so it reads on bright artwork. */
+.wallkit-clock__poster.wallkit-clock--theme-dark {
+  --wallkit-clock-fg: #1a1e28;
+  --wallkit-clock-fg-dim: rgba(26, 30, 40, 0.82);
+  --wallkit-clock-fg-faint: rgba(26, 30, 40, 0.55);
+  --wallkit-clock-sec-fg: rgba(40, 70, 120, 0.9);
+  color: var(--wallkit-clock-fg);
+  text-shadow:
+    0 1px 4px rgba(255, 255, 255, 0.85),
+    0 0 calc(var(--wallkit-clock-glow, 0) * 20px) rgba(90, 130, 220, calc(var(--wallkit-clock-glow, 0) * 0.7));
+}
+
+.wallkit-clock__main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2em;
+}
+
+.wallkit-clock__hm {
+  color: var(--wallkit-clock-fg);
+  font-size: calc(var(--wallkit-clock-time-size) * 1.35 * var(--wallkit-clock-scale, 1));
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+}
+
+.wallkit-clock__sec {
+  font-size: calc(var(--wallkit-clock-time-size) * 0.5 * var(--wallkit-clock-scale, 1));
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--wallkit-clock-sec-fg);
+  letter-spacing: 0.02em;
+}
+
+.wallkit-clock__footer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  font-size: calc(var(--wallkit-clock-date-size) * 0.92 * var(--wallkit-clock-scale, 1));
+  color: var(--wallkit-clock-fg-dim);
+  letter-spacing: 0.08em;
+}
+
+.wallkit-clock__weekday {
+  font-weight: 600;
+  color: var(--wallkit-clock-fg);
+}
+
+.wallkit-clock__zone {
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.9 * var(--wallkit-clock-scale, 1));
+  color: var(--wallkit-clock-fg-faint);
+}
+
+@media (max-width: 640px) {
+  .wallkit-clock__anchor {
+    left: var(--wallkit-space-5, clamp(20px, 1.7vh, 30px));
+    bottom: var(--wallkit-space-5, clamp(20px, 1.7vh, 30px));
+  }
+}

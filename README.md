@@ -41,14 +41,22 @@ WallKit 通过 GitHub git 引用分发，不发布 npm。
 
 ```jsx
 import { Clock } from 'wallkit/components/clock'
-import { AlbumArt } from 'wallkit/components/album-art'
 
-function Controls({ now, bars, track }) {
+function Controls() {
+  // The caller owns the tick: the component holds no timer, so pausing the
+  // wallpaper stops the work here too.
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   return (
-    <>
-      <Clock now={now} labels={{ date: '2026年11月13日', weekday: '星期四' }} />
-      <AlbumArt track={track} bars={bars} />
-    </>
+    <Clock
+      now={now}
+      labels={{ date: '2026年11月13日', weekday: '周四', aria: '当前时间与日期' }}
+    />
   )
 }
 ```
@@ -86,13 +94,10 @@ const track = useWallpaperMedia()
 | 入口 | 内容 |
 |---|---|
 | `wallkit` | 根入口 |
-| `wallkit/core` | 环境探测、存储工具、类型约定 |
+| `wallkit/core` | 环境探测、存储工具、时钟纯函数、类型约定 |
 | `wallkit/components/clock` | 日期时间控件 |
-| `wallkit/components/spectrum` | 独立浮动频谱 |
-| `wallkit/components/mini-spectrum` | 填充父容器的紧凑频谱 |
-| `wallkit/components/album-art` | 专辑卡片 |
-| `wallkit/we` | WE 数据源 hooks（可选） |
-| `wallkit/we/vite` | Vite 插件 |
+| `wallkit/we` | WE 数据源 hooks（P4 计划中，暂无实现） |
+| `wallkit/we/vite` | Vite 插件（P4 计划中，暂无实现） |
 | `wallkit/styles` | 主题变量 |
 
 ---
@@ -125,9 +130,9 @@ const track = useWallpaperMedia()
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| P0 | `core` + `styles` 骨架 | 未开始 |
-| P1 | `Clock` | 未开始 |
-| P2 | `Spectrum` | 未开始（待 Clock 完成） |
+| P0 | `core` + `styles` 骨架 | ✅ 完成 |
+| P1 | `Clock` | ✅ 完成 |
+| P2 | `Spectrum` | 未开始 |
 | P3 | `MiniSpectrum` + `AlbumArt` | 未开始 |
 | P4 | `wallkit/we` + Vite 插件 | 未开始 |
 | P6 | 模板仓库 | 未开始（等第二个游戏落地后） |

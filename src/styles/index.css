@@ -1,0 +1,28 @@
+/* WallKit theme tokens.
+ *
+ * Every component colours itself from these variables, so a wallpaper can
+ * restyle the whole overlay set from one place. Import once, or override any
+ * subset — the components fall back to the defaults below. */
+
+:root {
+  /* Text colours. */
+  --wallkit-text: #f4f7ff;
+  --wallkit-text-dim: rgba(238, 242, 252, 0.82);
+  --wallkit-text-faint: rgba(238, 242, 252, 0.62);
+
+  /* Accent used by audio-reactive glows and spectrum bars. */
+  --wallkit-accent: #a8c4ff;
+
+  /* Distance of free-floating widgets from the viewport edge. */
+  --wallkit-gutter: clamp(14px, 1.2vh, 22px);
+
+  /* Spacing scale, exposed for components that need a shared rhythm. */
+  --wallkit-space-1: 4px;
+  --wallkit-space-2: 8px;
+  --wallkit-space-3: 12px;
+  --wallkit-space-4: 16px;
+
+  /* Type. */
+  --wallkit-font: system-ui, 'Segoe UI', sans-serif;
+  --wallkit-mono: ui-monospace, 'Cascadia Mono', monospace;
+}
