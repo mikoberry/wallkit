@@ -124,6 +124,20 @@ const track = useWallpaperMedia()
 
 ---
 
+## 本地预览
+
+`playground/` 是一个独立的小 Vite 工程，直接引用 `../src` 的源码，用来查看组件的实际渲染。
+
+```bash
+cd playground
+npm install
+npm run dev          # http://localhost:5174/
+```
+
+演示页包含全部 7 种时钟布局、深浅主题、尺寸缩放、以及合成节拍（用于检查音频响应动画）。**合成数据只存在于 playground**，库本身不会生成假数据。
+
+---
+
 ## 状态
 
 设计中，尚未实现。

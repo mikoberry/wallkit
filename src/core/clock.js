@@ -58,25 +58,31 @@ export function formatClockTime(date, { use24Hour = true, locale = 'en-GB' } = {
 /**
  * Split a formatted time string into its display parts.
  *
- * The AM/PM suffix is lifted out so a layout can typeset the seconds small
- * without re-deriving the meridiem.
+ * The meridiem is lifted out so a layout can typeset the seconds small and
+ * place the marker on its own. It is matched on either side of the clock
+ * because locales disagree: `en-US` and `en-GB` append it ("08:46:28 AM"),
+ * while `zh-CN` and `ja-JP` prefix it ("上午08:46:28"). Assuming a trailing
+ * suffix left the day period glued to the digits for those locales, where it
+ * rendered as a huge stray word.
  *
- * The match is case-insensitive on purpose: `en-GB` (the default locale)
- * renders a lowercase `am`/`pm`, while the fallback path below emits uppercase.
- * Matching only `[AP]M` would silently drop the meridiem for every 12-hour
- * clock — the suffix would stay glued to the seconds instead of being lifted.
+ * The match is case-insensitive because `en-GB` emits a lowercase "am".
  *
  * @param {string} timeString
  * @returns {{ hours: string, minutes: string, seconds: string, ampm: string }}
  */
 export function splitClockTime(timeString) {
-  const ampm = /[ap]m$/i.exec(timeString)?.[0] ?? ''
-  const chunks = timeString.replace(/\s*[ap]m$/i, '').split(':')
+  // Clock markers: latin AM/PM, and the CJK day periods used by zh/ja/ko.
+  const marker = /(am|pm|上午|下午|凌晨|早上|中午|晚上|早上|午前|午後|오전|오후)/i
+  const match = marker.exec(timeString)
+  const ampm = match ? match[0].toUpperCase() : ''
+  const digits = timeString.replace(marker, '').trim()
+
+  const chunks = digits.split(':')
   return {
     hours: chunks[0] || '00',
     minutes: chunks[1] || '00',
     seconds: chunks[2] || '00',
-    ampm: ampm.toUpperCase(),
+    ampm,
   }
 }
 

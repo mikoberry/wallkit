@@ -1,0 +1,164 @@
+/* Playground chrome.
+ *
+ * Deliberately plain: the demo exists to show the library's widgets against
+ * different backgrounds, so nothing here should compete with them. */
+
+:root {
+  color-scheme: dark;
+  font-family: system-ui, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0b0d14;
+  color: #e8ecf8;
+}
+
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #aab4cc;
+}
+
+.controls button,
+.controls select,
+.controls input[type='range'] {
+  font: inherit;
+  color: #e8ecf8;
+  background: #1a2030;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.controls button:hover {
+  background: #232b3f;
+}
+
+.controls input[type='range'] {
+  padding: 0;
+  width: 120px;
+  accent-color: #7dd3fc;
+}
+
+.hint {
+  margin: 16px 0 24px;
+  max-width: 78ch;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8d99b5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+  gap: 20px;
+}
+
+.grid--wide {
+  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(680px, 1fr));
+}
+
+.cell {
+  margin: 0;
+}
+
+/* The stage is the positioning context for .wallkit-clock__anchor, which is
+ * absolutely positioned. Overflow is hidden so a large size stays inside the
+ * card instead of bleeding across the grid.
+ *
+ * Height is generous on purpose: the clock's type scale is sized for a
+ * full-screen wallpaper (clamp(38px, 5.2vh, 84px)), so a cramped box clips it.
+ * The demo scales the widgets down with `size` rather than shrinking the box. */
+.stage {
+  position: relative;
+  overflow: hidden;
+  height: 260px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* The widgets anchor to the bottom-left of their positioning context, which
+   * is exactly the default wallpaper placement. Padding keeps the anchor and
+   * the caption from touching the rounded corners. */
+  padding: 0;
+}
+
+/* Alternating light/dark artwork stand-ins: the clock has to stay legible on
+ * both, which is exactly what the two theme palettes exist for. */
+.stage--a {
+  background: linear-gradient(135deg, #f3f6ff 0%, #cfd9f0 55%, #aebbd9 100%);
+}
+
+.stage--b {
+  background: linear-gradient(135deg, #101826 0%, #1d2b45 55%, #2b3f63 100%);
+}
+
+.stage--photo {
+  background:
+    radial-gradient(circle at 78% 22%, rgba(255, 214, 160, 0.55), transparent 46%),
+    radial-gradient(circle at 22% 78%, rgba(122, 162, 255, 0.5), transparent 52%),
+    linear-gradient(160deg, #2a1f3d 0%, #12203a 60%, #0a1120 100%);
+}
+
+.stage--dark {
+  background: linear-gradient(135deg, #06070d 0%, #10182b 100%);
+}
+
+.cell figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #7b87a3;
+}
+
+.foot {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #6b7794;
+}
+
+.foot code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, monospace;
+}
