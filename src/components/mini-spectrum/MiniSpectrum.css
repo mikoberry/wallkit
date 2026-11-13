@@ -1,0 +1,18 @@
+/* Spectrum that fills its parent box.
+   No positioning or sizing here on purpose: the card (or any other host) owns
+   the geometry, so the widget can sit inside a flex/grid slot without knowing
+   anything about the viewport. The parent must have a definite size — this box
+   is 100% × 100%, so an auto-height parent collapses it. */
+
+.wallkit-mini-spectrum {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wallkit-mini-spectrum__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

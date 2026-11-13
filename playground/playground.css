@@ -321,6 +321,47 @@ body {
   background: linear-gradient(135deg, #06070d 0%, #10182b 100%);
 }
 
+/* Bright wallpaper, for checking the dark-ink theme: light text would vanish
+ * here, which is exactly what theme="dark" exists for. */
+.stage--light {
+  background:
+    radial-gradient(circle at 24% 20%, rgba(255, 255, 255, 0.9), transparent 52%),
+    linear-gradient(160deg, #f6efe2 0%, #e7e2f7 52%, #d8e6f5 100%);
+}
+
+/* MiniSpectrum has no size of its own — it fills 100% × 100% of its parent, so
+ * the demo has to give it a box with a definite height. This is the whole
+ * contract of the component: the parent owns the geometry. */
+.mini-box {
+  position: relative;
+  height: 150px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mini-box--a {
+  background: linear-gradient(135deg, #1a2233 0%, #0d1320 100%);
+}
+
+.mini-box--b {
+  background: linear-gradient(135deg, #241a2e 0%, #0f1420 100%);
+}
+
+/* The big box for the selected variant. Same contract as .mini-box: the parent
+ * owns the height, the widget fills it. */
+.mini-hero {
+  position: relative;
+  height: 220px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 20% 80%, rgba(122, 162, 255, 0.22), transparent 55%),
+    linear-gradient(135deg, #0b1020 0%, #131a2b 100%);
+}
+
 .cell figcaption {
   margin-top: 8px;
   font-size: 12px;

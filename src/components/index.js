@@ -6,3 +6,5 @@
 
 export { Clock } from './clock/index.js'
 export { Spectrum } from './spectrum/index.js'
+export { MiniSpectrum } from './mini-spectrum/index.js'
+export { AlbumArt } from './album-art/index.js'

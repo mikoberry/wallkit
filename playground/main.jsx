@@ -2,6 +2,8 @@ import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
+import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
+import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
 import { SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -38,6 +40,8 @@ function syntheticSpectrum(timeSeconds, out, { beatsPerSecond = 2 } = {}) {
 const COMPONENTS = [
   { id: 'clock', label: 'Clock', hint: '日期时间控件' },
   { id: 'spectrum', label: 'Spectrum', hint: '音频频谱控件' },
+  { id: 'mini', label: 'MiniSpectrum', hint: '填满父容器的频谱' },
+  { id: 'album', label: 'AlbumArt', hint: '专辑卡片控件' },
 ]
 
 const PLACEMENTS = [
@@ -655,6 +659,325 @@ function SpectrumDemo() {
   )
 }
 
+// Synthetic cover art for the demo only. The library never invents artwork —
+// it renders `track.thumbnail` or an empty placeholder — but the playground
+// needs something to put in the card. A data-URI SVG keeps the demo
+// self-contained: no binary assets, no network.
+function coverDataUri(hue) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320">
+    <defs>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="hsl(${hue} 74% 64%)"/>
+        <stop offset="1" stop-color="hsl(${(hue + 52) % 360} 66% 32%)"/>
+      </linearGradient>
+    </defs>
+    <rect width="320" height="320" fill="url(#g)"/>
+    <circle cx="160" cy="160" r="74" fill="rgba(255,255,255,0.14)"/>
+    <circle cx="160" cy="160" r="34" fill="rgba(255,255,255,0.26)"/>
+  </svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+// Three stands-ins so switching tracks shows the tint and cover swap.
+const DEMO_TRACKS = [
+  {
+    title: '夜航',
+    artist: 'Demo Artist',
+    albumTitle: 'Synthwave Sessions',
+    thumbnail: coverDataUri(212),
+    primaryColor: '#6f8bff',
+    textColor: '#ffffff',
+    playback: 'playing',
+  },
+  {
+    title: 'Late Train Home',
+    artist: 'Placeholder Quartet',
+    albumTitle: 'Nocturne',
+    thumbnail: coverDataUri(18),
+    primaryColor: '#ff9a5c',
+    textColor: '#ffffff',
+    playback: 'playing',
+  },
+  {
+    title: '未命名曲目',
+    artist: '',
+    albumTitle: '',
+    thumbnail: '',
+    primaryColor: '',
+    textColor: '',
+    playback: null,
+  },
+]
+
+const ALBUM_VARIANT_LABELS = {
+  classic: '经典圆形',
+  glass: '毛玻璃',
+  vinyl: '黑胶唱片',
+  minimal: '极简文字',
+  bar: '横向胶囊',
+  wall: '唱片墙',
+}
+
+// The layout list comes from the library, so a new variant shows up here without
+// editing this file — only an unknown id falls back to the raw name.
+const ALBUM_VARIANTS = ALBUM_ART_VARIANTS.map((id) => ({
+  id,
+  label: ALBUM_VARIANT_LABELS[id] ?? id,
+}))
+
+function MiniSpectrumDemo() {
+  const [variant, setVariant] = useState('bars')
+  const [paused, setPaused] = useState(false)
+  const [barCount, setBarCount] = useState(32)
+  const [intensity, setIntensity] = useState(130)
+  const [curve, setCurve] = useState(0.7)
+
+  const rawBars = useBars(!paused, 120)
+
+  return (
+    <>
+      <header className="head">
+        <h1>MiniSpectrum</h1>
+        <p className="hint">
+          填满父容器的频谱，没有尺寸与位置 props——盒子由父容器决定，所以能嵌进卡片。
+          <code>bars == null</code> 时不渲染；柱数默认折叠到 <code>32</code>（小尺寸下 128 根柱子会变成一条条线）。
+          与 <code>Spectrum</code> 共用同一套绘制循环，差别只在盒子怎么来的。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="样式">
+          <label className="ctl">
+            <span className="ctl__label">
+              样式 variant <b>{variant}</b>
+            </span>
+            <select value={variant} onChange={(e) => setVariant(e.target.value)}>
+              {SPECTRUM_STYLES.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </Row>
+
+        <Row title="数据与响应">
+          <Slider
+            label="柱数 barCount"
+            value={barCount}
+            min={8}
+            max={SPECTRUM_BARS}
+            step={4}
+            onChange={setBarCount}
+          />
+          <Slider
+            label="强度 intensity"
+            value={intensity}
+            min={0}
+            max={1000}
+            step={10}
+            suffix="%"
+            onChange={setIntensity}
+          />
+          <Slider
+            label="曲线 curve"
+            value={curve}
+            min={0.2}
+            max={2}
+            step={0.02}
+            onChange={setCurve}
+          />
+        </Row>
+
+        <Row title="运行">
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+        </Row>
+      </section>
+
+      {/* The selected variant gets a larger box, so the difference between
+          `variant` and the box it fills is visible: the widget never sizes
+          itself, only the parent does. */}
+      <div className="mini-hero">
+        <MiniSpectrum
+          bars={rawBars}
+          variant={variant}
+          barCount={barCount}
+          intensity={intensity}
+          curve={curve}
+          paused={paused}
+        />
+      </div>
+
+      <section className="grid">
+        {SPECTRUM_STYLES.map((id, i) => (
+          <figure className="cell" key={id}>
+            <div className={`mini-box mini-box--${i % 2 === 0 ? 'a' : 'b'}`}>
+              <MiniSpectrum
+                bars={rawBars}
+                variant={id}
+                barCount={barCount}
+                intensity={intensity}
+                curve={curve}
+                paused={paused}
+              />
+            </div>
+            <figcaption>mini-spectrum · {id}</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>variant="bars"</code>、<code>barCount=32</code>、<code>intensity=100</code>、
+        <code>curve=1</code>、<code>paused=false</code>。本页的 130% / 0.7 只是卡片尺寸下的观感取值。
+        柱数由 <code>barCount</code> 决定，在绘制循环里用 core 的 <code>resampleBars</code> 折叠。
+      </footer>
+    </>
+  )
+}
+
+function AlbumArtDemo() {
+  const [trackIndex, setTrackIndex] = useState(0)
+  const [playback, setPlayback] = useState('playing')
+  const [withBars, setWithBars] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [size, setSize] = useState(70)
+  const [offsetX, setOffsetX] = useState(DEMO_OFFSET_X)
+  const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
+  const [visible, setVisible] = useState(true)
+  const [theme, setTheme] = useState('light')
+
+  const pausedBars = useBars(!paused, 120)
+  const base = DEMO_TRACKS[trackIndex]
+  // `playback` is a demo control: `stopped` is the only state that hides the
+  // card, and `null` (unknown) must render — so the select exposes both.
+  const track = { ...base, playback: playback === 'null' ? null : playback }
+
+  return (
+    <>
+      <header className="head">
+        <h1>AlbumArt</h1>
+        <p className="hint">
+          纯展示组件：<code>track</code> 由本页提供（原本的媒体轮询留在应用层）。
+          <code>track == null</code> 或 <code>playback === 'stopped'</code> 时不渲染；
+          <code>playback === null</code> 表示未知，**按正在播放处理**——引擎只在切歌时推送，
+          把未知当成停止会让封面永久消失。<code>bars</code> 可选，没有它卡片仍然显示，只是少了频谱
+          （<code>bar</code> 布局会把那条 38% 的频谱槽位一起收掉，不留空洞）。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="曲目">
+          <label className="ctl">
+            <span className="ctl__label">
+              曲目 track <b>{trackIndex + 1}</b>
+            </span>
+            <select value={trackIndex} onChange={(e) => setTrackIndex(Number(e.target.value))}>
+              {DEMO_TRACKS.map((t, i) => (
+                <option key={t.title} value={i}>
+                  {t.title || '(无标题)'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="ctl">
+            <span className="ctl__label">
+              播放状态 playback <b>{String(track.playback)}</b>
+            </span>
+            <select value={playback} onChange={(e) => setPlayback(e.target.value)}>
+              <option value="playing">playing</option>
+              <option value="paused">paused</option>
+              <option value="stopped">stopped（不渲染）</option>
+              <option value="null">null（未知，视为播放中）</option>
+            </select>
+          </label>
+        </Row>
+
+        <Row title="尺寸与位置">
+          <Slider
+            label="尺寸 size"
+            value={size}
+            min={20}
+            max={150}
+            step={5}
+            suffix="%"
+            onChange={setSize}
+          />
+          <Slider
+            label="水平 offsetX"
+            value={offsetX}
+            min={0}
+            max={90}
+            suffix="%"
+            onChange={setOffsetX}
+          />
+          <Slider
+            label="垂直 offsetY"
+            value={offsetY}
+            min={0}
+            max={90}
+            suffix="%"
+            onChange={setOffsetY}
+          />
+        </Row>
+
+        <Row title="配色">
+          <label className="ctl">
+            <span className="ctl__label">
+              文字色 theme <b>{theme}</b>
+            </span>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+              <option value="light">light — 浅色文字（深色壁纸）</option>
+              <option value="dark">dark — 深色文字（浅色壁纸）</option>
+            </select>
+          </label>
+        </Row>
+
+        <Row title="运行">
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+          <Toggle label="频谱 bars" on={withBars} onChange={setWithBars} />
+        </Row>
+      </section>
+
+      <section className="grid">
+        {ALBUM_VARIANTS.map((v, i) => (
+          <figure className="cell" key={v.id}>
+            <div
+              className={`stage stage--${
+                theme === 'dark' ? 'light' : i % 2 === 0 ? 'photo' : 'dark'
+              }`}
+            >
+              <AlbumArt
+                track={track}
+                bars={withBars ? pausedBars : null}
+                variant={v.id}
+                theme={theme}
+                size={size}
+                offsetX={offsetX}
+                offsetY={offsetY}
+                visible={visible}
+                paused={paused}
+                labels={{ aria: '正在播放', coverAlt: base.title }}
+              />
+            </div>
+            <figcaption>album-art · {v.id}</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>variant="classic"</code>、<code>theme="light"</code>、<code>size=100</code>、
+        <code>offsetX=0, offsetY=0</code>、<code>paused=false</code>、<code>bars</code> 可省略。
+        <code>theme="dark"</code> 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）一并翻成浅色，
+        并把默认 accent 压暗，否则浅底上的频谱看不见。六种布局各自绑定频谱样式：
+        classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无频谱。
+        封面每 24s 转一圈，<code>paused</code> 或 <code>playback="paused"</code> 时停转；
+        <code>prefers-reduced-motion</code> 下不转。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -687,7 +1010,10 @@ function App() {
       </aside>
 
       <main className="content">
-        {active === 'clock' ? <ClockDemo /> : <SpectrumDemo />}
+        {active === 'clock' && <ClockDemo />}
+        {active === 'spectrum' && <SpectrumDemo />}
+        {active === 'mini' && <MiniSpectrumDemo />}
+        {active === 'album' && <AlbumArtDemo />}
       </main>
     </div>
   )
