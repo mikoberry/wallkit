@@ -22,7 +22,6 @@ import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
 import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
-import { isHexColor } from '../src/core/index.js'
 import {
   useWallpaperAudio,
   useWallpaperBeat,
@@ -30,6 +29,7 @@ import {
   useWallpaperPaused,
 } from 'wallkit/we'
 import { useNow, useWallpaperAudioStatus, STALE_MS } from './wallpaper-data.js'
+import { accentFromTrack, toHexColor, DEFAULT_ACCENT } from './accent.js'
 import '../src/styles/index.css'
 import './wallpaper.css'
 
@@ -45,6 +45,52 @@ const CYCLE_MS = 8000
 // The debug overlay. Press H to hide it; it also dims itself after a few
 // seconds so the contrast judgement is not made through a white rectangle.
 const SHOW_HUD = true
+
+// Synthetic cover colours, reachable only by pressing A.
+//
+// They exist because no host ever pushes `primaryColor` in a browser, so the
+// accent experiment would be invisible outside the engine. They are **never**
+// applied automatically — `previewCover` starts at null, and the engine has no
+// keyboard, so a real wallpaper can't reach this path by accident.
+//
+// The three formats are deliberate: hex, bare `r g b`, and `rgb()`. Cycling them
+// doubles as a smoke test for `parseColor()`.
+const PREVIEW_COVERS = [
+  { label: '暖橙', primaryColor: '#c8613c' },
+  { label: '青绿', primaryColor: '38 168 148' },
+  { label: '紫', primaryColor: 'rgb(138, 92, 214)' },
+]
+
+// Accent policy. `follow` derives the colour from the cover, `fixed` pins it to
+// `fixedColor`, `off` leaves the theme default alone.
+//
+// This constant is what a real wallpaper ships with: the engine gives the page no
+// keyboard, so the M key below only works in a browser. Tuning the numbers here is
+// the in-engine knob; `options` is forwarded to `accentFromTrack`, and every field
+// is documented in ACCENT_DEFAULTS.
+const ACCENT = {
+  mode: 'follow',
+  fixedColor: '#a8c4ff',
+  options: {
+    minSourceSaturation: 0.12,
+    saturationFloor: 0.42,
+    saturationCeiling: 0.92,
+  },
+}
+
+const ACCENT_MODES = ['follow', 'fixed', 'off']
+
+/**
+ * @param {{ primaryColor?: string } | null} track
+ * @param {'light' | 'dark'} theme
+ * @param {'follow' | 'fixed' | 'off'} mode
+ * @returns {string | null}
+ */
+function pickAccent(track, theme, mode) {
+  if (mode === 'off') return null
+  if (mode === 'fixed') return ACCENT.fixedColor
+  return accentFromTrack(track, theme, ACCENT.options)
+}
 
 // ---------------------------------------------------------------------------
 // Variants
@@ -84,7 +130,7 @@ const LAYOUTS_PER_SCENE = ALBUM_ART_VARIANTS.length
 // HUD
 // ---------------------------------------------------------------------------
 
-function Hud({ scene, clock, anchor, album, spectrum, audio, media, paused, hidden }) {
+function Hud({ scene, clock, anchor, album, spectrum, audio, media, paused, accent, mode, preview, hidden }) {
   const lines = [
     `scene    ${SCENES.indexOf(scene) + 1}/${SCENES.length}  ${scene.label}`,
     `clock    ${clock} · anchor ${anchor}`,
@@ -100,8 +146,19 @@ function Hud({ scene, clock, anchor, album, spectrum, audio, media, paused, hidd
           }`
         : 'null'
     }`,
+    // The raw value is printed next to the derived one on purpose: it is the only
+    // way to see which format the engine actually sends, and whether the clamp
+    // moved the colour or the parse bailed out. When a preview cover is selected
+    // but the mode is not `follow`, say so — otherwise it looks like A is broken.
+    preview
+      ? `accent   ${mode} · 预览「${preview.label}」raw "${preview.primaryColor}" → ${
+          accent || `${DEFAULT_ACCENT} (默认)`
+        }${mode === 'follow' ? '' : ' （非 follow，封面被忽略）'}`
+      : `accent   ${mode} · ${accent || `${DEFAULT_ACCENT} (默认)`} · raw "${
+          (media && media.primaryColor) || '—'
+        }"`,
     `paused   ${paused}`,
-    `keys     ← → 步进 · ↑ ↓ 换场景 · 空格 停/启循环 · H 显隐`,
+    `keys     ← → 步进 · ↑ ↓ 换场景 · 空格 停/启循环 · H 显隐 · A 预览封面色 · M 强调色模式`,
   ]
 
   return (
@@ -123,6 +180,9 @@ function Wallpaper() {
   const [step, setStep] = useState(0)
   const [cycling, setCycling] = useState(CYCLE_MS > 0)
   const [hudVisible, setHudVisible] = useState(SHOW_HUD)
+  // null = follow the engine; an index = a synthetic cover chosen with A.
+  const [previewCover, setPreviewCover] = useState(null)
+  const [accentMode, setAccentMode] = useState(ACCENT.mode)
 
   const paused = useWallpaperPaused()
   const now = useNow(paused)
@@ -158,19 +218,42 @@ function Wallpaper() {
         setCycling((value) => !value)
       } else if (event.key === 'h' || event.key === 'H') {
         setHudVisible((value) => !value)
+      } else if (event.key === 'a' || event.key === 'A') {
+        // Cycles off → 1 → 2 → 3 → off, so there is always a way back to "real".
+        setPreviewCover((value) => {
+          if (value == null) return 0
+          return value + 1 < PREVIEW_COVERS.length ? value + 1 : null
+        })
+      } else if (event.key === 'm' || event.key === 'M') {
+        setAccentMode((value) => ACCENT_MODES[(ACCENT_MODES.indexOf(value) + 1) % ACCENT_MODES.length])
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // The cover's tint is handed to the card through `primaryColor`; validating it
-  // here keeps a garbage value out of the CSS variable.
-  const themedTrack =
-    track && isHexColor(track.primaryColor) ? track : track ? { ...track, primaryColor: '' } : null
+  // The cover's tint is handed to the card through `primaryColor`; normalizing it
+  // here keeps a garbage value out of the CSS variable, and lets a host that sends
+  // `r g b` still tint the card.
+  const coverHex = toHexColor(track && track.primaryColor)
+  const themedTrack = track ? { ...track, primaryColor: coverHex || '' } : null
+
+  // One policy, two sources. The mode decides *whether* the accent follows the
+  // cover; the preview cover only swaps *which* cover is consulted (a browser has
+  // none). Letting the preview bypass the mode was wrong: pressing A under `fixed`
+  // or `off` still produced three colours, which reads as "M does nothing".
+  const preview = previewCover == null ? null : PREVIEW_COVERS[previewCover]
+  const accentSource = preview ? { primaryColor: preview.primaryColor } : themedTrack
+  const accent = pickAccent(accentSource, scene.theme, accentMode)
 
   return (
-    <div className={`tb-stage tb-scene--${scene.id}`}>
+    <div
+      className={`tb-stage tb-scene--${scene.id}`}
+      // Only the CSS-driven controls read this (Clock's ring / segments / stamp).
+      // The canvases resolve their colour from the `colorHex` prop instead: their
+      // `resolveColor` effect does not re-read the variable when it changes.
+      style={accent ? { '--wallkit-accent': accent } : undefined}
+    >
       <Clock
         now={now}
         placement={clockPlacement}
@@ -184,7 +267,12 @@ function Wallpaper() {
       />
 
       <div className="tb-mini">
-        <MiniSpectrum bars={bars} variant={spectrumVariant} paused={paused} />
+        <MiniSpectrum
+          bars={bars}
+          variant={spectrumVariant}
+          colorHex={accent || undefined}
+          paused={paused}
+        />
       </div>
 
       <AlbumArt
@@ -192,6 +280,7 @@ function Wallpaper() {
         bars={bars}
         variant={albumVariant}
         theme={scene.theme}
+        colorHex={accent || undefined}
         size={90}
         anchor="bottom-left"
         offsetX={5}
@@ -203,6 +292,7 @@ function Wallpaper() {
       <Spectrum
         bars={bars}
         variant={spectrumVariant}
+        colorHex={accent || undefined}
         size={100}
         anchor="bottom-right"
         offsetX={6}
@@ -218,6 +308,9 @@ function Wallpaper() {
         anchor={clockAnchor}
         audio={{ ...status, beat, staleMs: STALE_MS }}
         media={track}
+        accent={accent}
+        mode={accentMode}
+        preview={preview}
         paused={paused}
         hidden={!hudVisible}
       />
