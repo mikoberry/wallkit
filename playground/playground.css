@@ -308,6 +308,23 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(760px, 1fr));
 }
 
+/* The pointer gallery is a 4 (trail) x 4 (click) matrix. Four columns keep one
+ * trail variant per row; narrower windows fall back to the shared auto-fill
+ * layout. Sixteen cells also need shorter stages than the clock gallery. */
+.grid--pointer {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.grid--pointer .stage {
+  height: 200px;
+}
+
+@media (min-width: 1280px) {
+  .grid--pointer {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .cell {
   margin: 0;
 }

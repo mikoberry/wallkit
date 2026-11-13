@@ -129,6 +129,7 @@ npm 的 git 依赖（`github:user/repo`）**只能指向仓库根**，无法指�
     "./components/spectrum":    "./src/components/spectrum/index.js",
     "./components/mini-spectrum": "./src/components/mini-spectrum/index.js",
     "./components/album-art":   "./src/components/album-art/index.js",
+    "./components/pointer-fx":  "./src/components/pointer-fx/index.js",
     "./we":                     "./src/we/index.js",
     "./we/vite":                "./src/we/vite-plugin.js",
     "./styles":                 "./src/styles/index.css"
@@ -202,6 +203,7 @@ wallkit/
 │   │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、重采样、整形）
 │   │   ├── anchor.js         # 锚点：ANCHORS / anchorStyle / anchorOrigin
 │   │   ├── length.js         # toLength：数字与 CSS 长度的统一归一
+│   │   ├── pointer.js        # 指针特效纯函数：环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期与尺寸映射
 │   │   └── types.js          # JSDoc 类型约定（无运行时导出）
 │   ├── components/
 │   │   ├── index.js          # 便利 barrel
@@ -220,10 +222,15 @@ wallkit/
 │   │   │   ├── index.js
 │   │   │   ├── MiniSpectrum.jsx      # 填满父容器，默认折叠到 32 柱
 │   │   │   └── MiniSpectrum.css
-│   │   └── album-art/
+│   │   ├── album-art/
+│   │   │   ├── index.js
+│   │   │   ├── AlbumArt.jsx          # 6 种布局，内嵌 MiniSpectrum
+│   │   │   └── AlbumArt.css
+│   │   └── pointer-fx/
 │   │       ├── index.js
-│   │       ├── AlbumArt.jsx          # 6 种布局，内嵌 MiniSpectrum
-│   │       └── AlbumArt.css
+│   │       ├── PointerFx.jsx         # 覆盖层、指针映射、按需 rAF 循环
+│   │       ├── renderers.js          # 4 拖尾 + 4 点击形态，气泡/烟花绘制函数两通道共用
+│   │       └── PointerFx.css
 │   ├── we/                   # 可选外壳层：WE 数据源 hooks + 注入脚本
 │   │   ├── index.js          # hooks 统一 re-export
 │   │   ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
@@ -283,7 +290,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 |---|---|
 | `anchor` | 四角 + 四边中点 + `center`，共 9 个，默认 `bottom-left` |
 | `offsetX` / `offsetY` | 从锚点**向内**的偏移。数字 = 视口百分比，字符串 = 任意 CSS 长度（`'100px'`），0 = 完全贴边 |
-| `size` | 基准缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300）。`AlbumArt` 还接受 CSS 长度字符串，含义是封面直径 |
+| `size` | 基准缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300）。`AlbumArt` 还接受 CSS 长度字符串，含义是封面直径。`PointerFx` 不用锚点，另可由 `trailSize` / `clickSize` 分通道覆盖，见 §5.3 |
 | `width` / `height` | 仅 `Spectrum`：精确覆盖盒子尺寸，优先于 `size` 与各 variant 规则 |
 
 早前设想的 `{ anchor, offsetX, offsetY, scale }` 对象形态仍然不采用——平铺 prop 更短，也不需要调用方构造对象。但 `anchor` 本身在 P3 之后补上了：一块壁纸里同时挂时钟、频谱、专辑卡时，全部挤在左下角不现实。
@@ -302,12 +309,25 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱，9 种样式 | P2 | ✅ |
 | `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 | ✅ |
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
+| `PointerFx` | `wallkit/components/pointer-fx` | 拖尾 4 种（glow / ribbon / bubble / firework）+ 点击 4 种（ripple / sparks / bubble / firework），气泡与烟花两通道通用，共 16 种组合 | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
 `Spectrum` 排在 `MiniSpectrum` / `AlbumArt` 之前，因为它与 `Clock` 同属「独立浮层」类控件，各自需要自己的定位与挂载方式；而 `MiniSpectrum` 是被 `AlbumArt` 内部消费的子组件，一起做更合理。
 
-已落地的 Props 以源码 JSDoc 为准：`Clock` 见 `src/components/clock/Clock.jsx`，`Spectrum` 见 `src/components/spectrum/Spectrum.jsx` 与 [spectrum-design.md](./spectrum-design.md)，`MiniSpectrum` / `AlbumArt` 见各自目录。
+已落地的 Props 以源码 JSDoc 为准：`Clock` 见 `src/components/clock/Clock.jsx`，`Spectrum` 见 `src/components/spectrum/Spectrum.jsx` 与 [spectrum-design.md](./spectrum-design.md)，`MiniSpectrum` / `AlbumArt` / `PointerFx` 见各自目录。
+
+**`PointerFx` 的分层例外（P4 后增量）**：它是唯一自己采集输入的控件，在 `window` 上监听 `pointermove` / `pointerdown`。理由与 `Clock.tilt` 完全相同——壁纸画布持有指针事件，而「指针位置」是渲染参数，不是业务数据；它不读 `window.wallpaper*`、不查背景层、不依赖任何游戏或模型格式。数据路径仍遵循同一套模式：采样写进 `core/pointer.js` 的预分配环形缓冲，绘制循环原地读取，**零 React 重渲染**；rAF 按需启停，空闲时完全停止。
+
+覆盖层铺满定位上下文（`position: absolute; inset: 0; pointer-events: none`），因此**不使用 `anchor` 三元组**，父容器必须是定位上下文且有确定尺寸。事件坐标映射进自身盒子，盒子外的事件忽略，所以一页可挂多个实例而互不干扰。
+
+**拖尾与点击可分别设定尺寸**：`size` 是两个通道共用的默认值，`trailSize` / `clickSize` 各覆盖一个通道，解析规则是 `trailSize ?? size` / `clickSize ?? size`（三者均限制在 20–300，`null` / 非法值继承 `size`）。`core` 的 `pointerSizeScale(value, fallback)` 把它们归一成 `trailScale` / `clickScale` 存入绘制设置；`drawTrail` 只读 `trailScale`、`drawBursts` 只读 `clickScale`，共用绘制函数接收数值 `scale` 与 `gain` 而非整份 settings，既避免每帧分配临时对象，也不会把缩放串到另一个通道。尺寸只乘到半径、位移距离和线宽上，**不改变覆盖层盒子、1.2px 的采样密度、生命周期和共用的 `intensity`**——放大点击烟花不会连带放大拖尾。这与 `pointerLife(channel, variant)` 的思路一致：通道差异集中在 `core` 的纯函数里，渲染层不复制分支。
+
+**两种粒子形态在两个通道都能用**：`bubble` / `firework` 同时是 `trailVariant` 和 `clickVariant` 的合法值，各自 4 种取值共 16 种组合。为此 `renderers.js` 把绘制函数拆成「与 buffer 无关」的一层：`paintBubbles()` / `paintFirework()` 只接收原点、种子、归一化进度和一份预设；`drawTrail` / `drawBursts` 各自遍历自己的缓冲调用它，**渲染代码没有按通道复制**。通道差异只在预设：拖尾每 1.2px 就有采样点，所以气泡每点只出 2 个、烟花每 4 个 ring slot 出 1 朵且只有 8 道余烬（slot 索引稳定，样本不会闪烁）；点击是单一事件，气泡出 7 个、烟花 20 道并带热核。
+
+**有位移的粒子仍不存状态**：`createPointerTrail` / `pushTrailPoint` 为每个采样点写 `seeds`，`pointerBubble()`、`pointerFireworkSpark()` 从 `(seed, index)` 每帧重算出完全相同的偏移、半径、角度、重力与闪烁相位，缓冲始终是固定大小、绘制循环里不调随机数也不分配粒子对象。`pointerTint()` 接受一个 scratch 数组原地改写；烟花只在 `ctx.save()` / `restore()` 之间切到 `globalCompositeOperation = 'lighter'`，不会污染同一块 canvas 上的拖尾。`pointerLife(channel, variant, reduced)` 集中给出 4 类粒子时长 + 2 类扁平时长，`drawTrail` / `drawBursts` 用同一个返回值驱动动画与 `alive`，最后一个粒子消亡才停 rAF。reduced motion 下四种点击形态统一降级成短寿命静态圆环。
+
+**WE 环境的限制要写进验收前提**：桌面壁纸默认不向网页投递鼠标事件（`AGENTS.md` 亦记有「WE 里没有鼠标和键盘焦点」）。收不到事件时画布保持空白，**不用合成轨迹兜底**——这与 §5.1 第 3 条是同一条原则。要在实机看到效果必须在 WE 里开启该壁纸的鼠标交互，浏览器 / 预览窗口则可直接看到。因此 `wallpaper.html` 自动轮换测试页不挂此组件。
 
 **P3 的两个取舍**（原「未决事项」，现已定）：
 
@@ -324,6 +344,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 - 不内置任何语言文案（文案通过 props 传入）
 - 不引入除 React 外的运行时依赖
 - **不内置定时器**：时间等随时间变化的数据由使用方驱动传入
+- **唯一例外**：`Clock.tilt` 与 `PointerFx` 会监听 `window` 的指针事件。二者消费的都是「指针位置」这类渲染参数，不是音频 / 媒体 / 业务数据；`PointerFx` 的边界与理由见 §5.3。除此以外组件不自行采集数据。
 
 ### 5.5 已确定的设计决策
 
@@ -581,6 +602,7 @@ export function isWallpaperEngine(): boolean
 |---|---|
 | `Clock` | 停止更新 `now`（它没有 `paused`，也没有数据定时器）；`visible={false}` 摘掉 DOM |
 | `Spectrum` | `paused` prop：`true` 时取消 rAF，循环完全停止 |
+| `PointerFx` | `paused` prop：取消 rAF 与指针监听、保留画面；空闲时（无存活样本）循环本来就已自动停止 |
 | 通用 | 使用 `wallkit/we` 的 `useWallpaperPaused()`，或在应用层卸载控件 |
 
 原实现中 `Clock` 每秒轮询一次，`AlbumArt` 每秒轮询一次媒体状态——这些轮询属于数据构建层，随数据构建一起迁移到应用层。
@@ -714,6 +736,8 @@ README 与游戏仓库的 README 都必须声明这一点，避免他人误以�
 | P6 | 模板仓库 | **等第二个游戏的外壳共性暴露后再建**，不提前 | 未开始 |
 
 **顺序原则：Clock 先做完并验证，再动 Spectrum。** Clock 是最简单的独立浮层控件，用它确认「纯 props、无状态」的接口模式是否成立；确认后再实现 Spectrum，避免定位抽象设计错误。
+
+`PointerFx` 是 P4 之后按需追加的交互控件，不占 P5 / P6 的档期；它的验收前提是 WE 开启鼠标交互，与「新项目解耦验证」互不相同，详见 §5.3。
 
 `SettingsDrawer` **不在计划内**，永久留在应用层。
 

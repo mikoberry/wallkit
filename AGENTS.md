@@ -68,6 +68,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/spectrum` | `src/components/spectrum/index.js` | Spectrum 组件（浮动） |
 | `./components/mini-spectrum` | `src/components/mini-spectrum/index.js` | MiniSpectrum 组件（填满父容器） |
 | `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
+| `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
@@ -85,7 +86,9 @@ src/
 │   ├── storage.js        # createStore(namespace)
 │   ├── clock.js          # 时间格式化、倾斜计算、缓动、进度/周数计算
 │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、bass、渐变色）
+│   ├── pointer.js        # 指针特效纯函数（环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期映射）
 │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
+│   ├── length.js         # toLength
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
 ├── components/
 │   ├── index.js
@@ -104,10 +107,15 @@ src/
 │   │   ├── index.js
 │   │   ├── MiniSpectrum.jsx
 │   │   └── MiniSpectrum.css
-│   └── album-art/
+│   ├── album-art/
+│   │   ├── index.js
+│   │   ├── AlbumArt.jsx
+│   │   └── AlbumArt.css
+│   └── pointer-fx/
 │       ├── index.js
-│       ├── AlbumArt.jsx
-│       └── AlbumArt.css
+│       ├── PointerFx.jsx     # 全容器覆盖层、事件映射、按需 rAF
+│       ├── renderers.js      # 4 种绘制函数（内部模块）
+│       └── PointerFx.css
 ├── styles/index.css      # --wallkit-* 变量
 └── we/                   # 可选外壳层（控件层不依赖）
     ├── index.js          # hooks 统一 re-export
@@ -214,6 +222,35 @@ src/
 - 内嵌频谱的 `intensity` / `curve` 是内部常量（130 / 0.7），**不要暴露成 props**：这组值是为卡片尺寸定的，放出去只能被改坏。
 - `ALBUM_ART_VARIANTS`、`ALBUM_ART_SIZE_MIN/MAX` 从 `components/album-art` 导出；新增布局时改那一处，调用方的选择器就会自动跟上。
 
+### PointerFx 组件
+
+鼠标拖尾 + 点击特效，**合并为一个覆盖层组件**，共用一块 canvas 和一条 rAF 循环。
+
+```jsx
+<PointerFx
+  visible trail click
+  trailVariant="glow"        // glow | ribbon | bubble | firework
+  clickVariant="ripple"      // ripple | sparks | bubble | firework
+  colorHex size={100} intensity={100}
+  trailSize={60} clickSize={180}  // 可选：各覆盖一个通道，省略时继承 size
+  paused
+/>
+```
+
+**这是库里唯一自己采集输入的控件，属于登记在案的特例**：它在 `window` 上监听 `pointermove` / `pointerdown`，与 `Clock.tilt` 的指针跟随是同一套先例（壁纸画布持有指针事件）。它消费的只是「指针位置」这种渲染参数，**不读 `window.wallpaper*`、不查背景层、不读取业务数据**，所以没有破坏「控件不知道数据从哪来」的边界。事件坐标按 `getBoundingClientRect()` 的 `left/top` 映射进覆盖层盒子，**盒子外的事件一律忽略**——一页挂十六个实例（playground 4×4 画廊）互不干扰。
+
+- 高频采样写入 `core/pointer.js` 的预分配环形缓冲（`createPointerTrail` / `createPointerBursts`），绘制循环直接读，**零 React 重渲染**；`pushBurst` 存种子，`pointerSpark()` 每帧确定性重算粒子方向，不存粒子数组、不在循环里调随机数。
+- **`bubble` / `firework` 在拖尾和点击两个通道都能用**，两个 variant 数组各有 4 种取值、共 16 种组合。`renderers.js` 的 `paintBubbles()` / `paintFirework()` **与 buffer 无关**（只认 x/y/seed/progress/预设），`drawTrail` / `drawBursts` 各自遍历自己的缓冲调用它，通道只选预设：拖尾气泡 2 个 / 点击 7 个，拖尾烟花 8 道余烬且**每 4 个 ring slot 才出 1 朵**（slot 索引稳定，不会闪烁）/ 点击 20 道带热核。拖尾版更短更小，因为指针每 1.2px 就产生一个采样点，不稀疏化会刷屏。
+- `pushTrailPoint` 也写 `seeds`；`pointerBubble()` 重算气泡的偏移 / 半径 / 浮力 / 摆动相位（奇数 index 为小气泡，所以大簇也有大小错落），`pointerFireworkSpark()` 重算余烬的角度 / 射程 / 重力 / 色偏 / 闪烁相位。`pointerRise()` 缓出上浮、`pointerFall()` 二次下坠、`pointerTint()` 往白色混色（可传 scratch 数组原地改写，避免每帧分配）。烟花在 `ctx.save()` / `restore()` 之间用 `globalCompositeOperation = 'lighter'`，不污染其它形态。
+- `pointerLife(channel, variant, reduced)` 集中管理时长，`drawTrail` / `drawBursts` 用同一个返回值驱动动画与 `alive`，最后一个粒子消亡才停 rAF。扁平形态 `POINTER_TRAIL_LIFE` 0.55s / `POINTER_BURST_LIFE` 0.72s；粒子形态拖尾气泡 1.05s、点击气泡 1.25s、拖尾烟花 0.8s、点击烟花 1.35s。
+- **尺寸按通道分开**：`size` 是共用默认值，`trailSize` / `clickSize` 各覆盖一个通道（`trailSize ?? size`、`clickSize ?? size`，都是 20–300）。`core` 的 `pointerSizeScale(value, fallback)` 解析成 `trailScale` / `clickScale` 写进 settingsRef，`drawTrail` 只读 `trailScale`、`drawBursts` 只读 `clickScale`，互不串扰；`paintBubbles()` / `paintFirework()` 接数值 `scale` + `gain` 而不是整份 settings，省掉每帧的临时对象。尺寸只乘到半径 / 位移 / 线宽，**不动覆盖层盒子、1.2px 采样密度、生命周期和强度**；`intensity` 仍是两通道共用。playground 用「分别设定尺寸」开关在两种 props 形态之间切换，**不同时传** `size` 与两个覆盖值，否则 `size` 会被完全遮蔽、滑块看起来失灵。
+- **rAF 按需启停**：有新事件才启动，最后一个样本过期后立刻停（清屏后 `frameId = 0`）。空闲壁纸不付功耗。`paused` 取消循环与监听、保留画面；恢复时清空缓冲，避免过期时间戳画出闪帧。
+- 尺寸测量仍用 `offsetWidth` / `offsetHeight`；`getBoundingClientRect()` **只取 `left/top` 做坐标映射**，不参与后备存储尺寸，不触碰「缩放双重计算」那条约束。
+- `prefers-reduced-motion` 下关掉拖尾，点击退化成一个短寿命、固定半径的静态圆环。
+- **没有 `anchor` / `offsetX` / `offsetY`**：覆盖层是 `position: absolute; inset: 0; pointer-events: none`，铺满定位上下文。父容器必须是定位上下文且有确定尺寸（同 `MiniSpectrum` 的契约，外加坐标原点）。局部 `z-index: 4`。
+- **WE 环境**：桌面壁纸默认不投递鼠标事件，收不到事件时画布保持空白，**不生成假轨迹**。要实机看到需在 WE 里开启鼠标交互；浏览器 / 预览窗口可直接看。因此 **`wallpaper.html` 不挂 PointerFx**（那页按 8 秒自动轮换，本来也没鼠标）。
+- `POINTER_TRAIL_VARIANTS` / `POINTER_CLICK_VARIANTS` 与尺寸 / 强度边界从 `components/pointer-fx` 和 `core` 导出；`renderers.js` 是内部模块，不进 `exports`。
+
 ## Conventions
 
 ### 定位
@@ -225,6 +262,7 @@ src/
 - 定位由 JSX 的 inline style 给出，**CSS 里不要再写 `left` / `bottom`**——inline 会覆盖它，而且这种覆盖是静默的（`--wallkit-gutter` 就是这么变成死变量的）。
 - `anchorOrigin(anchor)` 给 `Clock` 提供 `transform-origin`：`top-*` 用 `50% 0%`，否则 `50% 100%`，保证 beat 放大是向画面内侧生长而不是冲出屏幕。它是 inline 值，CSS 里不再写。
 - `MiniSpectrum` **不参与**：它填满父容器，位置由父容器决定。
+- `PointerFx` **也不参与**：它是铺满定位上下文的特效层，没有自己的盒子可放（见上方组件说明）。
 - 新增控件时复用这套三元组，并把 `anchor` 加进 `ANCHORS`（`core` 导出，顺序为阅读顺序，正好对应 2x2 选择器）。
 
 ### 样式
@@ -240,6 +278,7 @@ src/
 ### 数据约定
 
 - 数据缺失时组件**返回 `null`，不用合成数据兜底**。合成数据只允许出现在 `playground/`。
+- `PointerFx` 的等价规则是「无指针事件 → 画布空白」：WE 桌面壁纸默认收不到鼠标，绝不画假轨迹。
 - `playback` 为 `null` 表示未知，**应视为正在播放**。WE 只在切歌时推送，猜成 `stopped` 会让封面永久消失。
 
 ### 语言
@@ -250,7 +289,7 @@ src/
 
 - 无 TypeScript：用 JSDoc 标注类型，没有编译步骤。
 - 无测试套件：验收依赖用户在实际环境目视。
-- Spectrum / MiniSpectrum 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。两者共用同一个绘制循环，所以这是同一处债。
+- Spectrum / MiniSpectrum / PointerFx 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。两个频谱共用同一个绘制循环；PointerFx 是独立循环，但沿用同一套 `offsetWidth` / `offsetHeight` 测量约定，所以保持现状、不要顺手改。
 
 ## Migration reference
 

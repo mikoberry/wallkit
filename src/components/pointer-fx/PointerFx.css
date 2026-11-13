@@ -1,0 +1,28 @@
+/* Pointer trail / click effects.
+ *
+ * The overlay fills its positioning context rather than using the anchor
+ * triple: an effect layer has no box of its own to place. The parent must be a
+ * positioning context (position: relative) with a definite size — the same
+ * contract as MiniSpectrum, with the added role of owning the coordinate origin
+ * that pointer events are mapped into.
+ *
+ * pointer-events: none is essential: the canvas must never swallow a click
+ * meant for the wallpaper or for another control below it.
+ *
+ * The z-index is local to the overlay's stacking context, not a global layer.
+ * A wallpaper that needs the effects above other controls can raise the parent. */
+
+.wallkit-pointer-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.wallkit-pointer-fx__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

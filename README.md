@@ -2,7 +2,7 @@
 
 Wallpaper Engine 网页壁纸的**控件浮层库**。
 
-提供时钟、音频频谱、专辑卡片等可复用控件，叠加在壁纸背景之上。不包含背景渲染，不包含数据采集。
+提供时钟、音频频谱、专辑卡片、指针特效等可复用控件，叠加在壁纸背景之上。不包含背景渲染，不包含音频 / 媒体数据采集。
 
 ---
 
@@ -22,7 +22,7 @@ Wallpaper Engine 网页壁纸的**控件浮层库**。
 - Spine / Live2D / WebGL 背景渲染
 - 音频与媒体数据采集
 - 设置抽屉、国际化
-- 普通浏览器支持（浏览器读不到系统音频与媒体信息）
+- 普通浏览器支持（浏览器读不到系统音频与媒体信息；`PointerFx` 只依赖指针事件，浏览器里可直接用，但库仍不为其它控件做浏览器降级）
 - npm 发布
 
 ---
@@ -226,6 +226,61 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 六种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无图。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
 
+### PointerFx
+
+把鼠标拖尾和点击特效合成一个覆盖层，共用一块 canvas 和一条**按需** rAF 循环。父容器既决定尺寸，也决定指针坐标的原点。
+
+```jsx
+import { PointerFx } from 'wallkit/components/pointer-fx'
+
+// 壁纸里：让定位上下文铺满视口，特效就铺满视口
+<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+  <PointerFx trailVariant="glow" clickVariant="ripple" />
+</div>
+
+// 想更热闹：上浮气泡拖尾 + 点击烟花（两者叠在同一块 canvas 上）
+<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+  <PointerFx trailVariant="bubble" clickVariant="firework" />
+</div>
+
+// 反过来也成立：气泡和烟花在拖尾、点击两个通道都能用
+<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+  <PointerFx trailVariant="firework" clickVariant="bubble" />
+</div>
+
+// 拖尾精细、点击张扬：两个通道分别设定尺寸
+<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+  <PointerFx trailVariant="bubble" clickVariant="firework" trailSize={60} clickSize={180} />
+</div>
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `visible` | `true` | `false` 不渲染 DOM |
+| `trail` / `click` | `true` | 分别开关拖尾与点击特效 |
+| `trailVariant` | `'glow'` | `glow` 柔光粒子 / `ribbon` 丝带轨迹 / `bubble` 气泡（小簇上浮、摆动）/ `firework` 烟花（沿途每 4 个采样点一朵小烟花，稀疏轻量） |
+| `clickVariant` | `'ripple'` | `ripple` 点击涟漪 / `sparks` 星尘碎点 / `bubble` 气泡（更饱满的一簇上浮）/ `firework` 烟花（中心闪光 + 20 道放射余烬 + 重力下坠） |
+| `colorHex` | — | `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
+| `size` | `100` | 20–300，拖尾与点击**共用**的默认尺寸，缩放半径、位移与线宽 |
+| `trailSize` | 继承 `size` | 20–300，只覆盖拖尾通道；省略 / `null` / 非法值时回退到 `size` |
+| `clickSize` | 继承 `size` | 20–300，只覆盖点击通道；省略 / `null` / 非法值时回退到 `size` |
+| `intensity` | `100` | 0–300，不透明度百分比（仍是两个通道共用） |
+| `paused` | `false` | 冻结画面、丢弃新事件、停掉绘制循环 |
+
+**它和另外四个控件有一处不同**：这是唯一自己采集输入的控件——在 `window` 上监听 `pointermove` / `pointerdown`，与 `Clock` 的 `tilt` 跟随用的是同一套先例（壁纸画布持有指针事件）。事件坐标会映射到覆盖层自身的盒子，落在盒子外的一律忽略，所以一页挂多个实例互不干扰。它**不读 `window.wallpaper*`、不感知背景层、也不生成假轨迹**。
+
+**`bubble` 和 `firework` 在两个通道里都能用**：`trailVariant` 与 `clickVariant` 各接受 4 种取值，共 16 种组合。渲染代码只有一套——`paintBubbles()` / `paintFirework()` 只认「原点 + 种子 + 归一化进度 + 预设」，拖尾与点击各自遍历自己的缓冲调用它，差别只在密度、尺寸和时长：拖尾每 1.2px 就有一个采样点，所以每点只出 2 个气泡、烟花每 4 个 slot 才出 1 朵且只有 8 道余烬；点击是单一事件，气泡出 7 个、烟花出 20 道并带热核。
+
+高频采样写进预分配的环形缓冲，绘制循环只在有新事件时启动、最后一个粒子消亡后立即停止，**不触发任何 React 重渲染**。两种粒子形态也**不存数组**：每个采样点带一个种子，`pointerBubble()` / `pointerFireworkSpark()` 每帧按 `(seed, index)` 重算出同一批粒子，缓冲始终是固定大小。`pointerLife(channel, variant, reduced)` 集中管理 4 类时长（拖尾气泡 1.05s / 点击气泡 1.25s / 拖尾烟花 0.8s / 点击烟花 1.35s，另有扁平形态 0.55s / 0.72s），渲染器用它同时驱动动画与 `alive` 判断。烟花用 `globalCompositeOperation = 'lighter'` 让重叠的光点发亮而不是发灰，`pointerFall()` 做二次下坠。
+
+**两个通道可以分别设定尺寸**：`size` 是共同默认值，`trailSize` / `clickSize` 各覆盖一个通道（`trailSize ?? size`、`clickSize ?? size`，三者都限制在 20–300）。`core` 的 `pointerSizeScale(value, fallback)` 把它们解析成 `trailScale` / `clickScale` 存进绘制设置；`drawTrail` 只读 `trailScale`、`drawBursts` 只读 `clickScale`，共用绘制函数接的是数值 `scale` 而不是整份 settings，所以渲染代码没有按通道复制。尺寸只乘到半径、位移和线宽上，**不改变覆盖层盒子、1.2px 的采样密度和生命周期**，放大点击特效不会连带放大拖尾。
+
+`prefers-reduced-motion` 下拖尾关闭，点击只留一个短暂的静态圆环（四种点击形态统一降级）。
+
+> **WE 环境提醒**：Wallpaper Engine 的桌面壁纸默认不向网页投递鼠标事件（`AGENTS.md` 里也记着「WE 里没有鼠标和键盘焦点」）。收不到事件时画布保持空白，这是正确行为。要在实机看到效果，需要在 WE 里为该壁纸开启鼠标交互；浏览器与 WE 预览窗口可直接看到。因此 `wallpaper.html` 测试页**没有**挂这个组件——那里按 8 秒自动轮换布局，本来也没有鼠标可点。
+
+覆盖层是 `position: absolute; inset: 0; pointer-events: none`，**没有** `anchor` / `offsetX` / `offsetY`——它铺满定位容器，位置由容器决定（`size` / `trailSize` / `clickSize` 只缩放笔触，不移动盒子）。父容器必须有确定尺寸且是定位上下文。局部 `z-index: 4`，需要压在别的控件之上时抬高父容器。
+
 ### WE 集成（可选）
 
 安装 Vite 插件即可自动把 WE 监听器注入 `index.html` 的 `<head>` 最前面（classic script，早于模块入口）：
@@ -270,6 +325,7 @@ const track = useWallpaperMedia(paused)
 | `wallkit/components/spectrum` | 独立浮动的音频频谱控件 |
 | `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
 | `wallkit/components/album-art` | 专辑卡片控件 |
+| `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
 | `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/styles` | 主题变量 |
@@ -309,7 +365,7 @@ npm install
 npm run dev          # http://localhost:5174/
 ```
 
-演示页分四个画廊：**Clock**（10 种布局、深浅主题、尺寸缩放、合成节拍）、**Spectrum**（9 种 `variant`）、**MiniSpectrum**（填满父容器的 9 种样式）和 **AlbumArt**（6 种卡片布局、3 组合成曲目、6 种运行状态）。**合成数据只存在于 playground**，库本身不会生成假数据。
+演示页分五个画廊：**Clock**（10 种布局、深浅主题、尺寸缩放、合成节拍）、**Spectrum**（9 种 `variant`）、**MiniSpectrum**（填满父容器的 9 种样式）、**AlbumArt**（6 种卡片布局、3 组合成曲目、6 种运行状态）和 **PointerFx**（4 种拖尾 × 4 种点击 = 16 组组合，4×4 排布、每行共用一种拖尾，把鼠标移进格子看拖尾、点击看爆点；控制面板可在共用 `size` 与分别设定 `trailSize` / `clickSize` 之间切换）。**合成数据只存在于 playground**，库本身不会生成假数据；PointerFx 不需要合成数据，它消费的是你真实的鼠标事件。
 
 ### Wallpaper Engine 测试页
 

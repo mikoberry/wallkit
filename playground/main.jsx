@@ -4,6 +4,11 @@ import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
 import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
+import {
+  PointerFx,
+  POINTER_TRAIL_VARIANTS,
+  POINTER_CLICK_VARIANTS,
+} from '../src/components/pointer-fx/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -42,7 +47,14 @@ const COMPONENTS = [
   { id: 'spectrum', label: 'Spectrum', hint: '音频频谱控件' },
   { id: 'mini', label: 'MiniSpectrum', hint: '填满父容器的频谱' },
   { id: 'album', label: 'AlbumArt', hint: '专辑卡片控件' },
+  { id: 'pointer', label: 'PointerFx', hint: '鼠标拖尾与点击特效' },
 ]
+
+// Every trail / click combination gets its own cell. The lists come from the
+// component entry, so adding a variant puts it in the gallery automatically.
+const POINTER_COMBOS = POINTER_TRAIL_VARIANTS.flatMap((trailVariant) =>
+  POINTER_CLICK_VARIANTS.map((clickVariant) => ({ trailVariant, clickVariant })),
+)
 
 const PLACEMENTS = [
   { id: 'card', label: '竖排经典' },
@@ -1024,6 +1036,146 @@ function AlbumArtDemo() {
   )
 }
 
+function PointerFxDemo() {
+  // No synthetic input here: this gallery consumes real pointer events. Move
+  // the mouse into a cell for the trail, click inside it for the burst.
+  const [colorHex, setColorHex] = useState('#a8c4ff')
+  const [size, setSize] = useState(100)
+  const [trailSize, setTrailSize] = useState(70)
+  const [clickSize, setClickSize] = useState(170)
+  const [splitSize, setSplitSize] = useState(false)
+  const [intensity, setIntensity] = useState(100)
+  const [trail, setTrail] = useState(true)
+  const [click, setClick] = useState(true)
+  const [visible, setVisible] = useState(true)
+  const [paused, setPaused] = useState(false)
+
+  // Either the single shared `size`, or two per-channel overrides. Passing all
+  // three would shadow `size` and make that slider look broken, so the demo
+  // switches between the two shapes of the prop contract.
+  const shared = {
+    colorHex,
+    size,
+    intensity,
+    trail,
+    click,
+    visible,
+    paused,
+    ...(splitSize ? { trailSize, clickSize } : {}),
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>PointerFx</h1>
+        <p className="hint">
+          拖尾 + 点击共用一个覆盖层：把鼠标<b>移进下方格子</b>看拖尾，<b>在格子里点击</b>看点击特效。
+          每个格子是一种拖尾 × 点击组合，共 {POINTER_COMBOS.length} 格，每行共用一种拖尾。
+          <code>bubble</code> 和 <code>firework</code> 在<b>拖尾和点击两个通道都能用</b>：拖尾版小而稀疏、点击版饱满耐久，共用同一套绘制函数，差别只在预设；粒子都由种子逐帧重算、不存数组。
+          组件自己监听 <code>window</code> 的指针事件，坐标映射到各自盒子，
+          盒子外的事件忽略；采样走预分配环形缓冲，<b>零 React 重渲染</b>，空闲时 rAF 自动停止。
+          <code>size</code> 是两个通道共用的默认尺寸，打开「分别设定尺寸」后
+          <code>trailSize</code> / <code>clickSize</code> 各自只覆盖一个通道；尺寸只缩放笔触，
+          不改变采样密度、强度或覆盖层盒子。
+          <code>visible=false</code> 不渲染 DOM，<code>paused</code> 冻结画面。
+          WE 桌面壁纸默认收不到鼠标事件，实机需开启鼠标交互；没有事件时画布保持空白，不画假轨迹。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="样式">
+          <label className="ctl">
+            <span className="ctl__label">
+              颜色 colorHex <b>{colorHex}</b>
+            </span>
+            <input type="color" value={colorHex} onChange={(e) => setColorHex(e.target.value)} />
+          </label>
+          <span className="ctl ctl--note">
+            拖尾：<code>{POINTER_TRAIL_VARIANTS.join(' / ')}</code> · 点击：
+            <code>{POINTER_CLICK_VARIANTS.join(' / ')}</code>，
+            共 {POINTER_COMBOS.length} 格各展示一种组合（试试 <code>bubble + firework</code>）
+          </span>
+        </Row>
+
+        <Row title="表现">
+          <Toggle label="分别设定尺寸" on={splitSize} onChange={setSplitSize} />
+          {splitSize ? (
+            <>
+              <Slider
+                label="拖尾尺寸 trailSize"
+                value={trailSize}
+                min={20}
+                max={300}
+                step={10}
+                suffix="%"
+                onChange={setTrailSize}
+              />
+              <Slider
+                label="点击尺寸 clickSize"
+                value={clickSize}
+                min={20}
+                max={300}
+                step={10}
+                suffix="%"
+                onChange={setClickSize}
+              />
+            </>
+          ) : (
+            <Slider
+              label="尺寸 size（两个通道共用）"
+              value={size}
+              min={20}
+              max={300}
+              step={10}
+              suffix="%"
+              onChange={setSize}
+            />
+          )}
+          <Slider
+            label="强度 intensity"
+            value={intensity}
+            min={0}
+            max={300}
+            step={10}
+            suffix="%"
+            onChange={setIntensity}
+          />
+        </Row>
+
+        <Row title="运行">
+          <Toggle label="拖尾 trail" on={trail} onChange={setTrail} />
+          <Toggle label="点击 click" on={click} onChange={setClick} />
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+        </Row>
+      </section>
+
+      <section className="grid grid--pointer">
+        {POINTER_COMBOS.map((combo, i) => (
+          <figure className="cell" key={`${combo.trailVariant}-${combo.clickVariant}`}>
+            <div className={`stage stage--${i % 2 === 0 ? 'b' : 'dark'}`}>
+              <PointerFx {...shared} {...combo} />
+            </div>
+            <figcaption>
+              pointer-fx · {combo.trailVariant} + {combo.clickVariant}（移入 / 点击）
+            </figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>trailVariant="glow"</code>、<code>clickVariant="ripple"</code>、
+        <code>size=100</code>、<code>intensity=100</code>、
+        <code>trailSize</code> / <code>clickSize</code> 省略时继承 <code>size</code>（三者都是 20–300），
+        <code>colorHex</code> 省略时取 <code>--wallkit-accent</code>。
+        覆盖层没有 <code>anchor</code> / <code>offsetX</code> / <code>offsetY</code>：它铺满定位上下文，
+        本页的 <code>.stage</code> 就是那个容器。<code>prefers-reduced-motion</code> 下拖尾关闭，
+        点击退化成静态圆环。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -1060,6 +1212,7 @@ function App() {
         {active === 'spectrum' && <SpectrumDemo />}
         {active === 'mini' && <MiniSpectrumDemo />}
         {active === 'album' && <AlbumArtDemo />}
+        {active === 'pointer' && <PointerFxDemo />}
       </main>
     </div>
   )
