@@ -22,6 +22,8 @@ import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
 import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
+import { AmbientFx } from '../src/components/ambient-fx/index.js'
+import { ambientCount } from '../src/core/index.js'
 import {
   useWallpaperAudio,
   useWallpaperBeat,
@@ -126,16 +128,31 @@ const SCENES = [
 // The scene advances once every album layout has been shown.
 const LAYOUTS_PER_SCENE = ALBUM_ART_VARIANTS.length
 
+// Ambient particle layer per scene. The point of mapping it to the backdrop is
+// contrast, not theme: pale flakes need a dark backdrop, and the light scenes
+// get either bubbles (accent rings read on cream) or petals pushed to a deeper
+// pink, which is also the only place `colorHex` gets exercised.
+//
+// A real wallpaper picks one and leaves it; some backgrounds already ship their
+// own snow, which is why `visible` exists and this is an application decision.
+const SCENE_AMBIENT = {
+  night: { variant: 'snow' },
+  dusk: { variant: 'sakura' },
+  day: { variant: 'bubble' },
+  paper: { variant: 'sakura', colorHex: '#d9738f' },
+}
+
 // ---------------------------------------------------------------------------
 // HUD
 // ---------------------------------------------------------------------------
 
-function Hud({ scene, clock, anchor, album, spectrum, audio, media, paused, accent, mode, preview, hidden }) {
+function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, paused, accent, mode, preview, hidden }) {
   const lines = [
     `scene    ${SCENES.indexOf(scene) + 1}/${SCENES.length}  ${scene.label}`,
     `clock    ${clock} · anchor ${anchor}`,
     `album    ${album} · anchor bottom-left`,
     `spectrum ${spectrum} · anchor bottom-right`,
+    `ambient  ${ambient.variant} · ${ambient.count} 粒子 · z 1（控件之下）`,
     `WE       ${audio.engine ? 'yes' : 'no'} · frames ${audio.frames} · beat ${audio.beat.toFixed(2)} · age ${
       audio.ageMs == null ? '—' : `${audio.ageMs}ms`
     }${audio.ageMs != null && audio.ageMs > audio.staleMs ? ' (stale)' : ''}`,
@@ -246,6 +263,8 @@ function Wallpaper() {
   const accentSource = preview ? { primaryColor: preview.primaryColor } : themedTrack
   const accent = pickAccent(accentSource, scene.theme, accentMode)
 
+  const ambient = SCENE_AMBIENT[scene.id] || { variant: 'snow' }
+
   return (
     <div
       className={`tb-stage tb-scene--${scene.id}`}
@@ -254,6 +273,12 @@ function Wallpaper() {
       // `resolveColor` effect does not re-read the variable when it changes.
       style={accent ? { '--wallkit-accent': accent } : undefined}
     >
+      <AmbientFx
+        variant={ambient.variant}
+        colorHex={ambient.colorHex}
+        paused={paused}
+      />
+
       <Clock
         now={now}
         placement={clockPlacement}
@@ -305,6 +330,7 @@ function Wallpaper() {
         clock={clockPlacement}
         album={albumVariant}
         spectrum={spectrumVariant}
+        ambient={{ variant: ambient.variant, count: ambientCount(ambient.variant, 100) }}
         anchor={clockAnchor}
         audio={{ ...status, beat, staleMs: STALE_MS }}
         media={track}

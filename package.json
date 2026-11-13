@@ -14,6 +14,7 @@
     "./components/mini-spectrum": "./src/components/mini-spectrum/index.js",
     "./components/album-art": "./src/components/album-art/index.js",
     "./components/pointer-fx": "./src/components/pointer-fx/index.js",
+    "./components/ambient-fx": "./src/components/ambient-fx/index.js",
     "./we": "./src/we/index.js",
     "./we/vite": "./src/we/vite-plugin.js",
     "./styles": "./src/styles/index.css"

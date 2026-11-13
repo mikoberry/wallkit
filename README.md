@@ -281,6 +281,41 @@ import { PointerFx } from 'wallkit/components/pointer-fx'
 
 覆盖层是 `position: absolute; inset: 0; pointer-events: none`，**没有** `anchor` / `offsetX` / `offsetY`——它铺满定位容器，位置由容器决定（`size` / `trailSize` / `clickSize` 只缩放笔触，不移动盒子）。父容器必须有确定尺寸且是定位上下文。局部 `z-index: 4`，需要压在别的控件之上时抬高父容器。
 
+### AmbientFx
+
+全屏氛围粒子层：飘雪、樱花、上浮气泡。和 `PointerFx` 一样铺满定位容器，也**没有** `anchor` / `offsetX` / `offsetY`。
+
+```jsx
+import { AmbientFx } from 'wallkit/components/ambient-fx'
+
+<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+  <AmbientFx variant="snow" />          {/* 飘雪 */}
+  <AmbientFx variant="sakura" />        {/* 樱花瓣 */}
+  <AmbientFx variant="bubble" />       {/* 上浮气泡，跟随主题强调色 */}
+  <Clock now={now} />                  {/* 控件在它的上层 */}
+</div>
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆。非法值回退 `snow` |
+| `visible` | `true` | `false` 不渲染 DOM，也不留 canvas |
+| `colorHex` | — | `#rrggbb`。雪 / 樱有自己的固有色（`#dbe9ff` / `#f5b8cd`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
+| `density` | `100` | 10–300，粒子数量的百分比（相对该形态的预设数量），只改数量不改尺寸 |
+| `size` | `100` | 20–300，粒子半径的缩放百分比 |
+| `intensity` | `100` | 0–300，不透明度百分比 |
+| `paused` | `false` | 冻结画面并停掉绘制循环，最后一帧留在屏上 |
+
+**这一层不采集任何东西**：没有指针监听、没有音频、没有宿主回调。粒子的位置是 `(参数, 时间)` 的纯函数，所以整幅画面每帧从一张固定的参数表重算，**不存粒子数组**（`core/ambient.js` 的 `fillAmbientParticles()` 只写一次，绘制循环只读）。
+
+由此带来三个实际好处：`paused` 只是停止推进时间，恢复时从原处继续、不会跳；窗口缩放后下一帧自动正确映射（位置全部归一化，不存像素）；连续跑十几个小时也不会有状态漂移。每个粒子的下落时长各不相同，所以不会出现「一排雪同时落下」的机械感。
+
+**软边不在绘制循环里算**：`shadowBlur` 和每帧新建渐变的开销在 60fps × 数小时下不可接受，所以每种形态只在离屏 canvas 里画一张 64px 精灵（`sprites.js`），绘制时只做 `drawImage` + 旋转（樱花用 `setTransform`，省掉每片的 `save` / `restore`）。
+
+`prefers-reduced-motion` 下只画一帧静止构图，不动。
+
+`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
+
 ### WE 集成（可选）
 
 安装 Vite 插件即可自动把 WE 监听器注入 `index.html` 的 `<head>` 最前面（classic script，早于模块入口）：
@@ -326,6 +361,7 @@ const track = useWallpaperMedia(paused)
 | `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
 | `wallkit/components/album-art` | 专辑卡片控件 |
 | `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
+| `wallkit/components/ambient-fx` | 全屏氛围粒子层（飘雪 / 樱花 / 气泡） |
 | `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/styles` | 主题变量 |

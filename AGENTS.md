@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。
+当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有两个增量组件：`PointerFx`（鼠标拖尾 / 点击特效）与 `AmbientFx`（氛围粒子层），前者需在 WE 里开启鼠标交互才能实机看到。
 
 ## Execution rules
 
@@ -69,6 +69,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/mini-spectrum` | `src/components/mini-spectrum/index.js` | MiniSpectrum 组件（填满父容器） |
 | `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
 | `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
+| `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡氛围层） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
@@ -87,6 +88,7 @@ src/
 │   ├── clock.js          # 时间格式化、倾斜计算、缓动、进度/周数计算
 │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、bass、渐变色）
 │   ├── pointer.js        # 指针特效纯函数（环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期映射）
+│   ├── ambient.js        # 氛围粒子纯函数（预设表、参数填充、位置/旋转/透明度）
 │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
 │   ├── length.js         # toLength
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
@@ -111,11 +113,17 @@ src/
 │   │   ├── index.js
 │   │   ├── AlbumArt.jsx
 │   │   └── AlbumArt.css
-│   └── pointer-fx/
+│   ├── pointer-fx/
+│   │   ├── index.js
+│   │   ├── PointerFx.jsx     # 全容器覆盖层、事件映射、按需 rAF
+│   │   ├── renderers.js      # 4 种绘制函数（内部模块）
+│   │   └── PointerFx.css
+│   └── ambient-fx/
 │       ├── index.js
-│       ├── PointerFx.jsx     # 全容器覆盖层、事件映射、按需 rAF
-│       ├── renderers.js      # 4 种绘制函数（内部模块）
-│       └── PointerFx.css
+│       ├── AmbientFx.jsx     # 全容器覆盖层、纯函数驱动、常驻 rAF
+│       ├── renderers.js      # 3 种绘制函数（内部模块）
+│       ├── sprites.js        # 离屏精灵预渲染（内部模块）
+│       └── AmbientFx.css
 ├── styles/index.css      # --wallkit-* 变量
 └── we/                   # 可选外壳层（控件层不依赖）
     ├── index.js          # hooks 统一 re-export
@@ -248,6 +256,30 @@ src/
 - 尺寸测量仍用 `offsetWidth` / `offsetHeight`；`getBoundingClientRect()` **只取 `left/top` 做坐标映射**，不参与后备存储尺寸，不触碰「缩放双重计算」那条约束。
 - `prefers-reduced-motion` 下关掉拖尾，点击退化成一个短寿命、固定半径的静态圆环。
 - **没有 `anchor` / `offsetX` / `offsetY`**：覆盖层是 `position: absolute; inset: 0; pointer-events: none`，铺满定位上下文。父容器必须是定位上下文且有确定尺寸（同 `MiniSpectrum` 的契约，外加坐标原点）。局部 `z-index: 4`。
+
+### AmbientFx 组件
+
+全屏氛围粒子层，纯装饰，**不采集任何输入**——没有指针监听、没有音频、没有宿主回调。它比 PointerFx 更干净：位置是 `(参数, 时间)` 的纯函数。
+
+```jsx
+<AmbientFx
+  variant="snow"             // snow | sakura | bubble
+  colorHex                   // 省略：雪 #dbe9ff / 樱 #f5b8cd / 气泡读 --wallkit-accent
+  density={100}              // 10-300，数量百分比（相对预设数）；只改数量不改尺寸
+  size={100}                 // 20-300，半径缩放
+  intensity={100}            // 0-300，不透明度
+  visible paused
+/>
+```
+
+- **不存粒子数组**：`core/ambient.js` 的 `fillAmbientParticles(variant, count, out)` 只在 variant / count 变化时写一次扁平 `Float32Array`（固定 `AMBIENT_STRIDE = 10`），绘制循环用 `ambientOffset()` 原地算 `[x01, y01, rotation, alpha]`，60fps 零分配。加粒子形态时往预设表加一条 + `renderers.js` 加一个循环，不要另起一套系统。
+- **`paused` 只是停止推进时间**（`elapsedRef`），恢复时从原处继续而不是重头播；位置全部归一化，**不存像素**，所以窗口缩放后下一帧自动正确映射。樱花片的 `drift` 在 wrap 时会跳一段横移，但那时它已经在屏幕上下方之外的 pad 区里，看不见。
+- **每片的下落时长各不相同**（`travel` 9–17s / 12–20s），所以不会出现整排同步下落的机械感——这是「长度必须随机」而不是「位置必须随机」的差别，`fillAmbientParticles` 里每一项都要独立取随机数。
+- **软边不进绘制循环**：`shadowBlur` / 每帧新建渐变在 60fps × 数小时下不可接受。`sprites.js` 用离屏 canvas 预渲染一张 64px 精灵（雪=径向渐变、樱=带缺口的贝塞尔花瓣 + `destination-out` 切角、气泡=双环 + 高光），循环里只做 `drawImage`；樱花用 `setTransform(cos, sin, -sin, cos, x, y)` 代替每片 `save` / `rotate` / `restore`，末尾统一复位。
+- `prefers-reduced-motion` 下**只画一帧**静止构图（保留构图、去掉运动）；`paused` 连这一帧都不重画，最后一帧留在屏上。
+- 粒子尺寸按视口缩放（`sqrt(min(w/1920, h/1080))` 钳到 0.7–2），否则 4K 壁纸会是 1080p 大小的雪。数量有 `AMBIENT_COUNT_MAX = 240` 的硬上限，预设另有更低的 `max`。
+- **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），所以雪从时钟背后穿过、文字不被压住。
+- **背景里已有粒子时不要叠这一层**：WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看。该不该显示是应用层判断，`visible={false}` 既不渲染 DOM 也不留 canvas。
 - **WE 环境**：桌面壁纸默认不投递鼠标事件，收不到事件时画布保持空白，**不生成假轨迹**。要实机看到需在 WE 里开启鼠标交互；浏览器 / 预览窗口可直接看。因此 **`wallpaper.html` 不挂 PointerFx**（那页按 8 秒自动轮换，本来也没鼠标）。
 - `POINTER_TRAIL_VARIANTS` / `POINTER_CLICK_VARIANTS` 与尺寸 / 强度边界从 `components/pointer-fx` 和 `core` 导出；`renderers.js` 是内部模块，不进 `exports`。
 
@@ -263,6 +295,7 @@ src/
 - `anchorOrigin(anchor)` 给 `Clock` 提供 `transform-origin`：`top-*` 用 `50% 0%`，否则 `50% 100%`，保证 beat 放大是向画面内侧生长而不是冲出屏幕。它是 inline 值，CSS 里不再写。
 - `MiniSpectrum` **不参与**：它填满父容器，位置由父容器决定。
 - `PointerFx` **也不参与**：它是铺满定位上下文的特效层，没有自己的盒子可放（见上方组件说明）。
+- `AmbientFx` **同理**：氛围粒子层同样铺满定位上下文，`z-index: 1` 压在控件之下。
 - 新增控件时复用这套三元组，并把 `anchor` 加进 `ANCHORS`（`core` 导出，顺序为阅读顺序，正好对应 2x2 选择器）。
 
 ### 样式
@@ -289,7 +322,7 @@ src/
 
 - 无 TypeScript：用 JSDoc 标注类型，没有编译步骤。
 - 无测试套件：验收依赖用户在实际环境目视。
-- Spectrum / MiniSpectrum / PointerFx 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。两个频谱共用同一个绘制循环；PointerFx 是独立循环，但沿用同一套 `offsetWidth` / `offsetHeight` 测量约定，所以保持现状、不要顺手改。
+- Spectrum / MiniSpectrum / PointerFx / AmbientFx 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。两个频谱共用同一个绘制循环；PointerFx 与 AmbientFx 是独立循环，但沿用同一套 `offsetWidth` / `offsetHeight` 测量约定，所以保持现状、不要顺手改。`AmbientFx` 的雪与气泡是软边，看不出来；**樱花花瓣的边缘会明显发虚**——真要修就单独提一次，作为 DPR 的统一整改，别在这个组件里局部开后门。
 
 ## Migration reference
 

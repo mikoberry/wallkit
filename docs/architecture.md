@@ -310,6 +310,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 | ✅ |
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
 | `PointerFx` | `wallkit/components/pointer-fx` | 拖尾 4 种（glow / ribbon / bubble / firework）+ 点击 4 种（ripple / sparks / bubble / firework），气泡与烟花两通道通用，共 16 种组合 | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
+| `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -328,6 +329,22 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 **有位移的粒子仍不存状态**：`createPointerTrail` / `pushTrailPoint` 为每个采样点写 `seeds`，`pointerBubble()`、`pointerFireworkSpark()` 从 `(seed, index)` 每帧重算出完全相同的偏移、半径、角度、重力与闪烁相位，缓冲始终是固定大小、绘制循环里不调随机数也不分配粒子对象。`pointerTint()` 接受一个 scratch 数组原地改写；烟花只在 `ctx.save()` / `restore()` 之间切到 `globalCompositeOperation = 'lighter'`，不会污染同一块 canvas 上的拖尾。`pointerLife(channel, variant, reduced)` 集中给出 4 类粒子时长 + 2 类扁平时长，`drawTrail` / `drawBursts` 用同一个返回值驱动动画与 `alive`，最后一个粒子消亡才停 rAF。reduced motion 下四种点击形态统一降级成短寿命静态圆环。
 
 **WE 环境的限制要写进验收前提**：桌面壁纸默认不向网页投递鼠标事件（`AGENTS.md` 亦记有「WE 里没有鼠标和键盘焦点」）。收不到事件时画布保持空白，**不用合成轨迹兜底**——这与 §5.1 第 3 条是同一条原则。要在实机看到效果必须在 WE 里开启该壁纸的鼠标交互，浏览器 / 预览窗口则可直接看到。因此 `wallpaper.html` 自动轮换测试页不挂此组件。
+
+**`AmbientFx` 比 `PointerFx` 更干净：它连输入都没有。** 装饰粒子是自走时的，位置完全由 `(参数, 时间)` 决定：
+
+```
+x, y = f(seed, t)
+```
+
+因此整幅画面每帧从一张固定参数表重算，**连环形缓冲都不需要**——`core/ambient.js` 的 `fillAmbientParticles()` 在 variant / count 变化时写一次（扁平 `Float32Array`，固定 stride），绘制循环只读。三条直接后果写进了实现：`paused` 只是「停止推进时间」，恢复时从原处继续而不是重头播；位置全部归一化、不存像素，窗口缩放后下一帧自动正确映射；跑十几个小时不会有状态漂移。每片雪的 `travel` 各不相同，所以不会出现整排同步下落的机械感。
+
+这与 §5.1 第 3 条「不使用合成数据兜底」不冲突：那条约束管的是**数据**（音频帧、媒体信息），装饰粒子不声称自己反映任何外部状态，所以不需要「有数据才画」的前置条件。真正需要守的是功耗与视觉纪律——`prefers-reduced-motion` 下只画一帧静止构图，`paused` 彻底停 rAF，粒子数有 `AMBIENT_COUNT_MAX` 上限。
+
+**软边不进绘制循环**：`shadowBlur` 与每帧新建渐变的开销在 60fps × 十小时下不可接受，所以每种形态只在离屏 canvas 画一张 64px 精灵（`sprites.js`），循环里只做 `drawImage`；樱花用 `setTransform` 而不是每片 `save` / `rotate` / `restore`。
+
+`z-index: 1`，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），雪从时钟背后穿过、文字始终可读。它与 `PointerFx` 一样**不使用 `anchor` 三元组**：特效层没有自己的盒子要放。
+
+**背景里已经有粒子时不要叠这一层**：WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看。是否显示属于应用层判断，`visible={false}` 即不渲染 DOM 也不留 canvas——这也是 §12.3「默认留游戏仓库」在这里的落点：组件是通用的，开关是应用层的。
 
 **P3 的两个取舍**（原「未决事项」，现已定）：
 
