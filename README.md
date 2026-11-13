@@ -288,9 +288,18 @@ npm run dev          # http://localhost:5174/
 cd playground
 npm run dev                    # 浏览器预览 http://localhost:5174/wallpaper.html
 npm run build:wallpaper        # 产出 dist-wallpaper/，含 project.json
+npm run deploy:wallpaper       # 构建并直接同步到 WE 项目目录
 ```
 
-构建后在 Wallpaper Engine 里新建 Web 壁纸，把项目指向 `playground/dist-wallpaper` 即可。内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、`type` 必须大写）见 [WE 集成指南](./docs/we-integration.md)。
+`deploy:wallpaper` 默认同步到 `F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\wallpaper`，换机器时用环境变量覆盖：
+
+```bash
+WE_PROJECT_DIR="D:\path\to\your\we\project" npm run deploy:wallpaper
+```
+
+同步只覆盖构建产物（`assets/`、`wallpaper.html`），**不动** WE 编辑器写的 `preview.gif` 和 `project.json`；`assets/` 会整体替换，避免旧 hash 文件堆积。壁纸正在运行时文件被占用，先切走再重试。`deploy:wallpaper` 只负责拷贝，所以第一次仍需要在 WE 里新建 Web 壁纸并让它指向那个目录。
+
+内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、`type` 必须大写）见 [WE 集成指南](./docs/we-integration.md)。
 
 ---
 

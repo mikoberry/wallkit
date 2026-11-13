@@ -10,6 +10,12 @@ import { fileURLToPath, URL } from 'node:url'
 // point the engine at directly.
 //
 //   npm run build:wallpaper   →  playground/dist-wallpaper/
+//   npm run deploy:wallpaper  →  the same build, then copied into the WE project
+//
+// The output deliberately stays local instead of pointing at the Wallpaper
+// Engine folder: the engine writes `preview.gif` and rewrites `project.json`
+// there, and `emptyOutDir` would delete both. `scripts/deploy-wallpaper.mjs`
+// does the copy and leaves those two alone.
 //
 // In development you do not need this file: `npm run dev` already serves
 // `playground/wallpaper.html` at http://localhost:5174/wallpaper.html.

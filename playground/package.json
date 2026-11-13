@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:wallpaper": "vite build --config vite.wallpaper.config.js"
+    "build:wallpaper": "vite build --config vite.wallpaper.config.js",
+    "deploy:wallpaper": "npm run build:wallpaper && node scripts/deploy-wallpaper.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
