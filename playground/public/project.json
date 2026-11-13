@@ -1,0 +1,16 @@
+{
+  "file": "wallpaper.html",
+  "general": {
+    "properties": {
+      "schemecolor": {
+        "order": 0,
+        "text": "schemecolor",
+        "type": "color",
+        "value": "0 0 0"
+      }
+    },
+    "supportsaudioprocessing": true
+  },
+  "title": "WallKit Testbed",
+  "type": "Web"
+}

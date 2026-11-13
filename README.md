@@ -280,6 +280,18 @@ npm run dev          # http://localhost:5174/
 
 演示页分四个画廊：**Clock**（10 种布局、深浅主题、尺寸缩放、合成节拍）、**Spectrum**（9 种 `variant`）、**MiniSpectrum**（填满父容器的 9 种样式）和 **AlbumArt**（6 种卡片布局、3 组合成曲目、6 种运行状态）。**合成数据只存在于 playground**，库本身不会生成假数据。
 
+### Wallpaper Engine 测试页
+
+画廊之外还有一个**给 WE 用的单页**：同一屏同时挂载四个控件，音频与媒体数据来自真实的宿主回调，按 8 秒轮换布局并更换背景（2 深 2 亮，主题随背景走），左上角 HUD 显示 WE 探测、音频帧龄、媒体字段与暂停状态。
+
+```bash
+cd playground
+npm run dev                    # 浏览器预览 http://localhost:5174/wallpaper.html
+npm run build:wallpaper        # 产出 dist-wallpaper/，含 project.json
+```
+
+构建后在 Wallpaper Engine 里新建 Web 壁纸，把项目指向 `playground/dist-wallpaper` 即可。内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、`type` 必须大写）见 [WE 集成指南](./docs/we-integration.md)。
+
 ---
 
 ## 状态

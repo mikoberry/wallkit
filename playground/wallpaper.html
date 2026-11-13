@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>WallKit Testbed</title>
+    <style>
+      /* Avoid a white flash before the module CSS arrives. */
+      html,
+      body {
+        margin: 0;
+        background: #0a0c12;
+      }
+    </style>
+
+    <!--
+      Wallpaper Engine bridges.
+
+      These are three classic scripts in <head>, before any module script, and
+      that ordering is not cosmetic: Vite's entry is `type="module"` (deferred),
+      so registering the listeners from React or from window.onload loses the
+      first frames — and in some builds the callback never fires at all.
+
+      Order matters too: audio → media → pause. The pause bridge decides whether
+      the host exists by looking for `wallpaperRegisterAudioListener`, so it has
+      to come after that function's script.
+
+      Copied verbatim from docs/we-integration.md §2.2. When P4 lands,
+      `wallkitWE()` replaces this block.
+    -->
+
+    <!-- (1) Audio -->
+    <script>
+      window.__wallkitAudioFrame = null;
+      window.__wallkitAudioAt = 0;
+
+      if (typeof window.wallpaperRegisterAudioListener === 'function') {
+        window.wallpaperRegisterAudioListener(function (audioArray) {
+          if (!audioArray || typeof audioArray.length !== 'number' || audioArray.length < 128) {
+            return;
+          }
+          // Copy: the host reuses its own buffer.
+          window.__wallkitAudioFrame = Float32Array.from(audioArray);
+          window.__wallkitAudioAt = Date.now();
+        });
+      }
+    </script>
+
+    <!-- (2) Media -->
+    <script>
+      window.__wallkitMedia = {
+        thumbnail: '',
+        title: '',
+        artist: '',
+        albumTitle: '',
+        primaryColor: '',
+        textColor: '',
+        playback: null,
+        enabled: null,
+        updatedAt: 0,
+      };
+
+      var __wm = window.__wallkitMedia;
+
+      if (typeof window.wallpaperRegisterMediaStatusListener === 'function') {
+        window.wallpaperRegisterMediaStatusListener(function (event) {
+          __wm.enabled = event ? event.enabled === true : null;
+        });
+      }
+
+      if (typeof window.wallpaperRegisterMediaThumbnailListener === 'function') {
+        window.wallpaperRegisterMediaThumbnailListener(function (event) {
+          if (!event) return;
+          __wm.thumbnail = event.thumbnail || '';
+          __wm.primaryColor = event.primaryColor || '';
+          __wm.textColor = event.textColor || '';
+          __wm.updatedAt = Date.now();
+        });
+      }
+
+      if (typeof window.wallpaperRegisterMediaPropertiesListener === 'function') {
+        window.wallpaperRegisterMediaPropertiesListener(function (event) {
+          if (!event) return;
+          __wm.title = event.title || '';
+          __wm.artist = event.artist || '';
+          __wm.albumTitle = event.albumTitle || '';
+          __wm.updatedAt = Date.now();
+        });
+      }
+
+      if (typeof window.wallpaperRegisterMediaPlaybackListener === 'function') {
+        window.wallpaperRegisterMediaPlaybackListener(function (event) {
+          if (!event) return;
+          var constants = window.wallpaperMediaIntegration;
+          // Playback states are host-defined integers; never hardcode them.
+          // With no constants object the state stays unknown rather than being
+          // guessed as "stopped", which would hide the cover for good.
+          if (!constants) {
+            __wm.playback = null;
+            return;
+          }
+          if (event.state === constants.PLAYBACK_PLAYING) __wm.playback = 'playing';
+          else if (event.state === constants.PLAYBACK_PAUSED) __wm.playback = 'paused';
+          else __wm.playback = 'stopped';
+        });
+      }
+    </script>
+
+    <!-- (3) Pause bridge -->
+    <script>
+      window.__wallkitPaused = false;
+
+      function __wallkitSetPaused(value) {
+        var next = value === true;
+        if (window.__wallkitPaused === next) return;
+        window.__wallkitPaused = next;
+        window.dispatchEvent(new CustomEvent('wallkit-pause-change', { detail: next }));
+      }
+
+      // Only attach to an object the host already created. Creating
+      // `wallpaperPropertyListener` unconditionally would make the environment
+      // probe report "inside Wallpaper Engine" in a plain browser.
+      if (window.wallpaperPropertyListener) {
+        window.wallpaperPropertyListener.setPaused = __wallkitSetPaused;
+      } else if (typeof window.wallpaperRegisterAudioListener === 'function') {
+        window.wallpaperPropertyListener = { setPaused: __wallkitSetPaused };
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./wallpaper.jsx"></script>
+  </body>
+</html>

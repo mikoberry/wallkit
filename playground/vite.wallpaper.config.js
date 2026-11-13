@@ -1,0 +1,38 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url'
+
+// Build config for the Wallpaper Engine test page.
+//
+// Kept separate from `vite.config.js` because the two have different outputs:
+// the playground is a dev gallery (`index.html`), while this builds exactly one
+// page plus the `project.json` Wallpaper Engine needs, into a folder you can
+// point the engine at directly.
+//
+//   npm run build:wallpaper   →  playground/dist-wallpaper/
+//
+// In development you do not need this file: `npm run dev` already serves
+// `playground/wallpaper.html` at http://localhost:5174/wallpaper.html.
+export default defineConfig({
+  plugins: [react()],
+  // Relative asset paths so the folder works no matter how the host serves it.
+  base: './',
+  publicDir: 'public',
+  resolve: {
+    alias: {
+      wallkit: fileURLToPath(new URL('../src/index.js', import.meta.url)),
+      'wallkit/': fileURLToPath(new URL('../src/', import.meta.url)),
+    },
+  },
+  build: {
+    outDir: 'dist-wallpaper',
+    emptyOutDir: true,
+    // Wallpaper Engine's embedded Chromium lags stable Chrome, so downleveling
+    // to ES2019 costs nothing here and removes a whole class of "blank page"
+    // failures. The library uses optional chaining, which esbuild lowers.
+    target: 'es2019',
+    rollupOptions: {
+      input: fileURLToPath(new URL('./wallpaper.html', import.meta.url)),
+    },
+  },
+})

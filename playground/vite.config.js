@@ -8,6 +8,9 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  // `public/` holds the Wallpaper Engine project.json, which belongs to the
+  // wallpaper build only — the gallery build must not inherit it.
+  publicDir: false,
   resolve: {
     alias: {
       wallkit: fileURLToPath(new URL('../src/index.js', import.meta.url)),

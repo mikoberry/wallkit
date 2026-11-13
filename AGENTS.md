@@ -25,8 +25,19 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 - `npm install` — 首次安装 react / react-dom / vite / @vitejs/plugin-react。
 - `npm run dev` — 启动 playground，默认 `http://localhost:5174/`。**由用户自行启动。**
 - `npm run build` — 生产构建，输出到 `playground/dist/`。只在用户要求时执行。
+- `npm run build:wallpaper` — 构建 WE 测试页，输出到 `playground/dist-wallpaper/`（含 `project.json`），可直接被 Wallpaper Engine 当作壁纸项目打开。用独立的 `vite.wallpaper.config.js`，与 playground 的构建互不干扰。
 
 库本身没有构建步骤，也没有依赖安装：`src/` 下的源码由使用方的 Vite 直接编译。
+
+## WE testbed
+
+`playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `<head>` 里那三段内联脚本（音频 / 媒体 / 暂停），与真实壁纸的接线方式完全一致。
+
+- 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。
+- WE 预览：`npm run build:wallpaper`，然后在 WE 里新建 Web 壁纸并指向 `playground/dist-wallpaper`。
+- 页面自己**按 8 秒轮换**布局：专辑 6 种、时钟 10 种、频谱 9 种，每跑完一圈换一次背景（2 深 2 亮），主题随背景走。原因很实际——WE 里没有鼠标和键盘焦点，任何控制面板都点不到。
+- 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused）就是排查音频时的第一手信息。
+- 数据层在 `playground/wallpaper-data.js`，它是**消费方那层的示范实现**：`bars` 用一个长期复用的 `Float32Array` 原地改写，控件在自己的绘制循环里读它，因此 60Hz 的音频不需要任何 React 重渲染。P4 的 `wallkit/we` 落地后应当由它取代这个文件，届时测试页只换 import。
 
 ## Architecture
 
