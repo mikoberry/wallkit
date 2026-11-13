@@ -9,6 +9,16 @@ import {
   POINTER_TRAIL_VARIANTS,
   POINTER_CLICK_VARIANTS,
 } from '../src/components/pointer-fx/index.js'
+import {
+  AmbientFx,
+  AMBIENT_VARIANTS,
+  AMBIENT_SIZE_MIN,
+  AMBIENT_SIZE_MAX,
+  AMBIENT_DENSITY_MIN,
+  AMBIENT_DENSITY_MAX,
+  AMBIENT_INTENSITY_MIN,
+  AMBIENT_INTENSITY_MAX,
+} from '../src/components/ambient-fx/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -48,6 +58,7 @@ const COMPONENTS = [
   { id: 'mini', label: 'MiniSpectrum', hint: '填满父容器的频谱' },
   { id: 'album', label: 'AlbumArt', hint: '专辑卡片控件' },
   { id: 'pointer', label: 'PointerFx', hint: '鼠标拖尾与点击特效' },
+  { id: 'ambient', label: 'AmbientFx', hint: '全屏氛围粒子层' },
 ]
 
 // Every trail / click combination gets its own cell. The lists come from the
@@ -1176,6 +1187,169 @@ function PointerFxDemo() {
   )
 }
 
+const AMBIENT_VARIANT_LABELS = {
+  snow: '飘雪 — 匀速下落 + 窄摆',
+  sakura: '樱花 — 风斜、大幅摆动、逐片自转',
+  bubble: '气泡 — 匀速上浮，颜色跟随强调色',
+}
+
+// Each variant is judged against the backdrop it will actually be used on:
+// flakes need a dark night, petals read best over dusk, bubbles need something
+// with contrast or they disappear.
+const AMBIENT_STAGES = {
+  snow: 'stage--dark',
+  sakura: 'stage--photo',
+  bubble: 'stage--b',
+}
+
+function AmbientFxDemo() {
+  // Closed by default: this layer covers the whole stage, so leaving it on
+  // would hide whatever is being compared. It has its own menu entry instead of
+  // being sprinkled onto the other demos for the same reason.
+  const [on, setOn] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [variant, setVariant] = useState('snow')
+
+  // `colorHex` is omitted entirely unless overridden, so the preset colour path
+  // (snow #dbe9ff / petals #f5b8cd / bubble → --wallkit-accent) stays visible.
+  const [customColor, setCustomColor] = useState(false)
+  const [colorHex, setColorHex] = useState('#dbe9ff')
+
+  const [density, setDensity] = useState(100)
+  const [size, setSize] = useState(100)
+  const [intensity, setIntensity] = useState(100)
+
+  const shared = {
+    visible: on,
+    paused,
+    density,
+    size,
+    intensity,
+    ...(customColor ? { colorHex } : {}),
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>AmbientFx</h1>
+        <p className="hint">
+          全屏氛围粒子层：<b>不看指针、不读音频、不查背景</b>，粒子的位置只是
+          <code>f(种子, 时间)</code> 的纯函数——所以没有粒子数组，<code>paused</code> 只是停止推进时间，
+          恢复时从原处继续。覆盖层的层级在控件之下（<code>z-index: 1</code>），雪花从时钟背后穿过。
+          <code>visible=false</code> 不渲染 DOM；<b>本页默认关闭</b>，打开开关才会覆盖舞台。
+          没有 <code>anchor</code> / <code>offsetX</code> / <code>offsetY</code>：它铺满定位上下文。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="运行">
+          <Toggle label="氛围层" on={on} onChange={setOn} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} disabled={!on} />
+        </Row>
+
+        <Row title="形态">
+          <label className="ctl">
+            <span className="ctl__label">
+              形态 variant <b>{variant}</b>
+            </span>
+            <select value={variant} onChange={(e) => setVariant(e.target.value)}>
+              {AMBIENT_VARIANTS.map((id) => (
+                <option key={id} value={id}>
+                  {id} · {AMBIENT_VARIANT_LABELS[id]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Toggle
+            label="自定义颜色"
+            on={customColor}
+            disabled={!on}
+            onChange={setCustomColor}
+          />
+          <label className={customColor && on ? 'ctl' : 'ctl ctl--off'}>
+            <span className="ctl__label">
+              颜色 colorHex <b>{customColor ? colorHex : '(预设)'}</b>
+            </span>
+            <input
+              type="color"
+              value={colorHex}
+              disabled={!customColor || !on}
+              onChange={(e) => setColorHex(e.target.value)}
+            />
+          </label>
+        </Row>
+
+        <Row title="参数">
+          <Slider
+            label="密度 density"
+            value={density}
+            min={AMBIENT_DENSITY_MIN}
+            max={AMBIENT_DENSITY_MAX}
+            step={10}
+            suffix="%"
+            disabled={!on}
+            onChange={setDensity}
+          />
+          <Slider
+            label="尺寸 size"
+            value={size}
+            min={AMBIENT_SIZE_MIN}
+            max={AMBIENT_SIZE_MAX}
+            step={10}
+            suffix="%"
+            disabled={!on}
+            onChange={setSize}
+          />
+          <Slider
+            label="不透明度 intensity"
+            value={intensity}
+            min={AMBIENT_INTENSITY_MIN}
+            max={AMBIENT_INTENSITY_MAX}
+            step={10}
+            suffix="%"
+            disabled={!on}
+            onChange={setIntensity}
+          />
+        </Row>
+      </section>
+
+      {/* A wall-sized box on purpose: at 260px the flakes read as a postcard and
+          the density / speed judgement does not transfer to a real wallpaper. */}
+      <div className="ambient-hero">
+        <AmbientFx {...shared} variant={variant} />
+        {!on && (
+          <p className="ambient-off">
+            <b>氛围层已关闭</b>
+            <span>打开上方「氛围层」开关查看当前形态；默认关闭，避免遮挡其他控件的对比。</span>
+          </p>
+        )}
+      </div>
+
+      <section className="grid grid--ambient">
+        {AMBIENT_VARIANTS.map((id) => (
+          <figure className="cell" key={id}>
+            <div className={`stage ${AMBIENT_STAGES[id]}`}>
+              <AmbientFx {...shared} variant={id} />
+              {!on && <span className="ambient-off ambient-off--cell">关闭</span>}
+            </div>
+            <figcaption>ambient-fx · {id}（{AMBIENT_VARIANT_LABELS[id]}）</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>variant="snow"</code>、<code>visible=true</code>、<code>density=100</code>、
+        <code>size=100</code>、<code>intensity=100</code>、<code>paused=false</code>。
+        数量按预设基数乘 <code>density</code> 后封顶（共 240 上限：snow 220 / sakura 90 / bubble 80），
+        <code>size</code> 只缩放粒子、不改数量。<code>colorHex</code> 省略时雪的 <code>#dbe9ff</code>、
+        花瓣的 <code>#f5b8cd</code> 优先，气泡才回落到 <code>--wallkit-accent</code>——
+        雪和花瓣是具象物件，跟着封面色变蓝会像 bug。
+        <code>prefers-reduced-motion</code> 下只画一帧静止画面。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -1213,6 +1387,7 @@ function App() {
         {active === 'mini' && <MiniSpectrumDemo />}
         {active === 'album' && <AlbumArtDemo />}
         {active === 'pointer' && <PointerFxDemo />}
+        {active === 'ambient' && <AmbientFxDemo />}
       </main>
     </div>
   )

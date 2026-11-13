@@ -410,6 +410,58 @@ body {
     linear-gradient(135deg, #0b1020 0%, #131a2b 100%);
 }
 
+/* AmbientFx is judged at wallpaper scale: at the default 260px stage the flakes
+ * read as a postcard and neither density nor speed carries over to a 1080p (or
+ * 4K) desktop. The hero is the "does this look right full screen" box; the grid
+ * below compares the three variants against the backdrop each is meant for. */
+.ambient-hero {
+  position: relative;
+  height: 420px;
+  margin-bottom: 20px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 74% 18%, rgba(255, 214, 160, 0.26), transparent 46%),
+    radial-gradient(circle at 26% 82%, rgba(122, 162, 255, 0.3), transparent 54%),
+    linear-gradient(160deg, #161b2e 0%, #0d1424 58%, #070a12 100%);
+}
+
+/* The off state. Shown instead of the layer, not on top of it: `visible=false`
+ * renders no canvas at all, so there is nothing to sit behind. */
+.ambient-off {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 32px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #8f9bb8;
+  pointer-events: none;
+}
+
+.ambient-off b {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cfd8ee;
+}
+
+.ambient-off--cell {
+  flex-direction: row;
+  font-size: 12px;
+  color: #5d6784;
+}
+
+.grid--ambient {
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+}
+
 .cell figcaption {
   margin-top: 8px;
   font-size: 12px;
