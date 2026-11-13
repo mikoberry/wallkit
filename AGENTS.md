@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0（基础层）、P1（Clock）、P2（Spectrum）、P3（MiniSpectrum / AlbumArt）已完成；P2–P3 待实机验证。
+当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。
 
 ## Execution rules
 
@@ -32,13 +32,13 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 ## WE testbed
 
-`playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `<head>` 里那三段内联脚本（音频 / 媒体 / 暂停），与真实壁纸的接线方式完全一致。
+`playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `wallkitWE()` 注入 `<head>` 的内联脚本（音频 / 媒体 / 暂停，timeline 可选），与真实壁纸的接线方式完全一致；React 侧由 `wallkit/we` 的 hooks 消费。
 
-- 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。
+- 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`、`bars` 保持全零，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。
 - WE 预览：`npm run deploy:wallpaper`（构建 + 同步到 WE 项目目录）。**不要**把 Vite 的 `outDir` 指到 WE 目录：那里有编辑器写的 `preview.gif` 与改过的 `project.json`，`emptyOutDir` 会把它们吃掉。同步规则是「`assets/` 整体替换，其余文件只覆盖同名产物，`project.json` 只在缺失时创建」。
 - 页面自己**按 8 秒轮换**布局：专辑 6 种、时钟 10 种、频谱 9 种，每跑完一圈换一次背景（2 深 2 亮），主题随背景走。原因很实际——WE 里没有鼠标和键盘焦点，任何控制面板都点不到。
 - 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused）就是排查音频时的第一手信息。
-- 数据层在 `playground/wallpaper-data.js`，它是**消费方那层的示范实现**：`bars` 用一个长期复用的 `Float32Array` 原地改写，控件在自己的绘制循环里读它，因此 60Hz 的音频不需要任何 React 重渲染。P4 的 `wallkit/we` 落地后应当由它取代这个文件，届时测试页只换 import。
+- 数据层已收进 `wallkit/we`：`useWallpaperAudio()` 返回长期复用、原地改写的 `Float32Array`（无数据时全零，**不是 `null`**，否则频谱组件连 DOM 都不画），控件在自己的绘制循环里读它，60Hz 音频零 React 重渲染；`useWallpaperBeat()` 单独拆出，不需要时钟的项目不付重渲染成本。`playground/wallpaper-data.js` 退役为应用层残留，只保留 `useNow()` 与 HUD 诊断采集。
 
 `playground/layout.html` 是**几何验证页**，与测试页分开：一屏同时摆三种定位（贴底满宽频谱、距角 100px 的时钟、同心唱片 + 环形频谱），带参考线（`G` 显隐）。数据是合成的，所以不依赖 WE 回调、浏览器里就能看。`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`；要在 WE 里看它，把 `project.json` 的 `"file"` 改成 `layout.html`。
 
@@ -68,8 +68,8 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/spectrum` | `src/components/spectrum/index.js` | Spectrum 组件（浮动） |
 | `./components/mini-spectrum` | `src/components/mini-spectrum/index.js` | MiniSpectrum 组件（填满父容器） |
 | `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
-| `./we` | `src/we/index.js` | WE 数据源 hooks（P4 占位） |
-| `./we/vite` | `src/we/vite-plugin.js` | Vite 插件（P4 占位） |
+| `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
+| `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
 
 **新增组件时必须同时做两件事**：在 `exports` 加条目，并在 `src/components/index.js` 加 re-export。否则使用方无法导入。
@@ -109,7 +109,13 @@ src/
 │       ├── AlbumArt.jsx
 │       └── AlbumArt.css
 ├── styles/index.css      # --wallkit-* 变量
-└── we/                   # P4 占位
+└── we/                   # 可选外壳层（控件层不依赖）
+    ├── index.js          # hooks 统一 re-export
+    ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
+    ├── media.js          # useWallpaperMedia / useWallpaperTimeline
+    ├── pause.js          # useWallpaperPaused
+    ├── vite-plugin.js    # wallkitWE()
+    └── inline/           # 四段可注入 / 可粘贴的脚本字符串常量
 ```
 
 ### Clock 组件
@@ -291,4 +297,5 @@ src/
 - [README.md](README.md) — 项目简介、git 引用方式、入口一览
 - [docs/architecture.md](docs/architecture.md) — 定位、分层、接口原则、阶段计划
 - [docs/we-integration.md](docs/we-integration.md) — 内联脚本、`project.json` 形状、音频排查清单
+- [docs/we-design.md](docs/we-design.md) — `wallkit/we` 的 hooks / 插件接口规格与 playground 接线改造（P4）
 - [docs/extraction-map.md](docs/extraction-map.md) — 与 anime-model-viewer 的抽取映射

@@ -1,9 +1,9 @@
 # WallKit 架构方案
 
-> 状态：P0–P3 已实现（Clock / Spectrum / MiniSpectrum / AlbumArt），P2–P3 待实机验证；P4 起未开始
+> 状态：P0–P4 已实现并全部完成 WE 实机对接验证（P4 验的是接线）；P5 起未开始
 > 最后更新：2026-11-13
 >
-> 相关文档：[WE 集成指南](./we-integration.md) · [抽取映射](./extraction-map.md) · [Spectrum 设计](./spectrum-design.md)
+> 相关文档：[WE 集成指南](./we-integration.md) · [`wallkit/we` 设计规格](./we-design.md) · [抽取映射](./extraction-map.md) · [Spectrum 设计](./spectrum-design.md)
 >
 > 本文锁定的是**分层与接口原则**，具体 Props 以 `src/` 源码的 JSDoc 为准。阶段进度见 §14，与源码不一致时以源码为准。
 
@@ -87,7 +87,7 @@ WallKit 面向"同一作者的多款壁纸"。一个 WE 壁纸项目的完整构
 
 ### 2.3 外壳层为什么没有独立成库
 
-外壳层的全部内容（内联脚本注入、环境探测、暂停分发、`project.json` 校验）已经在 `wallkit/we` 与 `wallkit/we/vite` 中提供。**物理上它在 WallKit 包内，逻辑上它是外壳层**。
+外壳层的接线部分（内联脚本注入、数据源 hooks、暂停分发）已在 `wallkit/we` 与 `wallkit/we/vite` 中提供；环境探测仍属 `core/env.js`，`project.json` 形状由使用方保证。**物理上它在 WallKit 包内，逻辑上它是外壳层**。
 
 不拆成独立仓库的理由：
 
@@ -190,6 +190,7 @@ wallkit/
 │   ├── architecture.md       # 本文件
 │   ├── spectrum-design.md    # Spectrum 接口与渲染方案
 │   ├── we-integration.md     # WE 工程集成与排查
+│   ├── we-design.md          # wallkit/we 接口与接线规格（P4）
 │   └── extraction-map.md     # 与原项目的抽取映射
 ├── src/
 │   ├── index.js              # "." 入口，re-export core + components
@@ -223,15 +224,19 @@ wallkit/
 │   │       ├── index.js
 │   │       ├── AlbumArt.jsx          # 6 种布局，内嵌 MiniSpectrum
 │   │       └── AlbumArt.css
-│   ├── we/                   # P4 占位：WE 数据源 hooks + 内联脚本
-│   │   ├── index.js
-│   │   └── vite-plugin.js
+│   ├── we/                   # 可选外壳层：WE 数据源 hooks + 注入脚本
+│   │   ├── index.js          # hooks 统一 re-export
+│   │   ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
+│   │   ├── media.js          # useWallpaperMedia / useWallpaperTimeline
+│   │   ├── pause.js          # useWallpaperPaused
+│   │   ├── vite-plugin.js    # wallkitWE()
+│   │   └── inline/           # audio / media / timeline / pause 四段脚本常量
 │   └── styles/
 │       └── index.css         # CSS 变量与基础 token
 └── playground/               # 本地开发预览（不参与分发）
 ```
 
-**尚未创建**（计划中，不要在不存在的目录里放代码）：`we/audio.js`、`we/media.js`、`we/pause.js`、`we/inline/`（P4）。
+P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause.js`、`we/inline/`）现已全部落地，见 [`wallkit/we` 设计规格](./we-design.md) §4。
 
 `components/shared/` 是两个频谱控件的共同实现，**有意不进 `exports`**：它不是对外接口，外部只认 `spectrum` / `mini-spectrum`。
 
@@ -294,7 +299,7 @@ wallkit/
 | 组件 | 入口 | 职责 | 阶段 | 状态 |
 |---|---|---|---|---|
 | `Clock` | `wallkit/components/clock` | 日期时间显示，10 种布局，可选 3D 指针倾斜 | P1 | ✅ |
-| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱，9 种样式 | P2 | ✅ 待实机验证 |
+| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱，9 种样式 | P2 | ✅ |
 | `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 | ✅ |
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
 
@@ -498,31 +503,31 @@ useEffect(() => {
 - 数据构建（音频帧、媒体信息）
 - 应用状态（选中模型、偏好持久化）
 
-### 7.2 由 WallKit 负责（可选模块 `wallkit/we`，P4 未实现）
+### 7.2 由 WallKit 负责（可选模块 `wallkit/we`）
 
-> 现状：`src/we/index.js` 只有 `export {}`（导入 hooks 会在构建期报错），`src/we/vite-plugin.js` 返回空 plugin（不注入脚本、也不报错）。**目前唯一可用路径是手动粘贴内联脚本**，见 [we-integration.md](./we-integration.md) §2.2。
-
-**数据源 hooks**（计划中，第二个壁纸项目会需要）：
+**数据源 hooks**（便利封装，不是必须；组件不关心数据来源）：
 
 ```js
-import { useWallpaperAudio, useWallpaperMedia, useWallpaperPaused } from 'wallkit/we'
-
-const bars = useWallpaperAudio()   // Float32Array | null
-const track = useWallpaperMedia()  // TrackInfo | null
-const paused = useWallpaperPaused() // boolean
+import {
+  useWallpaperAudio,      // Float32Array：稳定引用、原地改写，无数据时全零
+  useWallpaperBeat,       // number 0..1，供 Clock.beat
+  useWallpaperMedia,      // TrackInfo | null
+  useWallpaperTimeline,   // { position, duration } | null（需开启 timeline）
+  useWallpaperPaused,     // boolean
+} from 'wallkit/we'
 ```
 
-这些 hooks **只是便利封装**，不是必须的。使用方完全可以自己实现数据采集，组件不关心数据来源。
+`bars` 刻意不返回 `null`：两个频谱组件对 `bars == null` 会连 DOM 都不渲染，而实机验证过的「无数据」表现是空图。`status` / `staleMs` 这类 HUD 诊断、以及 `now` 的 tick 都留在应用层，不进库 API。
 
-**Vite 插件**：计划自动向 `index.html` 的 `<head>` 最前面注入 WE 监听器内联脚本。
+**Vite 插件** `wallkitWE()`（`wallkit/we/vite`）通过 `transformIndexHtml` 的 `order: 'pre'` + `head-prepend`，把 classic script 注入 `<head>` 最前面；前三段默认开，`timeline` 默认关。顺序 audio → media → timeline → pause，每段带 HTML 注释标记保证幂等。不用插件的项目按 [we-integration.md](./we-integration.md) §2.2 手动粘贴。
 
-详见 [we-integration.md](./we-integration.md)。
+接口与接线细节见 [`wallkit/we` 设计规格](./we-design.md)。
 
 ### 7.3 插件的行为约束
 
 - 只注入脚本，不注册组件、不做 Provider、不改全局状态。
 - 必须幂等（用 HTML 注释标记去重）。
-- 支持按需注入（`audio` / `media` / `pause`）。
+- 支持按需注入（`audio` / `media` / `pause` / `timeline`，前三默认开）。
 - 开发与生产模式行为必须一致。
 - 不触碰 `project.json`。
 - 不安装插件时，文档提供可直接粘贴的 `<script>` 块。
@@ -576,7 +581,7 @@ export function isWallpaperEngine(): boolean
 |---|---|
 | `Clock` | 停止更新 `now`（它没有 `paused`，也没有数据定时器）；`visible={false}` 摘掉 DOM |
 | `Spectrum` | `paused` prop：`true` 时取消 rAF，循环完全停止 |
-| 通用 | 使用 `wallkit/we` 的 `useWallpaperPaused()`（P4），或在应用层卸载控件 |
+| 通用 | 使用 `wallkit/we` 的 `useWallpaperPaused()`，或在应用层卸载控件 |
 
 原实现中 `Clock` 每秒轮询一次，`AlbumArt` 每秒轮询一次媒体状态——这些轮询属于数据构建层，随数据构建一起迁移到应用层。
 
@@ -702,9 +707,9 @@ README 与游戏仓库的 README 都必须声明这一点，避免他人误以�
 |---|---|---|---|
 | P0 | `core` + `styles` + 组件骨架 | 环境探测、存储工具、主题变量、LICENSE | ✅ 完成 |
 | P1 | `Clock` | 首个组件，验证接口设计 | ✅ 完成 |
-| P2 | `Spectrum` | 独立浮层频谱，沿用 Clock 验证过的模式 | ✅ 实现完成，待实机验证 |
-| P3 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 | ✅ 实现完成，待实机验证 |
-| P4 | `wallkit/we` + Vite 插件 | 第二个壁纸项目开始时再做 | 未开始（占位入口已存在） |
+| P2 | `Spectrum` | 独立浮层频谱，沿用 Clock 验证过的模式 | ✅ 完成（WE 实机验证通过） |
+| P3 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 | ✅ 完成（WE 实机验证通过） |
+| P4 | `wallkit/we` + Vite 插件 | 第二个壁纸项目决定启动时提前收口 | ✅ 完成（WE 实机接线复验通过） |
 | P5 | 新项目验证 | 用非 Spine 背景的项目验证解耦 | 未开始 |
 | P6 | 模板仓库 | **等第二个游戏的外壳共性暴露后再建**，不提前 | 未开始 |
 

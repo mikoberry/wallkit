@@ -1,6 +1,6 @@
 # Wallpaper Engine 集成指南
 
-> 状态：**P4 未实现**。本文中 §2.1 的插件与 §7 的 hooks 描述的是 P4 完成后的形态；**当前唯一可用方式是 §2.2 手动粘贴**。
+> 状态：**P4 已实现并完成 WE 实机接线复验（结果正常）**。插件（§2.1）与 hooks（§7）均可直接使用；不用 Vite 的项目按 §2.2 手动粘贴。
 > 适用：使用 WallKit 控件库的 WE 网页壁纸项目
 > 关联：[architecture.md](./architecture.md)
 
@@ -30,11 +30,7 @@ WE 通过宿主注入的全局函数回调网页：
 
 ## 2. 接入方式
 
-### 2.1 Vite 插件（P4 计划，当前为占位）
-
-> **现在不要用。** `src/we/vite-plugin.js` 目前只返回 `{ name: 'wallkit-we' }`，没有 `transformIndexHtml` 钩子，加进 `vite.config.js` 不会注入任何东西，也不报错——音频会静默不工作。这时请用 §2.2。
-
-P4 完成后的形态：
+### 2.1 Vite 插件（推荐）
 
 ```js
 // vite.config.js
@@ -50,17 +46,19 @@ export default defineConfig({
 })
 ```
 
-按需注入：
+按需注入（四段开关，前三默认 `true`，`timeline` 默认 `false`）：
 
 ```js
-wallkitWE({ audio: true, media: false, pause: false })
+wallkitWE({ audio: true, media: false, pause: false, timeline: true })
 ```
 
-插件通过 `transformIndexHtml` 钩子把脚本插入 `<head>` 最前面（`head-prepend`），保证早于模块脚本。
+插件通过 `transformIndexHtml` 的 `order: 'pre'` 把 classic script 插到 `<head>` 最前面（`head-prepend`），保证早于模块脚本；顺序 audio → media → timeline → pause，每段带 `<!-- wallkit-we:* -->` 注释标记，**重复挂载插件或手工粘贴过某一段都不会重复注入**。`timeline` 默认关的理由见 §2.2 (3)。接口细节见 [we-design.md](./we-design.md) §2.2。
 
-### 2.2 手动粘贴（当前唯一可用）
+> `project.json` 仍由使用方保证（§3）；插件只注入脚本，不碰工程配置。
 
-把下面三段按顺序放入 `index.html` 的 `<head>` 中，位于所有 `type="module"` 脚本之前。
+### 2.2 手动粘贴（不使用 Vite 插件时）
+
+把下面 (1)(2)(4) 三段按顺序放入 `index.html` 的 `<head>` 中，位于所有 `type="module"` 脚本之前。(3) 是可选的播放进度桥接，只在确实需要时插入。这些文本与 `src/we/inline/*.js` 的字符串常量等价（仅注释语言不同），改动时两份要同步。
 
 #### (1) 音频监听器
 
@@ -138,7 +136,27 @@ wallkitWE({ audio: true, media: false, pause: false })
 </script>
 ```
 
-#### (3) 暂停桥接
+#### (3) 播放进度监听器（可选，默认不用）
+
+WE 官方对 `MediaTimelineListener` 的警告是「不是所有播放器都支持，要假设这个回调永远不被调用」。所以 `window.__wallkitTimeline` 初始为 `null`，只有真实数字到达才写入；**不要**在应用层补 `0:00`、插值或假进度。插件默认不注入这一段，需要时用 `wallkitWE({ timeline: true })` 并配合 `useWallpaperTimeline()`。
+
+```html
+<script>
+  window.__wallkitTimeline = null;
+
+  if (typeof window.wallpaperRegisterMediaTimelineListener === 'function') {
+    window.wallpaperRegisterMediaTimelineListener(function (event) {
+      if (!event) return;
+      // 不做强转、不做兜底：拿不到真实数字就保持 null。
+      if (typeof event.position !== 'number' || typeof event.duration !== 'number') return;
+      if (!isFinite(event.position) || !isFinite(event.duration) || event.duration <= 0) return;
+      window.__wallkitTimeline = { position: event.position, duration: event.duration };
+    });
+  }
+</script>
+```
+
+#### (4) 暂停桥接
 
 ```html
 <script>
@@ -163,7 +181,7 @@ wallkitWE({ audio: true, media: false, pause: false })
 
 ### 2.3 顺序要求
 
-三段脚本的顺序是：**音频 → 媒体 → 暂停**。
+默认三段的顺序是：**音频 → 媒体 → 暂停**；启用 timeline 时为 **音频 → 媒体 → timeline → 暂停**（与插件注入顺序一致）。
 
 暂停桥接依赖 `wallpaperRegisterAudioListener` 的存在来判断"宿主是否已就绪"，所以必须放在音频监听器之后。
 
@@ -299,17 +317,7 @@ WE 暂停时**冻结渲染进程**，但页面的 `requestAnimationFrame`、定�
 | `Clock` | **没有 `paused` prop**。停止更新 `now` 即可（组件本身不持有定时器）；要彻底摘掉 DOM 用 `visible={false}` |
 | `Spectrum` | 有 `paused`。`true` 时 `cancelAnimationFrame`，循环完全停止；恢复时沿用暂停前的相位 |
 
-> 下面 `useWallpaperPaused()` 的写法属于 **P4，尚未实现**。当前请在应用层自己监听 `wallkit-pause-change` 事件（§2.2 的暂停桥接负责派发）：
-
-```js
-// 当前可用写法（不依赖 wallkit/we）
-let paused = window.__wallkitPaused === true
-window.addEventListener('wallkit-pause-change', (e) => {
-  paused = e.detail
-})
-```
-
-P4 完成后可简化为：
+库已提供 `useWallpaperPaused()`（订阅 §2.2 暂停桥接派发的事件）：
 
 ```jsx
 import { useWallpaperPaused } from 'wallkit/we'
@@ -320,15 +328,26 @@ function Controls() {
 }
 ```
 
+不想引入 `wallkit/we` 时，在应用层直接监听即可：
+
+```js
+// 不依赖 wallkit/we 的写法
+let paused = window.__wallkitPaused === true
+window.addEventListener('wallkit-pause-change', (e) => {
+  paused = e.detail
+})
+```
+
 ---
 
 ## 8. 结论速查
 
 | 事项 | 责任方 | 当前可用 |
 |---|---|---|
-| `<head>` 内联脚本 | 手动粘贴（插件 P4） | ✅ §2.2 |
+| `<head>` 内联脚本 | `wallkitWE()` 自动注入；不装插件则手动粘贴 | ✅ §2.1 / §2.2 |
 | `project.json` 形状 | **使用方**（库不碰） | — |
-| 音频 / 媒体数据采集 | 使用方自己写（hooks P4） | ✅ 读 `window.__wallkitAudioFrame` |
-| 控件渲染 | WallKit | ✅ Clock / Spectrum |
-| 暂停状态传递 | 应用层监听 `wallkit-pause-change` | ✅ |
+| 音频 / 媒体数据采集 | `wallkit/we` hooks；也可使用方自己写 | ✅ 读 `window.__wallkit*` |
+| 控件渲染 | WallKit | ✅ Clock / Spectrum / MiniSpectrum / AlbumArt |
+| 暂停状态传递 | `useWallpaperPaused()`，或应用层监听 `wallkit-pause-change` | ✅ |
+| 播放进度（可选） | `wallkitWE({ timeline: true })` + `useWallpaperTimeline()` | ✅ 默认关闭 |
 | 背景层渲染 | 使用方（各项目实现不同） | — |

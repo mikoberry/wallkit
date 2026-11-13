@@ -1,6 +1,6 @@
 # Spectrum 设计（P2）
 
-> 状态：已实现，待实机验证
+> 状态：已实现，WE 实机验证通过
 > 最后更新：2026-11-13
 >
 > 相关文档：[architecture.md](./architecture.md) · [extraction-map.md](./extraction-map.md)

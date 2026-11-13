@@ -47,13 +47,13 @@
 
 | 源文件 | 目标 | 说明 |
 |---|---|---|
-| `src/utils/wallpaperAudio.js` | `src/we/audio.js` | 改为 hook 形式，返回 `Float32Array \| null` |
-| `src/utils/wallpaperMedia.js` | `src/we/media.js` | 改为 hook，返回 `TrackInfo \| null` |
+| `src/utils/wallpaperAudio.js` | `src/we/audio.js` | hook 形式：稳定引用 `Float32Array` 原地改写，无数据全零（实现期修正，见 [we-design.md](./we-design.md) §2.1）；`beat` 拆成独立 hook |
+| `src/utils/wallpaperMedia.js` | `src/we/media.js` | 改为 hook，返回 `TrackInfo \| null`；另加可选 `useWallpaperTimeline()` |
 | `src/utils/wallpaperPause.js` | `src/we/pause.js` | 保留事件订阅模式 |
-| `index.html` 三段内联脚本 | `src/we/inline/*.js` | 改写为字符串常量，供插件注入 |
-| （新增） | `src/we/vite-plugin.js` | Vite 插件（当前为空占位） |
+| `index.html` 三段内联脚本 | `src/we/inline/*.js` | 四段（含可选 timeline）字符串常量，供插件注入 |
+| （新增） | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`：`transformIndexHtml` + `head-prepend` 幂等注入 |
 
-**注意**：`wallkit/we` 标记为可选，P4 阶段实现。组件不依赖它也能工作。两个占位文件的现状不同：`src/we/index.js` 只有 `export {}`（导入 hooks 会构建报错），`src/we/vite-plugin.js` 返回空 plugin（加了等于没加，静默不注入）。
+**注意**：`wallkit/we` 标记为可选，已于 P4 实现。组件不依赖它也能工作；`status` / `staleMs` 等 HUD 诊断与 `useNow()` 留在应用层，未进库 API。接口形状见 [we-design.md](./we-design.md) §2.1。
 
 ### 2.4 `Spectrum` 的迁移方式（P2 阶段，已完成）
 
@@ -202,16 +202,16 @@ P2 已迁移以下文件：
 
 | 步骤 | 动作 | 验证 | 状态 |
 |---|---|---|---|
-| 1 | 建 `core` + `styles` 骨架，应用接入 `wallkit`（git 依赖） | 应用能构建启动 | ✅ 库侧完成；应用侧接入由使用方执行 |
-| 2 | 抽 `Clock`，应用改用 `<Clock now={...} />` | 时钟外观、倾斜、语言切换不变 | ✅ 库侧完成；待实机验证 |
-| 3 | 抽 `Spectrum` | 频谱外观、位置、缩放行为不变（按新 `offsetX`/`offsetY`/`size` 换算后） | ✅ 库侧完成；待实机验证 |
-| 4 | 抽 `MiniSpectrum` + `AlbumArt` | 专辑卡片外观、迷你频谱、旋转不变 | ✅ 库侧完成；待实机验证 |
-| 5 | 实现 `wallkit/we` + 插件，应用改用插件注入 | 音频、媒体、暂停行为不变 | ⬜ 未开始（P4） |
-| 6 | 移除应用内已迁移的旧文件 | 无重复代码 | ⬜ 待步骤 5 |
+| 1 | 建 `core` + `styles` 骨架，应用接入 `wallkit`（git 依赖） | 应用能构建启动 | ✅ 已完成（应用已接入） |
+| 2 | 抽 `Clock`，应用改用 `<Clock now={...} />` | 时钟外观、倾斜、语言切换不变 | ✅ 完成（WE 实机验证通过） |
+| 3 | 抽 `Spectrum` | 频谱外观、位置、缩放行为不变（按新 `offsetX`/`offsetY`/`size` 换算后） | ✅ 完成（WE 实机验证通过） |
+| 4 | 抽 `MiniSpectrum` + `AlbumArt` | 专辑卡片外观、迷你频谱、旋转不变 | ✅ 完成（WE 实机验证通过） |
+| 5 | 实现 `wallkit/we` + 插件，测试页改用插件注入 | 音频、媒体、暂停行为不变 | ✅ 完成（WE 实机接线复验通过） |
+| 6 | 移除应用内已迁移的旧文件 | 无重复代码 | ⬜ 应用侧待执行（库侧步骤 5 已完成） |
 
 **应用内永久保留**：`SettingsDrawer.*`、`i18n.js`、`src/utils/wallpaper*.js`（若未启用 `wallkit/we`）。
 
-**步骤 5（`wallkit/we`）可以延后**：前面的组件不依赖它，应用继续用自己的 `src/utils/wallpaper*.js` 直接出数据。
+**步骤 5 已提前到第二个壁纸项目启动时收口**：它不是投机抽象，而是把 `wallpaper.html` 三段脚本与 `wallpaper-data.js` 三个 hooks（均已在 WE 实机验证过）搬进库、定死接口。原计划把 P4 推到「第二个项目暴露外壳共性」，但接线方式当时就已确定；继续手工粘贴只会把重复固化进未来的模板仓库（P6）。
 
 **Clock 必须先完成并验证，才进入步骤 3。** Clock 用来验证「纯 props、无状态」的接口模式；该模式确认后，Spectrum 再沿用，避免定位抽象设计错误。
 
@@ -232,4 +232,4 @@ P2 已迁移以下文件：
 
 ### 仍待定
 
-无。P3 的两个开口已随实现关闭；P4 的三项（`wallkit/we` 的 hook 形态、插件注入方式、内联脚本要不要做成字符串常量）留到动手时再定，见 [we-integration.md](./we-integration.md) §2。
+无。P3 的两个开口已随实现关闭；P4 的三项（`wallkit/we` 的 hook 形态、插件注入方式、内联脚本要不要做成字符串常量）已定并落地，见 [we-design.md](./we-design.md) §2。

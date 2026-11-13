@@ -228,34 +228,35 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 ### WE 集成（可选）
 
-> ⚠️ **`wallkit/we` 与 `wallkit/we/vite` 目前是空占位（P4 未实现）。**
->
-> - `wallkit/we/vite` 可以导入，但插件是空的：**不注入任何脚本，也不报错**，音频会静默不工作。
-> - `wallkit/we` 目前只有 `export {}`，导入 hooks 会在构建期报 `does not provide an export named 'useWallpaperAudio'`。
->
-> 现在要拿真实音频，请手动把内联脚本粘进 `index.html` 的 `<head>`，见 [WE 集成指南](./docs/we-integration.md) §2.2。
-
-P4 完成后的用法是安装 Vite 插件自动注入监听器：
+安装 Vite 插件即可自动把 WE 监听器注入 `index.html` 的 `<head>` 最前面（classic script，早于模块入口）：
 
 ```js
 // vite.config.js
 import { wallkitWE } from 'wallkit/we/vite'
 
 export default defineConfig({
-  plugins: [react(), wallkitWE()],
+  plugins: [react(), wallkitWE()],  // 默认 audio + media + pause
+  // plugins: [react(), wallkitWE({ timeline: true })],  // 需要播放进度时
 })
 ```
 
-或使用便利 hooks：
+React 侧用便利 hooks 把桥接数据变成 props（组件本身仍只认 props，不依赖这层）：
 
 ```jsx
-import { useWallpaperAudio, useWallpaperMedia } from 'wallkit/we'
+import {
+  useWallpaperAudio, useWallpaperBeat,
+  useWallpaperMedia, useWallpaperPaused,
+} from 'wallkit/we'
 
-const bars = useWallpaperAudio()
-const track = useWallpaperMedia()
+const bars = useWallpaperAudio()       // Float32Array：稳定引用、原地改写；无数据时全零
+const beat = useWallpaperBeat()        // 0..1，供 Clock.beat
+const paused = useWallpaperPaused()
+const track = useWallpaperMedia(paused)
 ```
 
-详见 [WE 集成指南](./docs/we-integration.md)。
+`timeline` 默认关闭：WE 官方明确警告 `wallpaperRegisterMediaTimelineListener` 可能永不触发。需要 `useWallpaperTimeline()` 时显式打开；取不到值就保持 `null`，不要用 `0:00` 兜底。
+
+不使用 Vite 的项目仍可手动粘贴三段（加可选 timeline 共四段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
 
 ---
 
@@ -269,8 +270,8 @@ const track = useWallpaperMedia()
 | `wallkit/components/spectrum` | 独立浮动的音频频谱控件 |
 | `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
 | `wallkit/components/album-art` | 专辑卡片控件 |
-| `wallkit/we` | WE 数据源 hooks（P4 计划中，暂无实现） |
-| `wallkit/we/vite` | Vite 插件（P4 计划中，暂无实现） |
+| `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused） |
+| `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/styles` | 主题变量 |
 
 ---
@@ -344,15 +345,15 @@ WE_PROJECT_DIR="D:\path\to\your\we\project" npm run deploy:wallpaper
 
 ## 状态
 
-P0–P3 已完成，P2–P3 待实机验证；P4 起未开始。
+P0–P4 已完成，并全部在 Wallpaper Engine 中对接验证正常。P4 验的是插件注入 + hooks 这条新接线，控件 API 未变；P5 起未开始。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | P0 | `core` + `styles` 骨架 | ✅ 完成 |
 | P1 | `Clock` | ✅ 完成 |
-| P2 | `Spectrum` | ✅ 实现完成，待实机验证 |
-| P3 | `MiniSpectrum` + `AlbumArt` | ✅ 实现完成，待实机验证 |
-| P4 | `wallkit/we` + Vite 插件 | 未开始（`exports` 占位入口已存在） |
+| P2 | `Spectrum` | ✅ 完成（WE 实机验证通过） |
+| P3 | `MiniSpectrum` + `AlbumArt` | ✅ 完成（WE 实机验证通过） |
+| P4 | `wallkit/we` + Vite 插件 | ✅ 完成（WE 实机接线复验通过） |
 | P5 | 新项目验证 | 未开始 |
 | P6 | 模板仓库 | 未开始（等第二个游戏落地后） |
 
