@@ -129,6 +129,7 @@ const track = useWallpaperMedia()
 | `wallkit` | 根入口 |
 | `wallkit/core` | 环境探测、存储工具、时钟纯函数、类型约定 |
 | `wallkit/components/clock` | 日期时间控件 |
+| `wallkit/components/spectrum` | 音频频谱控件 |
 | `wallkit/we` | WE 数据源 hooks（P4 计划中，暂无实现） |
 | `wallkit/we/vite` | Vite 插件（P4 计划中，暂无实现） |
 | `wallkit/styles` | 主题变量 |
@@ -152,6 +153,7 @@ const track = useWallpaperMedia()
 ## 文档
 
 - [架构方案](./docs/architecture.md) — 定位、分层、接口原则、阶段计划
+- [Spectrum 设计](./docs/spectrum-design.md) — 频谱组件的接口、定位与渲染方案
 - [WE 集成指南](./docs/we-integration.md) — 内联脚本、`project.json`、音频排查
 - [抽取映射](./docs/extraction-map.md) — 从现有壁纸项目迁移的代码归属
 
@@ -179,7 +181,7 @@ npm run dev          # http://localhost:5174/
 |---|---|---|
 | P0 | `core` + `styles` 骨架 | ✅ 完成 |
 | P1 | `Clock` | ✅ 完成 |
-| P2 | `Spectrum` | 未开始 |
+| P2 | `Spectrum` | ✅ 实现完成，待实机验证 |
 | P3 | `MiniSpectrum` + `AlbumArt` | 未开始 |
 | P4 | `wallkit/we` + Vite 插件 | 未开始 |
 | P6 | 模板仓库 | 未开始（等第二个游戏落地后） |

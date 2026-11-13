@@ -215,8 +215,8 @@
 
 以下在实现阶段确定：
 
-- `Clock` 的 `labels` 具体字段名（`date` / `weekday` 是否够用）
-- `Clock` 的 `tilt` 覆盖对象形状
-- `Placement` 定位设计（**在 Clock 完成后、Spectrum 开始前确定**）
+- `Clock` 的 `labels` 具体字段名（`date` / `weekday` 是否够用）—— 已定，见 `Clock.jsx`
+- `Clock` 的 `tilt` 覆盖对象形状 —— 已定，见 `Clock.jsx`
+- `Placement` 定位设计 —— **已定：Spectrum 沿用 Clock 的左下锚点 + `offsetX/offsetY` + `size`**，见 [spectrum-design.md](./spectrum-design.md) §4
 - `MiniSpectrum` 与 `AlbumArt` 是否共享内部柱状渲染模块
 - `AlbumArt` 的 `bars` 是必传还是可选

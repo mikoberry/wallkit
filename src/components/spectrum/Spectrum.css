@@ -1,0 +1,61 @@
+/* Audio spectrum: a floating audio visualiser the caller can place anywhere.
+   Like the clock it never intercepts pointer events, so click-to-action keeps
+   working over it.
+
+   Positioning follows the clock: the anchor sits at offsetX/offsetY viewport
+   percentages measured from the bottom-left corner, and --wallkit-spectrum-scale
+   sizes the whole box. Unlike the original implementation the scale is applied
+   to width/height rather than a transform, so the canvas backing store always
+   matches the rendered pixels.
+
+   The base box is the "normal" widget (size = 100); it is a fraction of the
+   viewport so it stays responsive, chosen to read at a similar magnitude to the
+   clock at its default size. Wide (bar-like) styles stretch across it and radial
+   styles use its short side as their diameter. */
+
+.wallkit-spectrum__anchor {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.wallkit-spectrum {
+  /* Wide enough for the bar styles to read, tall enough for the ring styles to
+     stay circular inside the box. */
+  width: calc(30vw * var(--wallkit-spectrum-scale, 1));
+  height: calc(15vh * var(--wallkit-spectrum-scale, 1));
+  pointer-events: none;
+}
+
+/* Radial styles use a square box so circles stay circular regardless of the
+   viewport aspect. */
+.wallkit-spectrum--variant-ring,
+.wallkit-spectrum--variant-ringwave,
+.wallkit-spectrum--variant-ripples,
+.wallkit-spectrum--variant-aurora {
+  width: calc(min(30vw, 28vh) * var(--wallkit-spectrum-scale, 1));
+  height: calc(min(30vw, 28vh) * var(--wallkit-spectrum-scale, 1));
+}
+
+.wallkit-spectrum__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 640px) {
+  .wallkit-spectrum {
+    width: calc(60vw * var(--wallkit-spectrum-scale, 1));
+    height: calc(18vh * var(--wallkit-spectrum-scale, 1));
+  }
+
+  .wallkit-spectrum--variant-ring,
+  .wallkit-spectrum--variant-ringwave,
+  .wallkit-spectrum--variant-ripples,
+  .wallkit-spectrum--variant-aurora {
+    width: calc(min(60vw, 40vh) * var(--wallkit-spectrum-scale, 1));
+    height: calc(min(60vw, 40vh) * var(--wallkit-spectrum-scale, 1));
+  }
+}

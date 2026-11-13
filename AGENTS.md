@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0（基础层）和 P1（Clock）已完成。
+当前进度：P0（基础层）、P1（Clock）、P2（Spectrum）已完成。
 
 ## Execution rules
 
@@ -67,13 +67,19 @@ src/
 │   ├── env.js            # isWallpaperEngine / isWallpaperAudioAvailable
 │   ├── storage.js        # createStore(namespace)
 │   ├── clock.js          # 时间格式化、倾斜计算、缓动、进度/周数计算
+│   ├── audio.js          # 频谱数据纯函数（抽取、平滑、bass、渐变色）
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
 ├── components/
 │   ├── index.js
-│   └── clock/
+│   ├── clock/
+│   │   ├── index.js
+│   │   ├── Clock.jsx
+│   │   └── Clock.css
+│   └── spectrum/
 │       ├── index.js
-│       ├── Clock.jsx
-│       └── Clock.css
+│       ├── Spectrum.jsx
+│       ├── Spectrum.css
+│       └── renderers.js
 ├── styles/index.css      # --wallkit-* 变量
 └── we/                   # P4 占位
 ```
@@ -104,6 +110,30 @@ src/
   - `{ maxTilt, speed }` — `maxTilt` 是窗口边缘处的最大角度（钳制到 0–45），`speed` 是每秒追上速度（钳制到 0.5–30，越大越跟手）
   - `maxTilt: 0` 等同于关闭，此时不启动 rAF 循环
 
+### Spectrum 组件
+
+纯展示组件，**不读音频、不持有数据定时器**；自己持有 rAF 绘制循环做逐帧平滑与动画。
+
+```jsx
+<Spectrum
+  bars={bars}                  // 必选，Float32Array | number[] | null，各值 0..1
+  visible
+  variant="bars"               // bars | mirror | curve | pill | ring | ringwave | dots | ripples | aurora
+  colorHex                     // #rrggbb，省略时读 --wallkit-accent
+  size={100}                   // 100 = 正常大小（基准 30vw × 15vh）
+  offsetX={0} offsetY={0}      // 视口百分比，左下锚点（同 Clock）
+  intensity={100} curve={1}    // 响应强度 / 响应曲线
+  paused
+/>
+```
+
+- `bars` **必须由使用方传入**：用 `extractSpectrumBars(frame)` 从原始 128 帧加工。`bars == null`（或空）时返回 `null`，不渲染。
+- **柱数 = `bars.length`**，组件不自带 `barCount`。要调整柱数，用 core 的 `resampleBars(bars, count)` 折叠后再传入（数据加工归 core）。
+- `visible` 与 `paused` 不同：`visible={false}` 不渲染 DOM；`paused` 保留在屏上但冻结。两者都停止绘制循环。
+- `variant` 是形态（不是 `style`，避免与 DOM `style` 冲突）；`colorHex` 只接受 `#rrggbb`，非法值回退 `--wallkit-accent` → `#a8c4ff`。
+- `intensity`（0–1000，默认 100）/ `curve`（0.2–2，默认 1）经 `shapeSpectrumLevel()` 应用，默认值等于原始柱高。
+- 绘制循环 effect 只依赖 `[visible, hasBars, paused]`；`elapsed` 与 renderer state 存 ref，`variant` 在循环内切换——暂停恢复与切换样式都不重置相位。
+
 ## Conventions
 
 ### 样式
@@ -128,7 +158,7 @@ src/
 
 - 无 TypeScript：用 JSDoc 标注类型，没有编译步骤。
 - 无测试套件：验收依赖用户在实际环境目视。
-- `Spectrum` 暂未实现（P2）：原项目的实现仍在 anime-model-viewer 中运行。
+- Spectrum 的 Canvas 后备存储按 CSS 像素，不处理 `devicePixelRatio`（HiDPI 下比 DOM 文字的 Clock 略糊）。
 
 ## Migration reference
 

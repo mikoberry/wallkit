@@ -3,7 +3,7 @@
 > 状态：设计定稿，未开始实现
 > 最后更新：2026-11-13
 >
-> 相关文档：[WE 集成指南](./we-integration.md) · [抽取映射](./extraction-map.md)
+> 相关文档：[WE 集成指南](./we-integration.md) · [抽取映射](./extraction-map.md) · [Spectrum 设计](./spectrum-design.md)
 
 ## 1. 项目定位
 

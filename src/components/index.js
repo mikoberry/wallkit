@@ -5,3 +5,4 @@
 // that want several widgets at once.
 
 export { Clock } from './clock/index.js'
+export { Spectrum } from './spectrum/index.js'
