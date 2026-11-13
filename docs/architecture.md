@@ -261,12 +261,16 @@ wallkit/
 
 ### 5.3 组件清单
 
-| 组件 | 入口 | 职责 |
-|---|---|---|
-| `Clock` | `wallkit/components/clock` | 日期时间显示，可选 3D 指针倾斜 |
-| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱 |
-| `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 |
-| `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 |
+| 组件 | 入口 | 职责 | 阶段 |
+|---|---|---|---|
+| `Clock` | `wallkit/components/clock` | 日期时间显示，可选 3D 指针倾斜 | P1 |
+| `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 |
+| `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 |
+| `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱 | P2 |
+
+**实现顺序：Clock 优先，完成并验证后再做 Spectrum。**
+
+`Spectrum` 排在 `MiniSpectrum` / `AlbumArt` 之前，因为它与 `Clock` 同属「独立浮层」类控件，各自需要自己的定位与挂载方式；而 `MiniSpectrum` 是被 `AlbumArt` 内部消费的子组件，一起做更合理。
 
 具体 Props 在实现阶段定义，本方案只锁定原则与数据形状。
 
@@ -277,6 +281,90 @@ wallkit/
 - 不设置全局 z-index 层级
 - 不内置任何语言文案（文案通过 props 传入）
 - 不引入除 React 外的运行时依赖
+- **不内置定时器**：时间等随时间变化的数据由使用方驱动传入
+
+### 5.5 已确定的设计决策
+
+以下决策在 P1 之前锁定，避免实现过程中反复摇摆。
+
+#### Clock：时间必须由使用方传入
+
+```jsx
+<Clock now={new Date()} />
+```
+
+`now` 为 **必需 prop**，组件内部**不持有定时器**。
+
+理由：
+
+- 组件保持纯粹，便于测试和复用。
+- 轮询节奏由使用方控制（WE 暂停时需要停止轮询以省电）。
+- 多个控件共享同一时间源时不会各自走表。
+
+使用方写法：
+
+```jsx
+const [now, setNow] = useState(() => new Date())
+
+useEffect(() => {
+  const id = setInterval(() => setNow(new Date()), 1000)
+  return () => clearInterval(id)
+}, [])
+```
+
+后续可由 `wallkit/we` 提供 `useClock()` 便利 hook，但组件本身不内置。
+
+#### Clock：文案通过字符串传入
+
+`labels` 为**字符串对象**，不使用格式化函数：
+
+```jsx
+<Clock
+  now={now}
+  labels={{
+    date: '2026年11月13日',
+    weekday: '星期四',
+  }}
+/>
+```
+
+理由：
+
+- 格式化逻辑属于使用方（它有 i18n 语言包），组件只负责排版与倾斜。
+- 字符串是纯数据，更符合「只接收纯数据」的原则。
+- 传函数会让组件承担调用时机与缓存的责任，增加不必要的耦合。
+
+#### Spectrum：排在 Clock 之后实现
+
+`Spectrum` **在计划内**，但实现顺序排在 `Clock` 之后：先完成并验证 Clock 的接口设计，再做 Spectrum。
+
+顺序安排的理由：
+
+- Clock 是最简单的独立浮层控件，适合用来验证「纯 props、无状态」的接口模式。
+- 该模式确认有效后，Spectrum 沿同一套模式实现，风险更低。
+- Spectrum 的定位系统（`Placement` 抽象）较复杂，等 Clock 验证过基础模式后再设计，能避免一上来就抽象错误。
+
+**Spectrum 待定的设计**（在 Clock 完成后确定）：
+
+```js
+/**
+ * @typedef {Object} Placement
+ * @property {'top-left'|'top-right'|'bottom-left'|'bottom-right'|'center'} anchor
+ * @property {number} offsetX        相对锚点的百分比偏移
+ * @property {number} offsetY
+ * @property {number} scale          整体缩放
+ */
+```
+
+三选一方案（Clock 完成时决策）：
+
+| 方案 | 形态 | 特点 |
+|---|---|---|
+| A | `{ anchor, offsetX, offsetY, scale }` | 锚点语义清晰，需实现换算 |
+| B | `position="bottom-left" offset={{x,y}} scale` | 同上，参数更分散 |
+| C | `{ x, y, scale }` 视口中心百分比 | 沿用原语义，改动最小 |
+
+**必须保留的约束**：Canvas 尺寸必须用 `offsetWidth` / `offsetHeight` 测量，不能用 `getBoundingClientRect`——后者返回缩放后的尺寸，会导致双重缩放。
 
 ---
 
@@ -508,11 +596,13 @@ README 与游戏仓库的 README 都必须声明这一点，避免他人误以�
 |---|---|---|
 | P0 | `core` + `styles` + 组件骨架 | 环境探测、存储工具、主题变量、LICENSE |
 | P1 | `Clock` | 首个组件，验证接口设计 |
-| P2 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 |
-| P3 | `Spectrum` | 独立定位系统，较复杂 |
+| P2 | `Spectrum` | 独立浮层频谱，沿用 Clock 验证过的模式 |
+| P3 | `MiniSpectrum` + `AlbumArt` | 两者共用柱状渲染逻辑 |
 | P4 | `wallkit/we` + Vite 插件 | 第二个壁纸项目开始时再做 |
 | P5 | 新项目验证 | 用非 Spine 背景的项目验证解耦 |
 | P6 | 模板仓库 | **等第二个游戏的外壳共性暴露后再建**，不提前 |
+
+**顺序原则：Clock 先做完并验证，再动 Spectrum。** Clock 是最简单的独立浮层控件，用它确认「纯 props、无状态」的接口模式是否成立；确认后再实现 Spectrum，避免定位抽象设计错误。
 
 `SettingsDrawer` **不在计划内**，永久留在应用层。
 

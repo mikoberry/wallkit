@@ -26,11 +26,11 @@
 
 | 源文件 | 大小 | 目标 | 改动 |
 |---|---|---|---|
-| `src/components/Clock.jsx` | 14.8 KB | `src/components/clock/` | **重写接口**：去掉 localStorage、去掉 i18n、去掉自身轮询，改为接收 `now` / `paused` / labels |
+| `src/components/Clock.jsx` | 14.8 KB | `src/components/clock/` | **重写接口**：去掉 localStorage、去掉 i18n、去掉自身轮询，改为接收必需 `now` / `paused` / 字符串 `labels` |
 | `src/components/Clock.css` | 15.2 KB | 同目录 | 颜色改为 `var(--wallkit-*)` |
-| `src/components/Spectrum.jsx` | 6.6 KB | `src/components/spectrum/` | **重写接口**：接收 `bars` 而非读取源；定位参数重新设计 |
+| `src/components/Spectrum.jsx` | 6.6 KB | `src/components/spectrum/` | **重写接口**：接收 `bars` 而非读取源；定位参数重新设计（在 Clock 完成后定） |
 | `src/components/Spectrum.css` | 2.0 KB | 同目录 | 同上 |
-| `src/components/MiniSpectrum.jsx` | 6.5 KB | `src/components/mini-spectrum/` | 判断依据从 `kind` 改为 `bars == null`；与 `Spectrum` 共用柱状渲染 |
+| `src/components/MiniSpectrum.jsx` | 6.5 KB | `src/components/mini-spectrum/` | 判断依据从 `kind` 改为 `bars == null` |
 | `src/components/MiniSpectrum.css` | 0.5 KB | 同目录 | 同上 |
 | `src/components/AlbumArt.jsx` | 8.0 KB | `src/components/album-art/` | **重写接口**：接收 `track` / `bars`；去掉 1 秒轮询与 localStorage |
 | `src/components/AlbumArt.css` | 18.5 KB | 同目录 | 同上 |
@@ -41,7 +41,7 @@
 |---|---|---|
 | `src/utils/clock.js`（`computeClockTilt` 等） | 组件内部或 `src/core/` | 纯计算，可直接搬 |
 | `src/utils/audio.js` 中的 `extractSpectrumBars` / `smoothAudioLevel` | 组件内部或 `src/core/` | 柱状数据加工；`syntheticSpectrum` **不进库** |
-| `src/utils/spectrum.js`（18.8 KB） | 拆解 | 见 §2.4 |
+| `src/utils/spectrum.js`（18.8 KB） | 拆解 | 见 §2.4，在 Spectrum 阶段处理 |
 
 ### 2.3 可选模块 `wallkit/we`
 
@@ -53,18 +53,28 @@
 | `index.html` 三段内联脚本 | `src/we/inline/*.js` | 改写为字符串常量，供插件注入 |
 | （新增） | `src/we/vite-plugin.js` | Vite 插件 |
 
-**注意**：`wallkit/we` 标记为可选，P4 阶段实现。前三个组件不依赖它也能工作。
+**注意**：`wallkit/we` 标记为可选，P4 阶段实现。组件不依赖它也能工作。
 
-### 2.4 需要拆解的 `spectrum.js`
+### 2.4 `Spectrum` 的迁移方式（P2 阶段）
 
-`src/utils/spectrum.js` 有 18.8 KB，混杂了多种职责，迁移前必须拆开：
+`Spectrum` 在计划内，但排在 Clock 之后。P2 阶段迁移以下文件：
+
+| 文件 | 处理 |
+|---|---|
+| `src/components/Spectrum.jsx`（6.6 KB） | 重写接口后迁入 `src/components/spectrum/` |
+| `src/components/Spectrum.css`（2.0 KB） | 同目录，颜色改 `var(--wallkit-*)` |
+| `src/utils/spectrum.js`（18.8 KB） | 按职责拆解 |
+
+`src/utils/spectrum.js` 内部混杂了四类职责，迁移时按下表拆分：
 
 | 职责 | 去向 |
 |---|---|
 | 频谱数据加工（归一化、平滑、分桶） | 进库（`core` 或组件内部） |
-| 合成数据生成（`syntheticSpectrum`） | **留在应用层 / playground**，不进库 |
-| 定位计算（offset 百分比 → 实际像素） | 进库 |
+| 合成数据生成（`syntheticSpectrum`） | **永久留在应用层 / playground**，不进库 |
+| 定位计算（offset 百分比 → 实际像素） | 进库（`Placement` 设计在 Clock 完成后定） |
 | 颜色与样式计算 | 进库 |
+
+**注意**：`Spectrum` 的定位参数（`offsetX/offsetY/scale`）是原应用层调参的结果，迁移时按 architecture.md §5.5 的方案重新设计，不原样沿用。
 
 ---
 
@@ -124,9 +134,9 @@
 
 | 当前 | 迁移后 |
 |---|---|
-| 内部 `setInterval` 每秒轮询 | 接收 `now: Date`，由使用方驱动 |
+| 内部 `setInterval` 每秒轮询 | 接收**必需** `now: Date`，使用方驱动 |
 | 读 `spine-viewer:clock:v1` | 无状态，全部经 props |
-| 中/英/日/韩 硬编码文案 | `labels` prop 由使用方传入 |
+| 中/英/日/韩 硬编码文案 | `labels` **字符串对象**由使用方传入（不用函数） |
 | 监听 `visibilitychange` / WE 暂停 | 接收 `paused` prop |
 | 指针 3D 倾斜内部计算 | 保留计算，`tilt` 可覆盖 |
 
@@ -138,10 +148,12 @@
 |---|---|
 | 从 `wallpaperAudio` 读帧 | 接收 `bars` |
 | `kind` 决定真实 / 合成 | `bars == null` 即不渲染 |
-| `offsetX/offsetY` 视口百分比 + `scale` CSS transform | **重新设计**为 `anchor` + `offset` 的通用定位 |
+| `offsetX/offsetY` 视口百分比 + `scale` CSS transform | **重新设计**为通用 `Placement`（Clock 完成后定） |
 | `spine-viewer:spectrum:v1` 状态 | 无状态 |
 | 尺寸用 `offsetWidth/offsetHeight` 测量 | **保留**这条约束（`getBoundingClientRect` 会双重缩放） |
 | 128 柱 Canvas 2D | 保留 |
+
+**必须保留的约束**：Canvas 尺寸必须用 `offsetWidth` / `offsetHeight` 测量，不能用 `getBoundingClientRect`——后者返回缩放后的尺寸，会导致双重缩放。
 
 ### 4.3 AlbumArt
 
@@ -186,12 +198,16 @@
 |---|---|---|
 | 1 | 建 `core` + `styles` 骨架，应用接入 `wallkit`（git 依赖） | 应用能构建启动 |
 | 2 | 抽 `Clock`，应用改用 `<Clock now={...} />` | 时钟外观、倾斜、语言切换不变 |
-| 3 | 抽 `MiniSpectrum` + `AlbumArt` | 专辑卡片外观、迷你频谱、旋转不变 |
-| 4 | 抽 `Spectrum` | 频谱外观、位置、缩放行为不变 |
+| 3 | 抽 `Spectrum` | 频谱外观、位置、缩放行为不变（按新 `Placement` 换算后） |
+| 4 | 抽 `MiniSpectrum` + `AlbumArt` | 专辑卡片外观、迷你频谱、旋转不变 |
 | 5 | 实现 `wallkit/we` + 插件，应用改用插件注入 | 音频、媒体、暂停行为不变 |
 | 6 | 移除应用内已迁移的旧文件 | 无重复代码 |
 
-**步骤 5 可以延后**：前四步不依赖 `wallkit/we`，应用继续用自己的 `src/utils/wallpaper*.js` 直接出数据。
+**应用内永久保留**：`SettingsDrawer.*`、`i18n.js`、`src/utils/wallpaper*.js`（若未启用 `wallkit/we`）。
+
+**步骤 5（`wallkit/we`）可以延后**：前面的组件不依赖它，应用继续用自己的 `src/utils/wallpaper*.js` 直接出数据。
+
+**Clock 必须先完成并验证，才进入步骤 3。** Clock 用来验证「纯 props、无状态」的接口模式；该模式确认后，Spectrum 再沿用，避免定位抽象设计错误。
 
 ---
 
@@ -199,7 +215,8 @@
 
 以下在实现阶段确定：
 
-- `Placement` 型定位的具体参数命名（`anchor` + `offset` 组合是否够用）
-- `Clock` 的 `labels` 具体字段
-- `Spectrum` 与 `MiniSpectrum` 是否共享同一个内部渲染模块
+- `Clock` 的 `labels` 具体字段名（`date` / `weekday` 是否够用）
+- `Clock` 的 `tilt` 覆盖对象形状
+- `Placement` 定位设计（**在 Clock 完成后、Spectrum 开始前确定**）
+- `MiniSpectrum` 与 `AlbumArt` 是否共享内部柱状渲染模块
 - `AlbumArt` 的 `bars` 是必传还是可选

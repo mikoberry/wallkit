@@ -41,14 +41,12 @@ WallKit 通过 GitHub git 引用分发，不发布 npm。
 
 ```jsx
 import { Clock } from 'wallkit/components/clock'
-import { Spectrum } from 'wallkit/components/spectrum'
 import { AlbumArt } from 'wallkit/components/album-art'
 
 function Controls({ now, bars, track }) {
   return (
     <>
-      <Clock now={now} />
-      <Spectrum bars={bars} />
+      <Clock now={now} labels={{ date: '2026年11月13日', weekday: '星期四' }} />
       <AlbumArt track={track} bars={bars} />
     </>
   )
@@ -129,8 +127,8 @@ const track = useWallpaperMedia()
 |---|---|---|
 | P0 | `core` + `styles` 骨架 | 未开始 |
 | P1 | `Clock` | 未开始 |
-| P2 | `MiniSpectrum` + `AlbumArt` | 未开始 |
-| P3 | `Spectrum` | 未开始 |
+| P2 | `Spectrum` | 未开始（待 Clock 完成） |
+| P3 | `MiniSpectrum` + `AlbumArt` | 未开始 |
 | P4 | `wallkit/we` + Vite 插件 | 未开始 |
 | P6 | 模板仓库 | 未开始（等第二个游戏落地后） |
 
