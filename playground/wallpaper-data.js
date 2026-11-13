@@ -16,6 +16,11 @@ import { SPECTRUM_BARS, extractSpectrumBars, summarizeWallpaperAudio } from '../
 // A frame older than this makes the HUD call the audio stale.
 const STALE_MS = 1500
 
+// Smallest change in the bass level worth a re-render of the clock. Below this
+// the difference is under a thousandth of the card's scale and cannot be seen,
+// so silence (or a held note) costs no renders at all.
+const BEAT_EPSILON = 0.004
+
 /**
  * Raw audio frames, converted in place.
  *
@@ -42,7 +47,7 @@ export function useWallpaperAudio() {
     let raf = 0
     let frames = 0
     let lastFrame = null
-    let lastBeatAt = 0
+    let lastBeat = 0
     let lastStatusAt = 0
 
     const tick = (time) => {
@@ -54,12 +59,18 @@ export function useWallpaperAudio() {
         lastFrame = frame
         frames += 1
         if (extractSpectrumBars(frame, barsRef.current)) {
-          // 10 Hz is plenty for a value that ends up in a CSS variable; going
-          // per-frame would re-render the clock 60 times a second for nothing.
-          if (time - lastBeatAt > 100) {
-            lastBeatAt = time
-            const summary = summarizeWallpaperAudio(frame)
-            setBeat(summary ? summary.bass : 0)
+          // The beat used to be sampled at 10 Hz to spare the clock a
+          // re-render. That was a bad trade: the card scales visibly, so a
+          // 10 Hz input reads as ten steps a second no matter how smoothly the
+          // component paints it, and sampling that coarsely also aliases the
+          // peaks away — the hits that survive are the wrong ones. Read every
+          // frame instead and let the component smooth it; the epsilon keeps
+          // quiet stretches free of renders.
+          const summary = summarizeWallpaperAudio(frame)
+          const next = summary ? summary.bass : 0
+          if (Math.abs(next - lastBeat) > BEAT_EPSILON) {
+            lastBeat = next
+            setBeat(next)
           }
         }
       }

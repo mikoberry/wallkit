@@ -6,6 +6,22 @@
 
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
+// Constructing an `Intl.DateTimeFormat` is expensive — hundreds of microseconds
+// even when the locale is already loaded, because the constructor has to parse
+// the options object and resolve the locale data every time. The clock
+// re-renders on every audio frame while music is playing, so building four
+// formatters per render turned into real jank on Wallpaper Engine's older
+// Chromium. They are pure functions of (locale, options), so cache them.
+const formatterCache = new Map()
+
+function cachedFormatter(key, locale, options) {
+  const hit = formatterCache.get(key)
+  if (hit) return hit
+  const formatter = new Intl.DateTimeFormat(locale, options)
+  formatterCache.set(key, formatter)
+  return formatter
+}
+
 /** Minimum clock size percentage. */
 export const CLOCK_SIZE_MIN = 40
 /** Maximum clock size percentage. */
@@ -37,8 +53,9 @@ function localeFor(locale) {
  * @returns {string}
  */
 export function formatClockTime(date, { use24Hour = true, locale = 'en-GB' } = {}) {
+  const tag = localeFor(locale)
   try {
-    return new Intl.DateTimeFormat(localeFor(locale), {
+    return cachedFormatter(`time|${tag}|${use24Hour ? 24 : 12}`, tag, {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -98,17 +115,18 @@ export function formatClockDateParts(date, locale) {
   const year = date.getFullYear()
   const monthNum = date.getMonth() + 1
   const day = date.getDate()
+  const tag = localeFor(locale)
 
   try {
     return {
-      absolute: new Intl.DateTimeFormat(localeFor(locale), {
+      absolute: cachedFormatter(`date|${tag}`, tag, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       }).format(date),
       weekday,
       year,
-      month: new Intl.DateTimeFormat(localeFor(locale), { month: 'short' }).format(date),
+      month: cachedFormatter(`month|${tag}`, tag, { month: 'short' }).format(date),
       monthNum,
       day,
     }
@@ -223,8 +241,11 @@ function isoWeekNumber(date) {
  */
 export function formatClockZone(date) {
   try {
-    const iana = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-    const parts = new Intl.DateTimeFormat(undefined, {
+    // The zone formatter follows the system locale on purpose (the project has
+    // always shown the OS name for the zone), so it is cached under a key that
+    // does not include a locale.
+    const iana = cachedFormatter('zone|iana', undefined, {}).resolvedOptions().timeZone || ''
+    const parts = cachedFormatter('zone|short', undefined, {
       timeZoneName: 'short',
     }).formatToParts(date)
     const short = parts.find((part) => part.type === 'timeZoneName')?.value ?? ''

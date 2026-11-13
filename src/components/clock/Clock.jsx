@@ -28,6 +28,18 @@ const BEAT_SCALE = 0.34
 // responding exactly when the music gets loud.
 const BEAT_GLOW = 1
 
+// The beat level is smoothed in the same rAF loop that eases the tilt, because
+// the caller can only hand it over at whatever rate its audio source runs —
+// the Wallpaper Engine bridge in particular delivers roughly 10 updates a
+// second. Rendering that raw turns the scale into visible 10 fps stair steps.
+//
+// The two rates are deliberately asymmetric: percussion has to feel immediate,
+// so the rise chases the target hard, while the fall is slow enough to read as
+// a decay rather than a flicker. A single shared rate would either mute the
+// attack or leave the card visibly pumping after the hit.
+const BEAT_ATTACK = 26
+const BEAT_RELEASE = 7
+
 // Default response curve for the beat level.
 //
 // Bass drives the response less than linearly: real music rarely pushes the
@@ -153,13 +165,44 @@ export default function Clock({
   const frameRef = useRef(0)
   const lastTimeRef = useRef(0)
 
+  // The beat follows the same pattern: the prop only sets a target, and the
+  // loop eases the value actually painted. `responseRef` is what the render
+  // reads, so the scale advances every frame regardless of the source rate.
+  const beatTargetRef = useRef(0)
+  const responseRef = useRef(0)
+
+  // Whether a beat has ever been non-zero. Once it has, the loop keeps running
+  // so the decay back to zero can finish; without this the card would freeze
+  // mid-pulse when the music stops.
+  const [beatReactive, setBeatReactive] = useState(false)
+
   const { enabled: tiltEnabled, maxTilt, speed } = normalizeTilt(tilt)
-  const active = visible && tiltEnabled
+  const tiltActive = visible && tiltEnabled
+  // The loop has to run for either consumer: the tilt needs it every frame the
+  // pointer moves, the beat needs it to smooth a coarse input.
+  const active = tiltActive || (visible && beatReactive)
+
+  // Resolve the prop into a 0..1 target here, in the hook section, because the
+  // loop reads it through a ref. `painted` (what the render uses) is derived
+  // from the ref further down.
+  //
+  // Lift ordinary bass levels into the visible part of the range (see
+  // BEAT_CURVE_DEFAULT). `beat` is clamped before the exponent so a stray frame
+  // above 1 cannot overshoot and a negative value cannot invert the curve.
+  const curve = Number.isFinite(beatCurve)
+    ? clamp(beatCurve, BEAT_CURVE_MIN, BEAT_CURVE_MAX)
+    : BEAT_CURVE_DEFAULT
+  const beatTarget = clamp(Number(beat) || 0, 0, 1) ** curve
+  beatTargetRef.current = beatTarget
+
+  useEffect(() => {
+    if (beatTarget > 0 && !beatReactive) setBeatReactive(true)
+  }, [beatTarget, beatReactive])
 
   // Pointer tracking drives the tilt target. It listens on window because the
   // wallpaper's canvas owns the pointer events.
   useEffect(() => {
-    if (!active) return undefined
+    if (!tiltActive) return undefined
 
     const reduced = prefersReducedMotion()
     if (reduced) {
@@ -190,9 +233,11 @@ export default function Clock({
       window.removeEventListener('pointerleave', handleLeave)
       document.removeEventListener('pointerleave', handleLeave)
     }
-  }, [active, maxTilt])
+  }, [tiltActive, maxTilt])
 
-  // Ease the rendered tilt toward the target every frame.
+  // Ease the rendered tilt and the beat response toward their targets every
+  // frame. Both live in one loop: they end up in the same `transform`, so two
+  // loops would fight over it.
   useEffect(() => {
     if (!active) return undefined
 
@@ -209,15 +254,28 @@ export default function Clock({
         rotateY: smoothStep(current.rotateY, target.rotateY, delta, speed),
       }
 
-      // Only re-render when the angle actually moved; a settled card costs
-      // nothing. The threshold is finer than a hundredth of a degree.
-      if (
+      const paintedBeat = responseRef.current
+      const aimedBeat = beatTargetRef.current
+      const nextBeat = smoothStep(
+        paintedBeat,
+        aimedBeat,
+        delta,
+        aimedBeat > paintedBeat ? BEAT_ATTACK : BEAT_RELEASE,
+      )
+
+      // Advance the refs unconditionally — they hold the authoritative state,
+      // and leaving them behind in the dead band would strand the value a
+      // hair short of its target. Only the re-render is conditional: a settled
+      // card costs nothing. The angle threshold is finer than a hundredth of a
+      // degree, the beat one is below a thousandth of the scale range.
+      const moved =
         Math.abs(next.rotateX - current.rotateX) > 0.001 ||
-        Math.abs(next.rotateY - current.rotateY) > 0.001
-      ) {
-        currentRef.current = next
-        setRenderedTilt(next)
-      }
+        Math.abs(next.rotateY - current.rotateY) > 0.001 ||
+        Math.abs(nextBeat - paintedBeat) > 0.0005
+
+      currentRef.current = next
+      responseRef.current = nextBeat
+      if (moved) setRenderedTilt(next)
 
       frameRef.current = window.requestAnimationFrame(tick)
     }
@@ -235,6 +293,8 @@ export default function Clock({
     if (active) return
     targetRef.current = FLAT
     currentRef.current = FLAT
+    beatTargetRef.current = 0
+    responseRef.current = 0
     setRenderedTilt(FLAT)
   }, [active])
 
@@ -260,13 +320,9 @@ export default function Clock({
   const intensity =
     clamp(Number(beatIntensity) || 0, CLOCK_BEAT_INTENSITY_MIN, CLOCK_BEAT_INTENSITY_MAX) / 100
 
-  // Lift ordinary bass levels into the visible part of the range (see
-  // BEAT_CURVE_DEFAULT). `beat` is clamped before the exponent so a stray frame
-  // above 1 cannot overshoot and a negative value cannot invert the curve.
-  const curve = Number.isFinite(beatCurve)
-    ? clamp(beatCurve, BEAT_CURVE_MIN, BEAT_CURVE_MAX)
-    : BEAT_CURVE_DEFAULT
-  const response = clamp(Number(beat) || 0, 0, 1) ** curve
+  // The value actually painted, advanced by the rAF loop. Reading the ref
+  // rather than the prop is what turns a 10 Hz source into 60 fps motion.
+  const response = responseRef.current
 
   // The glow is multiplied into a spread radius and an alpha. Keep it at or
   // below 1 so the alpha term never saturates: past 1 the halo stops gaining
