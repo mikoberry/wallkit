@@ -2,9 +2,12 @@
 //
 // This is not a demo gallery — it is a single wallpaper-sized composition that
 // mounts every control at once, wired to the engine's real audio and media
-// callbacks (see the inline scripts in `wallpaper.html`). Build it with
-// `npm run build:wallpaper` and point Wallpaper Engine at
-// `playground/dist-wallpaper`.
+// callbacks. Build it with `npm run build:wallpaper` and point Wallpaper Engine
+// at `playground/dist-wallpaper`.
+//
+// The <head> bridges are injected by wallkitWE() from the Vite configs; the
+// React-side data comes from `wallkit/we`. Only the app-owned clock and the HUD
+// diagnostics live in ./wallpaper-data.js.
 //
 // Two reasons it auto-cycles instead of showing a control panel:
 //
@@ -21,11 +24,12 @@ import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
 import { isHexColor } from '../src/core/index.js'
 import {
-  useNow,
   useWallpaperAudio,
+  useWallpaperBeat,
   useWallpaperMedia,
   useWallpaperPaused,
-} from './wallpaper-data.js'
+} from 'wallkit/we'
+import { useNow, useWallpaperAudioStatus, STALE_MS } from './wallpaper-data.js'
 import '../src/styles/index.css'
 import './wallpaper.css'
 
@@ -122,7 +126,9 @@ function Wallpaper() {
 
   const paused = useWallpaperPaused()
   const now = useNow(paused)
-  const { bars, beat, status, staleMs } = useWallpaperAudio()
+  const bars = useWallpaperAudio()
+  const beat = useWallpaperBeat()
+  const status = useWallpaperAudioStatus()
   const track = useWallpaperMedia(paused)
 
   const albumVariant = ALBUM_ART_VARIANTS[step % ALBUM_ART_VARIANTS.length]
@@ -210,7 +216,7 @@ function Wallpaper() {
         album={albumVariant}
         spectrum={spectrumVariant}
         anchor={clockAnchor}
-        audio={{ ...status, beat, staleMs }}
+        audio={{ ...status, beat, staleMs: STALE_MS }}
         media={track}
         paused={paused}
         hidden={!hudVisible}

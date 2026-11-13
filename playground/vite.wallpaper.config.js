@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
+// Config files are bundled before `resolve.alias` applies — see vite.config.js.
+import { wallkitWE } from '../src/we/vite-plugin.js'
 
 // Build config for the Wallpaper Engine test page.
 //
@@ -23,12 +25,17 @@ export default defineConfig({
   // Pinned to this folder so `outDir` and `publicDir` below resolve to
   // `playground/…` no matter which directory the build is launched from.
   root: fileURLToPath(new URL('.', import.meta.url)),
-  plugins: [react()],
+  // Same plugin as vite.config.js: dev preview and the built wallpaper must go
+  // through the identical injection path.
+  plugins: [react(), wallkitWE()],
   // Relative asset paths so the folder works no matter how the host serves it.
   base: './',
   publicDir: 'public',
   resolve: {
     alias: {
+      // Exact entries first — see vite.config.js for why.
+      'wallkit/we/vite': fileURLToPath(new URL('../src/we/vite-plugin.js', import.meta.url)),
+      'wallkit/we': fileURLToPath(new URL('../src/we/index.js', import.meta.url)),
       wallkit: fileURLToPath(new URL('../src/index.js', import.meta.url)),
       'wallkit/': fileURLToPath(new URL('../src/', import.meta.url)),
     },
