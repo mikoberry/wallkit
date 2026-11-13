@@ -15,6 +15,13 @@ const PLACEMENTS = [
 ]
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const WEEKDAYS_BY_LOCALE = {
+  'zh-CN': WEEKDAYS,
+  'en-GB': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  'en-US': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  'ja-JP': ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+  'ko-KR': ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+}
 
 // The clock anchors to the bottom-left of its positioning context, and the
 // library's default offsets are 0 — meaning it sits flush against the edge.
@@ -23,31 +30,6 @@ const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '�
 // default: a wallpaper picks whatever offset suits its artwork.
 const DEMO_OFFSET_X = 4
 const DEMO_OFFSET_Y = 4
-
-/**
- * The clock is a pure view, so the demo owns the tick exactly as a wallpaper
- * would. Pausing the demo stops the interval, which mirrors how a wallpaper
- * should stop polling while Wallpaper Engine has it paused.
- */
-function useNow(running) {
-  const [now, setNow] = useState(() => new Date())
-
-  useEffect(() => {
-    if (!running) return undefined
-    const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [running])
-
-  return now
-}
-
-function labelsFor(now, locale) {
-  return {
-    locale,
-    weekday: WEEKDAYS[now.getDay()],
-    aria: '当前时间与日期',
-  }
-}
 
 // Horizontal layouts carry a long single line, so at the full 100% type scale
 // they overflow a gallery cell even at a generous width. Real wallpapers give
@@ -60,40 +42,130 @@ function sizeFor(placement, size) {
   return WIDE_LAYOUTS.has(placement) ? Math.min(size, WIDE_LAYOUT_SIZE) : size
 }
 
-function ClockCard({ placement, title, it, beat, theme = 'dark', size = 100, tilt }) {
+/**
+ * The clock is a pure view, so the demo owns the tick exactly as a wallpaper
+ * would. Pausing the demo stops the interval, which mirrors how a wallpaper
+ * should stop polling while Wallpaper Engine has it paused.
+ */
+function useNow(running) {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    if (!running) return undefined
+    // Updating immediately avoids showing a stale second after resuming.
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [running])
+
+  return now
+}
+
+function labelsFor(now, locale) {
+  return {
+    locale,
+    weekday: (WEEKDAYS_BY_LOCALE[locale] ?? WEEKDAYS)[now.getDay()],
+    aria: '当前时间与日期',
+  }
+}
+
+/**
+ * One gallery cell. Every cell renders the same widget with the demo-wide
+ * settings, so a difference between cells always comes from `placement` alone.
+ */
+function ClockCard({ placement, index, view }) {
   return (
     <figure className="cell">
-      <div className={`stage stage--${title % 2 === 0 ? 'a' : 'b'}`}>
+      <div className={`stage stage--${index % 2 === 0 ? 'a' : 'b'}`}>
         <Clock
-          now={it.now}
+          now={view.now}
           placement={placement}
-          theme={theme}
-          size={sizeFor(placement, size)}
-          beat={beat}
-          tilt={tilt}
-          offsetX={DEMO_OFFSET_X}
-          offsetY={DEMO_OFFSET_Y}
-          labels={labelsFor(it.now, 'zh-CN')}
+          theme={view.theme}
+          use24Hour={view.use24Hour}
+          size={sizeFor(placement, view.size)}
+          offsetX={view.offsetX}
+          offsetY={view.offsetY}
+          beat={view.beat}
+          beatIntensity={view.beatIntensity}
+          tilt={view.tilt}
+          visible={view.visible}
+          labels={labelsFor(view.now, view.locale)}
+          onToggleHourFormat={view.onToggleHourFormat}
         />
       </div>
-      <figcaption>{placement}</figcaption>
+      <figcaption>
+        {placement}
+        {WIDE_LAYOUTS.has(placement) ? ` · 尺寸封顶 ${WIDE_LAYOUT_SIZE}%` : ''}
+      </figcaption>
     </figure>
+  )
+}
+
+function Row({ title, children }) {
+  return (
+    <div className="row">
+      <span className="row__title">{title}</span>
+      <div className="row__items">{children}</div>
+    </div>
+  )
+}
+
+function Slider({ label, value, min, max, step = 1, disabled, suffix = '', onChange }) {
+  return (
+    <label className={disabled ? 'ctl ctl--off' : 'ctl'}>
+      <span className="ctl__label">
+        {label} <b>{value}{suffix}</b>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
+  )
+}
+
+function Toggle({ label, on, disabled, onChange }) {
+  return (
+    <button
+      type="button"
+      className={on ? 'ctl ctl--btn ctl--on' : 'ctl ctl--btn'}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+    >
+      {label}: {on ? '开' : '关'}
+    </button>
   )
 }
 
 function App() {
   const [running, setRunning] = useState(true)
+
+  // Audio reactivity.
   const [beatOn, setBeatOn] = useState(false)
   const [beat, setBeat] = useState(0)
+  const [beatIntensity, setBeatIntensity] = useState(100)
+
+  // Appearance.
   const [theme, setTheme] = useState('dark')
+  const [use24Hour, setUse24Hour] = useState(true)
+  const [size, setSize] = useState(100)
+  const [locale, setLocale] = useState('zh-CN')
+  const [visible, setVisible] = useState(true)
+
+  // Placement.
+  const [offsetX, setOffsetX] = useState(DEMO_OFFSET_X)
+  const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
+
+  // Pointer tilt: `tilt` takes false, true, or a settings object.
   const [tiltOn, setTiltOn] = useState(true)
-  // Start from the library defaults so the first render matches a bare <Clock />.
   const [maxTilt, setMaxTilt] = useState(14)
   const [tiltSpeed, setTiltSpeed] = useState(8)
-  // 100% is the real wallpaper default. The cell is sized large enough to hold
-  // the full type scale at that setting, so the demo shows the widget as it
-  // actually ships rather than a shrunken approximation.
-  const [size, setSize] = useState(100)
+
   const now = useNow(running)
 
   // A synthetic beat drives the audio-reactive path so the swell and glow can
@@ -109,98 +181,171 @@ function App() {
     const tick = (t) => {
       const elapsed = (t - started) / 1000
       const wobble = 0.5 + 0.5 * Math.sin(elapsed * 2.4)
-      const pulse = Math.pow(wobble, 2)
-      setBeat(pulse)
+      setBeat(Math.pow(wobble, 2))
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [beatOn])
 
-  const it = useMemo(() => ({ now }), [now])
+  // Clicking a clock flips the hour format, exactly what a wallpaper would wire
+  // its `onToggleHourFormat` callback to.
+  const onToggleHourFormat = () => setUse24Hour((v) => !v)
 
-  // `tilt` accepts false, true, or a settings object. The demo passes the
-  // object form so both dials can be felt; the library defaults to 14° / 8.
-  const tilt = tiltOn ? { maxTilt, speed: tiltSpeed } : false
+  const view = useMemo(
+    () => ({
+      now,
+      theme,
+      use24Hour,
+      size,
+      offsetX,
+      offsetY,
+      beat,
+      beatIntensity,
+      tilt: tiltOn ? { maxTilt, speed: tiltSpeed } : false,
+      visible,
+      locale,
+      onToggleHourFormat,
+    }),
+    [now, theme, use24Hour, size, offsetX, offsetY, beat, beatIntensity, tiltOn, maxTilt, tiltSpeed, visible, locale],
+  )
 
   return (
     <div className="page">
-      <header className="bar">
+      <header className="head">
         <h1>WallKit Playground</h1>
-        <div className="controls">
-          <button type="button" onClick={() => setRunning((v) => !v)}>
-            {running ? '暂停时钟' : '继续时钟'}
-          </button>
-          <button type="button" onClick={() => setBeatOn((v) => !v)}>
-            {beatOn ? '关闭节拍' : '模拟节拍'}
-          </button>
-          <button type="button" onClick={() => setTiltOn((v) => !v)}>
-            {tiltOn ? '关闭倾斜' : '开启倾斜'}
-          </button>
-          <label>
-            主题
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="dark">dark</option>
-              <option value="light">light</option>
-            </select>
-          </label>
-          <label>
-            尺寸 {size}%
-            <input
-              type="range"
-              min="40"
-              max="200"
-              step="10"
-              value={size}
-              onChange={(e) => setSize(Number(e.target.value))}
-            />
-          </label>
-          <label title="鼠标移到窗口边缘时的最大倾斜角度">
-            最大倾角 {maxTilt}°
-            <input
-              type="range"
-              min="0"
-              max="45"
-              step="1"
-              value={maxTilt}
-              disabled={!tiltOn}
-              onChange={(e) => setMaxTilt(Number(e.target.value))}
-            />
-          </label>
-          <label title="越大越跟手，越小越柔和">
-            跟手速度 {tiltSpeed}
-            <input
-              type="range"
-              min="1"
-              max="20"
-              step="1"
-              value={tiltSpeed}
-              disabled={!tiltOn}
-              onChange={(e) => setTiltSpeed(Number(e.target.value))}
-            />
-          </label>
-        </div>
+        <p className="hint">
+          时钟是纯展示组件：时间、文案、节拍都由本页提供。<code>beat</code> 的合成数据只存在于
+          本页——库本身不会生成假数据。点击任意时钟可切换 12/24 小时制（
+          <code>onToggleHourFormat</code>）。
+        </p>
       </header>
 
-      <p className="hint">
-        时钟是纯展示组件：时间由本页驱动，指针倾斜跟随鼠标。节拍数据由本页合成——库本身不会
-        生成假数据。每格背景左右交替，用来检查深浅两种壁纸底下的可读性。
-        倾斜可在右上角调整：<code>maxTilt</code> 是窗口边缘处的最大角度，
-        <code>speed</code> 是跟手快慢（库默认 14° / 8）。
-      </p>
+      <section className="panel">
+        <Row title="运行">
+          <Toggle label="时钟" on={running} onChange={setRunning} />
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="节拍 beat" on={beatOn} onChange={setBeatOn} />
+          <Toggle label="倾斜 tilt" on={tiltOn} onChange={setTiltOn} />
+        </Row>
+
+        <Row title="布局">
+          <label className="ctl">
+            <span className="ctl__label">
+              主题 theme <b>{theme}</b>
+            </span>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+              <option value="dark">dark（深色文字）</option>
+              <option value="light">light（浅色文字）</option>
+            </select>
+          </label>
+          <label className="ctl">
+            <span className="ctl__label">
+              制式 use24Hour <b>{use24Hour ? '24h' : '12h'}</b>
+            </span>
+            <select
+              value={use24Hour ? '24' : '12'}
+              onChange={(e) => setUse24Hour(e.target.value === '24')}
+            >
+              <option value="24">24 小时</option>
+              <option value="12">12 小时</option>
+            </select>
+          </label>
+          <label className="ctl">
+            <span className="ctl__label">
+              语言 labels.locale <b>{locale}</b>
+            </span>
+            <select value={locale} onChange={(e) => setLocale(e.target.value)}>
+              <option value="zh-CN">zh-CN</option>
+              <option value="en-GB">en-GB</option>
+              <option value="en-US">en-US</option>
+              <option value="ja-JP">ja-JP</option>
+              <option value="ko-KR">ko-KR</option>
+            </select>
+          </label>
+          <Slider
+            label="尺寸 size"
+            value={size}
+            min={40}
+            max={200}
+            step={5}
+            suffix="%"
+            onChange={setSize}
+          />
+        </Row>
+
+        <Row title="位置">
+          <Slider
+            label="水平 offsetX"
+            value={offsetX}
+            min={0}
+            max={90}
+            suffix="%"
+            onChange={setOffsetX}
+          />
+          <Slider
+            label="垂直 offsetY"
+            value={offsetY}
+            min={0}
+            max={90}
+            suffix="%"
+            onChange={setOffsetY}
+          />
+          <button type="button" className="ctl ctl--btn" onClick={() => { setOffsetX(0); setOffsetY(0) }}>
+            重置为库默认 0/0
+          </button>
+        </Row>
+
+        <Row title="倾斜 tilt">
+          <Slider
+            label="最大倾角 maxTilt"
+            value={maxTilt}
+            min={0}
+            max={45}
+            suffix="°"
+            disabled={!tiltOn}
+            onChange={setMaxTilt}
+          />
+          <Slider
+            label="跟手速度 speed"
+            value={tiltSpeed}
+            min={1}
+            max={20}
+            disabled={!tiltOn}
+            onChange={setTiltSpeed}
+          />
+          <button
+            type="button"
+            className="ctl ctl--btn"
+            onClick={() => {
+              setMaxTilt(14)
+              setTiltSpeed(8)
+            }}
+          >
+            重置为 14° / 8
+          </button>
+        </Row>
+
+        <Row title="音频 beat">
+          <Slider
+            label="响应强度 beatIntensity"
+            value={beatIntensity}
+            min={0}
+            max={1000}
+            step={10}
+            suffix="%"
+            disabled={!beatOn}
+            onChange={setBeatIntensity}
+          />
+          <span className="ctl ctl--note">
+            当前 beat <b>{beat.toFixed(2)}</b>
+          </span>
+        </Row>
+      </section>
 
       <section className="grid">
         {PLACEMENTS.map((p, i) => (
-          <ClockCard
-            key={p.id}
-            placement={p.id}
-            title={i}
-            it={it}
-            beat={beat}
-            theme={theme}
-            size={size}
-            tilt={tilt}
-          />
+          <ClockCard key={p.id} placement={p.id} index={i} view={view} />
         ))}
       </section>
 
@@ -211,15 +356,19 @@ function App() {
               now={now}
               placement="poster"
               theme={theme}
+              use24Hour={use24Hour}
               size={size}
+              offsetX={offsetX}
+              offsetY={offsetY}
               beat={beat}
-              tilt={tilt}
-              offsetX={DEMO_OFFSET_X}
-              offsetY={DEMO_OFFSET_Y}
-              labels={labelsFor(now, 'zh-CN')}
+              beatIntensity={beatIntensity}
+              tilt={tiltOn ? { maxTilt, speed: tiltSpeed } : false}
+              visible={visible}
+              labels={labelsFor(now, locale)}
+              onToggleHourFormat={onToggleHourFormat}
             />
           </div>
-          <figcaption>poster · 大尺寸（{size}%）</figcaption>
+          <figcaption>poster · 全尺寸 {size}%</figcaption>
         </figure>
         <figure className="cell">
           <div className="stage stage--dark">
@@ -227,25 +376,26 @@ function App() {
               now={now}
               placement="card"
               theme={theme === 'dark' ? 'light' : 'dark'}
-              use24Hour={false}
+              use24Hour={use24Hour}
               size={size}
+              offsetX={offsetX}
+              offsetY={offsetY}
               beat={beat}
-              tilt={tilt}
-              offsetX={DEMO_OFFSET_X}
-              offsetY={DEMO_OFFSET_Y}
-              labels={labelsFor(now, 'zh-CN')}
+              beatIntensity={beatIntensity}
+              tilt={tiltOn ? { maxTilt, speed: tiltSpeed } : false}
+              visible={visible}
+              labels={labelsFor(now, locale)}
+              onToggleHourFormat={onToggleHourFormat}
             />
           </div>
-          <figcaption>card · 12 小时制 · 反转主题</figcaption>
+          <figcaption>card · 反转主题</figcaption>
         </figure>
       </section>
 
       <footer className="foot">
-        <span>
-          时钟锚定在定位容器的左下角。库的默认偏移是{' '}
-          <code>offsetX=0, offsetY=0</code>（紧贴边缘），本页统一传{' '}
-          <code>offsetX={DEMO_OFFSET_X}, offsetY={DEMO_OFFSET_Y}</code> 留出边距，方便完整查看。
-        </span>
+        库的默认值：<code>offsetX=0, offsetY=0</code>（贴边）、
+        <code>tilt=true</code>（14° / 8）、<code>size=100</code>、
+        <code>theme="dark"</code>、<code>use24Hour=true</code>。本页初始的 4% 偏移只为留出边距。
       </footer>
     </div>
   )

@@ -19,47 +19,118 @@ body {
 }
 
 .page {
-  max-width: 1440px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 24px 24px 64px;
 }
 
-.bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+.head {
   padding-bottom: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.bar h1 {
+.head h1 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
-.controls {
+/* Grouped control panel: one row per concern, so twelve props stay readable
+ * instead of collapsing into a single wrapping strip. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 20px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.row__title {
+  flex: 0 0 72px;
+  padding-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #7b87a3;
+}
+
+.row__items {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  font-size: 13px;
+  gap: 10px 18px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.controls label {
+.ctl {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  font-size: 13px;
   color: #aab4cc;
 }
 
-.controls button,
-.controls select,
-.controls input[type='range'] {
+.ctl--off {
+  opacity: 0.45;
+}
+
+.ctl__label {
+  white-space: nowrap;
+}
+
+.ctl__label b {
+  font-weight: 600;
+  color: #e8ecf8;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctl--note b {
+  font-variant-numeric: tabular-nums;
+  color: #7dd3fc;
+}
+
+.ctl select,
+.ctl input[type='range'] {
   font: inherit;
+  color: #e8ecf8;
+  background: #1a2030;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+
+.ctl input[type='range'] {
+  padding: 0;
+  width: 130px;
+  border: none;
+  background: transparent;
+  accent-color: #7dd3fc;
+  cursor: pointer;
+}
+
+.ctl input[type='range']:disabled {
+  cursor: not-allowed;
+}
+
+.ctl--btn {
+  font: inherit;
+  font-size: 13px;
   color: #e8ecf8;
   background: #1a2030;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -68,22 +139,35 @@ body {
   cursor: pointer;
 }
 
-.controls button:hover {
+.ctl--btn:hover:not(:disabled) {
   background: #232b3f;
 }
 
-.controls input[type='range'] {
-  padding: 0;
-  width: 120px;
-  accent-color: #7dd3fc;
+.ctl--btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ctl--on {
+  border-color: rgba(125, 211, 252, 0.55);
+  background: rgba(125, 211, 252, 0.14);
+  color: #bfe8ff;
 }
 
 .hint {
-  margin: 16px 0 24px;
-  max-width: 78ch;
+  margin: 12px 0 0;
+  max-width: 96ch;
   font-size: 13px;
   line-height: 1.7;
   color: #8d99b5;
+}
+
+.hint code,
+.foot code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, monospace;
 }
 
 .grid {
