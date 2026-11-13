@@ -29,7 +29,8 @@
 
 .wallkit-clock__tilt {
   transform-style: preserve-3d;
-  transform-origin: 50% 100%;
+  /* `transform-origin` is set inline by Clock.jsx: it follows the anchor, so a
+     top-corner clock grows downward instead of pushing itself off screen. */
   /* No transition: Clock.jsx eases the angles itself in a rAF loop. Adding a
      CSS transition here would restart on every pointer move and stutter. */
   pointer-events: none;

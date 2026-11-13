@@ -1,3 +1,4 @@
+import { ANCHOR_DEFAULT, anchorStyle } from '../../core/anchor.js'
 import MiniSpectrum from '../mini-spectrum/MiniSpectrum.jsx'
 import './AlbumArt.css'
 
@@ -124,8 +125,11 @@ function Meta({ track, compact = false }) {
  *   `--wallkit-accent`.
  * @param {number} [props.size=100]   Size percentage, range 20..300. 100 is the
  *   normal card (cover diameter is 18vh).
- * @param {number} [props.offsetX=0]  Horizontal offset, viewport percentage.
- * @param {number} [props.offsetY=0]  Vertical offset, viewport percentage.
+ * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport corner to pin to. Invalid values fall back to the default.
+ * @param {number} [props.offsetX=0]  Distance from the anchored side, viewport
+ *   percentage, growing inward. 0 sits flush against the corner.
+ * @param {number} [props.offsetY=0]  Same, vertically.
  * @param {boolean} [props.paused=false] Freeze the cover rotation and spectrum.
  * @param {{ aria?: string, coverAlt?: string }} [props.labels]  Caller-supplied
  *   strings. `coverAlt` is used verbatim when set (pass `''` for a decorative
@@ -139,6 +143,7 @@ export default function AlbumArt({
   theme = 'light',
   colorHex,
   size = 100,
+  anchor = ANCHOR_DEFAULT,
   offsetX = 0,
   offsetY = 0,
   paused = false,
@@ -168,8 +173,7 @@ export default function AlbumArt({
     .join(' ')
 
   const style = {
-    left: `${offsetX}%`,
-    bottom: `${offsetY}%`,
+    ...anchorStyle(anchor, offsetX, offsetY),
     '--wallkit-album-art-scale':
       clamp(Number(size) || 100, ALBUM_ART_SIZE_MIN, ALBUM_ART_SIZE_MAX) / 100,
   }

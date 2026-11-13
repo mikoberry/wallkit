@@ -24,8 +24,8 @@
   --wallkit-album-art-wash: rgba(255, 255, 255, 0.04);
 
   position: absolute;
-  left: 0;
-  bottom: 0;
+  /* Insets come from the inline anchor style; writing them here would be
+     overridden and silently ignored. */
   z-index: 5;
   display: flex;
   align-items: stretch;

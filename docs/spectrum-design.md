@@ -33,7 +33,8 @@
   variant="bars"              // 9 种样式之一
   colorHex={undefined}        // 省略时读 --wallkit-accent
   size={100}                  // 尺寸百分比，100 = 正常大小
-  offsetX={0} offsetY={0}     // 视口百分比，左下锚点（同 Clock）
+  anchor="bottom-left"        // 四个视口角落之一
+  offsetX={0} offsetY={0}     // 从锚点向内，0 = 贴角（同 Clock）
   intensity={100} curve={1}   // 响应强度 / 响应曲线
   paused={false}
 />
@@ -46,8 +47,9 @@
 | `variant` | `'bars'` | 见 §5 | 无效值回退 `bars` |
 | `colorHex` | `undefined` | `#rrggbb` | 省略时从 `--wallkit-accent` 解析，失败回退 `#a8c4ff` |
 | `size` | `100` | 20–500 | 整体缩放百分比，**100 = 正常控件大小**（见 §4） |
-| `offsetX` | `0` | 0–100 | 距左边缘的视口百分比 |
-| `offsetY` | `0` | 0–100 | 距下边缘的视口百分比 |
+| `anchor` | `'bottom-left'` | 四个视口角落之一 | 非法值回退 `bottom-left` |
+| `offsetX` | `0` | 不限 | 从锚点水平向内，负值可出血到屏幕外 |
+| `offsetY` | `0` | 不限 | 从锚点垂直向内 |
 | `intensity` | `100` | 0–1000 | 响应强度百分比。100 = 原始柱高，>100 抬升弱信号，0 = 压平 |
 | `curve` | `1` | 0.2–2 | 响应曲线指数。<1 抬升安静段（更敏感），>1 收紧成尖峰，1 = 线性 |
 | `paused` | `false` | — | `true` 时冻结画面（见 §6） |
@@ -99,15 +101,17 @@
 与 Clock 完全一致，便于同一壁纸里两块控件用同一套坐标心智：
 
 ```
-锚点：定位上下文（position 不为 static 的父元素）的左下角
-offsetX / offsetY：视口百分比，0 贴边
+anchor：贴哪个视口角落（top-left / top-right / bottom-left / bottom-right），默认 bottom-left
+offsetX / offsetY：从锚点角落向内的视口百分比，0 = 完全贴角
 size：整体缩放百分比，100 = 正常大小
 ```
 
-DOM 结构：
+偏移**只向内**，所以从左下换到右下不需要翻转符号：`anchor` 换边后，同一个 `offsetX` 表示“距右边多远”。
+
+DOM 结构（定位由 `core/anchor.js` 的 `anchorStyle()` 生成，只写两个 inset）：
 
 ```jsx
-<div className="wallkit-spectrum__anchor" style={{ left: `${offsetX}%`, bottom: `${offsetY}%` }}>
+<div className="wallkit-spectrum__anchor" style={anchorStyle(anchor, offsetX, offsetY)}>
   <div className={`wallkit-spectrum wallkit-spectrum--variant-${variant}`} style={{ '--wallkit-spectrum-scale': size/100 }}>
     <canvas className="wallkit-spectrum__canvas" />
   </div>
@@ -248,7 +252,7 @@ anime-model-viewer 切换后视觉与行为不变（`extraction-map.md` §6 步�
 
 | 旧（应用层） | 新（库） |
 |---|---|
-| `offsetX/offsetY`（50 = 中心） | 左下锚点百分比，需重映射 |
+| `offsetX/offsetY`（50 = 中心） | 改为从锚点向内的百分比，需重映射 |
 | `scale`（0.5–5，基准 90vw） | `size`（基准 30vw，100 = 正常大小）。维持原尺寸约需 `size = scale * 300`，但上限 500，实际按新基准重挑 |
 | `color` | `colorHex`（一致） |
 | `style` | `variant`（原 8 个名称一致，新增 `pill`） |

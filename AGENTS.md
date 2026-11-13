@@ -83,6 +83,7 @@ src/
 │   ├── storage.js        # createStore(namespace)
 │   ├── clock.js          # 时间格式化、倾斜计算、缓动、进度/周数计算
 │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、bass、渐变色）
+│   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
 ├── components/
 │   ├── index.js
@@ -120,6 +121,7 @@ src/
   placement="card"             // card | bar | minimal | cyberpunk | infobar | split | poster | ring | segments | stamp
   theme="dark"                 // dark = 深色文字（用于浅色壁纸）
   use24Hour size offsetX offsetY
+  anchor="bottom-left"         // top-left | top-right | bottom-left | bottom-right
   beat beatIntensity beatCurve  // 音频响应走 prop
   tilt                         // 见下方
   onToggleHourFormat           // 可选回调，参数为 '12' | '24'
@@ -147,7 +149,8 @@ src/
   variant="bars"               // bars | mirror | curve | pill | ring | ringwave | dots | ripples | aurora
   colorHex                     // #rrggbb，省略时读 --wallkit-accent
   size={100}                   // 100 = 正常大小（基准 30vw × 15vh）
-  offsetX={0} offsetY={0}      // 视口百分比，左下锚点（同 Clock）
+  offsetX={0} offsetY={0}      // 从锚点角落向内，0 = 贴角（同 Clock）
+  anchor="bottom-left"         // 四个视角角落
   intensity={100} curve={1}    // 响应强度 / 响应曲线
   paused
 />
@@ -189,6 +192,7 @@ src/
   variant="classic"            // classic | glass | vinyl | minimal | bar | wall
   theme="light"                // light = 浅色文字，dark = 深色文字（名字指文字色）
   colorHex size={100} offsetX={0} offsetY={0}
+  anchor="bottom-left"         // 四个视角角落
   paused
   labels={{ aria, coverAlt }}
 />
@@ -203,6 +207,17 @@ src/
 - `ALBUM_ART_VARIANTS`、`ALBUM_ART_SIZE_MIN/MAX` 从 `components/album-art` 导出；新增布局时改那一处，调用方的选择器就会自动跟上。
 
 ## Conventions
+
+### 定位
+
+三个浮动控件（`Clock` / `Spectrum` / `AlbumArt`）共用 `src/core/anchor.js`，**不要在组件里自己算 left/bottom**。
+
+- `anchor` 选角落，`offsetX` / `offsetY` 永远**从该角落向内**。所以 `0` 恒等于“贴角”，从左下换到右下不需要翻转正负号。
+- 只写两个 CSS inset（一个水平 + 一个垂直）。写四个会把盒子拉伸到四条边之间。
+- 定位由 JSX 的 inline style 给出，**CSS 里不要再写 `left` / `bottom`**——inline 会覆盖它，而且这种覆盖是静默的（`--wallkit-gutter` 就是这么变成死变量的）。
+- `anchorOrigin(anchor)` 给 `Clock` 提供 `transform-origin`：`top-*` 用 `50% 0%`，否则 `50% 100%`，保证 beat 放大是向画面内侧生长而不是冲出屏幕。它是 inline 值，CSS 里不再写。
+- `MiniSpectrum` **不参与**：它填满父容器，位置由父容器决定。
+- 新增控件时复用这套三元组，并把 `anchor` 加进 `ANCHORS`（`core` 导出，顺序为阅读顺序，正好对应 2x2 选择器）。
 
 ### 样式
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ANCHOR_DEFAULT, anchorOrigin, anchorStyle } from '../../core/anchor.js'
 import {
   CLOCK_BEAT_INTENSITY_MAX,
   CLOCK_BEAT_INTENSITY_MIN,
@@ -120,8 +121,11 @@ function normalizeTilt(tilt) {
  *   paints its own card reinterprets the theme against that card instead.
  * @param {boolean} [props.use24Hour=true]      24-hour or 12-hour clock.
  * @param {number} [props.size=100]             Size percentage.
- * @param {number} [props.offsetX=0]            Horizontal offset, viewport percentage.
- * @param {number} [props.offsetY=0]            Vertical offset, viewport percentage.
+ * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport corner the clock pins to. Invalid values fall back to the default.
+ * @param {number} [props.offsetX=0]            Distance from the anchored side,
+ *   viewport percentage, growing inward. 0 sits flush against the corner.
+ * @param {number} [props.offsetY=0]            Same, vertically.
  * @param {number} [props.beat]                 Audio beat level 0..1, when reactive.
  * @param {number} [props.beatIntensity=100]    How strongly `beat` scales the card.
  * @param {number} [props.beatCurve=0.62]       Response curve exponent for `beat`
@@ -146,6 +150,7 @@ export default function Clock({
   theme = 'dark',
   use24Hour = true,
   size = 100,
+  anchor = ANCHOR_DEFAULT,
   offsetX = 0,
   offsetY = 0,
   beat = 0,
@@ -333,14 +338,14 @@ export default function Clock({
 
   const tiltStyle = {
     transform: `perspective(900px) rotateX(${renderedTilt.rotateX.toFixed(3)}deg) rotateY(${renderedTilt.rotateY.toFixed(3)}deg) scale(${(1 + response * BEAT_SCALE * intensity).toFixed(3)})`,
+    // Grow from the anchored edge so a beat pulse never pushes the card off
+    // the screen, and a bottom-anchored clock still tilts like a standing panel.
+    transformOrigin: anchorOrigin(anchor),
     '--wallkit-clock-scale': clampedSize / 100,
     '--wallkit-clock-glow': glow.toFixed(3),
   }
 
-  const anchorStyle = {
-    left: `${offsetX}%`,
-    bottom: `${offsetY}%`,
-  }
+  const pinnedStyle = anchorStyle(anchor, offsetX, offsetY)
 
   const shared = {
     className: `wallkit-clock__${placement} ${themeClass}`,
@@ -570,7 +575,7 @@ export default function Clock({
   }
 
   return (
-    <div className="wallkit-clock__anchor" style={anchorStyle}>
+    <div className="wallkit-clock__anchor" style={pinnedStyle}>
       <div className="wallkit-clock__tilt" style={tiltStyle}>
         {content}
       </div>

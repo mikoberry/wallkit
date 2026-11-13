@@ -72,12 +72,14 @@ body,
    filling the box it was given.
    ========================================================================== */
 
+/* MiniSpectrum has no anchor of its own: it fills whatever box it is given. Kept
+   in the middle band so the four corners stay free for the anchored widgets. */
 .tb-mini {
   position: absolute;
-  top: 9%;
-  left: 56%;
-  width: 38vw;
-  height: 15vh;
+  top: 46%;
+  left: 36%;
+  width: 28vw;
+  height: 13vh;
   z-index: 2;
   border: 1px dashed rgba(128, 138, 158, 0.3);
   box-sizing: border-box;

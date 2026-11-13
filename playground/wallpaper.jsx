@@ -59,6 +59,10 @@ const CLOCK_PLACEMENTS = [
   'stamp',
 ]
 
+// The clock alternates between the two top corners, so one cycle shows all four
+// anchors at once: the card owns the bottom-left, the spectrum the bottom-right.
+const CLOCK_ANCHORS = ['top-left', 'top-right']
+
 // Backdrops, each tied to the theme that suits it. A bright backdrop with light
 // text is the exact failure `theme="dark"` exists to prevent, so the cycle pairs
 // them instead of letting the theme float free.
@@ -76,12 +80,12 @@ const LAYOUTS_PER_SCENE = ALBUM_ART_VARIANTS.length
 // HUD
 // ---------------------------------------------------------------------------
 
-function Hud({ scene, clock, album, spectrum, audio, media, paused, hidden }) {
+function Hud({ scene, clock, anchor, album, spectrum, audio, media, paused, hidden }) {
   const lines = [
     `scene    ${SCENES.indexOf(scene) + 1}/${SCENES.length}  ${scene.label}`,
-    `clock    ${clock}`,
-    `album    ${album}`,
-    `spectrum ${spectrum}`,
+    `clock    ${clock} · anchor ${anchor}`,
+    `album    ${album} · anchor bottom-left`,
+    `spectrum ${spectrum} · anchor bottom-right`,
     `WE       ${audio.engine ? 'yes' : 'no'} · frames ${audio.frames} · beat ${audio.beat.toFixed(2)} · age ${
       audio.ageMs == null ? '—' : `${audio.ageMs}ms`
     }${audio.ageMs != null && audio.ageMs > audio.staleMs ? ' (stale)' : ''}`,
@@ -123,6 +127,7 @@ function Wallpaper() {
 
   const albumVariant = ALBUM_ART_VARIANTS[step % ALBUM_ART_VARIANTS.length]
   const clockPlacement = CLOCK_PLACEMENTS[step % CLOCK_PLACEMENTS.length]
+  const clockAnchor = CLOCK_ANCHORS[step % CLOCK_ANCHORS.length]
   const spectrumVariant = SPECTRUM_STYLES[step % SPECTRUM_STYLES.length]
   const scene = SCENES[Math.floor(step / LAYOUTS_PER_SCENE) % SCENES.length]
 
@@ -165,8 +170,9 @@ function Wallpaper() {
         placement={clockPlacement}
         theme={scene.theme}
         size={100}
-        offsetX={5}
-        offsetY={68}
+        anchor={clockAnchor}
+        offsetX={6}
+        offsetY={6}
         beat={beat}
         labels={{ locale: 'zh-CN', aria: '当前时间与日期' }}
       />
@@ -181,6 +187,7 @@ function Wallpaper() {
         variant={albumVariant}
         theme={scene.theme}
         size={90}
+        anchor="bottom-left"
         offsetX={5}
         offsetY={6}
         paused={paused}
@@ -191,8 +198,9 @@ function Wallpaper() {
         bars={bars}
         variant={spectrumVariant}
         size={100}
-        offsetX={58}
-        offsetY={5}
+        anchor="bottom-right"
+        offsetX={6}
+        offsetY={6}
         paused={paused}
       />
 
@@ -201,6 +209,7 @@ function Wallpaper() {
         clock={clockPlacement}
         album={albumVariant}
         spectrum={spectrumVariant}
+        anchor={clockAnchor}
         audio={{ ...status, beat, staleMs }}
         media={track}
         paused={paused}

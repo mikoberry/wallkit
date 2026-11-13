@@ -15,8 +15,8 @@
 
 .wallkit-spectrum__anchor {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  /* Insets come from the inline anchor style; writing them here would be
+     overridden and silently ignored. */
   z-index: 3;
   pointer-events: none;
 }

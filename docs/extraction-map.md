@@ -148,7 +148,7 @@ P2 已迁移以下文件：
 |---|---|
 | 从 `wallpaperAudio` 读帧 | 接收 `bars` |
 | `kind` 决定真实 / 合成 | `bars == null` 即不渲染 |
-| `offsetX/offsetY` 视口百分比 + `scale` CSS transform | **改为** `offsetX` / `offsetY` / `size` 平铺 prop，左下锚点；`size` 乘进盒子尺寸，不再用 `transform: scale()`（见 [spectrum-design.md](./spectrum-design.md) §4） |
+| `offsetX/offsetY` 视口百分比 + `scale` CSS transform | **改为** `anchor` + `offsetX` / `offsetY` / `size` 平铺 prop；`size` 乘进盒子尺寸，不再用 `transform: scale()`（见 [spectrum-design.md](./spectrum-design.md) §4） |
 | `spine-viewer:spectrum:v1` 状态 | 无状态 |
 | 尺寸用 `offsetWidth/offsetHeight` 测量 | **保留**这条约束（`getBoundingClientRect` 会双重缩放） |
 | 128 柱 Canvas 2D | 保留 |
@@ -164,7 +164,7 @@ P2 已迁移以下文件：
 | 内部渲染 `MiniSpectrum` | 保留，`bars` 可选透传；无 `bars` 时卡片照常显示，只是少了图 |
 | 封面 24s 旋转 | 保留；`paused` 或 `playback="paused"` 停转，`prefers-reduced-motion` 下不转 |
 | `spine-viewer:album-art:v1` | 无状态，位置经 `offsetX/offsetY/size` |
-| `corner` + `size`（vh） | 弃用：与 Clock/Spectrum 统一为左下锚点 + 百分比 |
+| `corner` + `size`（vh） | 弃用：与 Clock/Spectrum 统一为 `anchor` 四角 + 百分比向内偏移 |
 | `t={...}` 国际化 + `lang` | 全部移除；只留 `labels.aria` / `labels.coverAlt` |
 | 封面缺失时的占位块 | 保留（`thumbnail` 为空串时） |
 | 无媒体集成时的提示文案 | 不保留：`track == null` 直接不渲染，空态由使用方决定 |
@@ -225,7 +225,7 @@ P2 已迁移以下文件：
 |---|---|---|
 | `Clock` 的 `labels` 字段 | `locale` / `weekday` / `dateWithWeekday` / `aria`。**没有 `date`、没有 `dateFormat`** | `src/components/clock/Clock.jsx` JSDoc、[architecture.md](./architecture.md) §9 |
 | `Clock` 的 `tilt` 覆盖形状 | `false` / `true` / `{ maxTilt, speed }`，`maxTilt: 0` 等同关闭 | `src/core/clock.js` `computeClockTilt` |
-| 定位设计 | 无 `Placement` 对象：`offsetX` / `offsetY` / `size` 平铺，左下锚点 | [spectrum-design.md](./spectrum-design.md) §4 |
+| 定位设计 | 无 `Placement` 对象：`anchor` + `offsetX` / `offsetY` / `size` 四个平铺 prop。`anchor` 四角可选，默认 `bottom-left`；偏移永远从锚点向内，0 = 贴角 | `src/core/anchor.js`、[architecture.md](./architecture.md) §5.2 |
 | `Clock` 是否需要 `paused` | 不需要。暂停由使用方停止更新 `now` 处理，组件不感知 | [architecture.md](./architecture.md) §5.4 |
 | `MiniSpectrum` 与 `AlbumArt` 是否共享内部柱状渲染 | **是**：`renderers.js` 与绘制循环提到 `components/shared/`（`SpectrumCanvas.jsx`） | `src/components/shared/` |
 | `AlbumArt` 的 `bars` 必传还是可选 | **可选**：没有 `bars` 时卡片照常显示，`vinyl` 布局本就无频谱 | `src/components/album-art/AlbumArt.jsx` |

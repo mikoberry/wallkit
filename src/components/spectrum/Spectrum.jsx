@@ -1,4 +1,5 @@
 import { SPECTRUM_CURVE_DEFAULT, SPECTRUM_INTENSITY_DEFAULT } from '../../core/index.js'
+import { ANCHOR_DEFAULT, anchorStyle } from '../../core/anchor.js'
 import SpectrumCanvas from '../shared/SpectrumCanvas.jsx'
 import { SPECTRUM_STYLES } from '../shared/renderers.js'
 import './Spectrum.css'
@@ -24,9 +25,8 @@ function clamp(value, min, max) {
  * (no DOM, no loop), while `paused` keeps the widget on screen but freezes it.
  * Both stop the draw loop, so a paused/hidden wallpaper costs nothing.
  *
- * This is the floating variant: it anchors to the bottom-left corner and sizes
- * itself from the viewport. For a spectrum that fills its parent, use
- * `MiniSpectrum`.
+ * This is the floating variant: it pins to a viewport corner and sizes itself
+ * from the viewport. For a spectrum that fills its parent, use `MiniSpectrum`.
  *
  * @param {Object} props
  * @param {Float32Array|number[]|null} props.bars  Bar magnitudes, each 0..1.
@@ -38,8 +38,11 @@ function clamp(value, min, max) {
  * @param {string} [props.colorHex]             `#rrggbb`. Defaults to `--wallkit-accent`.
  * @param {number} [props.size=100]             Size percentage. 100 is the normal
  *   widget size; range 20..500.
- * @param {number} [props.offsetX=0]            Horizontal offset, viewport percentage.
- * @param {number} [props.offsetY=0]            Vertical offset, viewport percentage.
+ * @param {'top-left'|'top-right'|'bottom-left'|'bottom-right'} [props.anchor='bottom-left']
+ *   Viewport corner to pin to. Invalid values fall back to the default.
+ * @param {number} [props.offsetX=0]            Distance from the anchored side,
+ *   viewport percentage, growing inward.
+ * @param {number} [props.offsetY=0]            Same, vertically.
  * @param {number} [props.intensity=100]        Response strength, percent (0..1000).
  *   100 leaves the bars unchanged, higher boosts quiet bands, 0 flattens them.
  * @param {number} [props.curve=1]              Response curve exponent (0.2..2).
@@ -53,6 +56,7 @@ export default function Spectrum({
   variant = 'bars',
   colorHex,
   size = 100,
+  anchor = ANCHOR_DEFAULT,
   offsetX = 0,
   offsetY = 0,
   intensity = SPECTRUM_INTENSITY_DEFAULT,
@@ -69,7 +73,7 @@ export default function Spectrum({
   return (
     <div
       className="wallkit-spectrum__anchor"
-      style={{ left: `${offsetX}%`, bottom: `${offsetY}%` }}
+      style={anchorStyle(anchor, offsetX, offsetY)}
     >
       <div
         className={`wallkit-spectrum wallkit-spectrum--variant-${resolvedVariant}`}

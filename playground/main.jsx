@@ -4,7 +4,7 @@ import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
 import { MiniSpectrum } from '../src/components/mini-spectrum/index.js'
 import { AlbumArt, ALBUM_ART_VARIANTS } from '../src/components/album-art/index.js'
-import { SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
+import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
 
@@ -73,6 +73,16 @@ const WEEKDAYS_BY_LOCALE = {
 // default: a wallpaper picks whatever offset suits its artwork.
 const DEMO_OFFSET_X = 4
 const DEMO_OFFSET_Y = 4
+
+// Chinese labels for the four corners, keyed by the library's anchor ids. The
+// ids themselves come from `core`, so a new anchor shows up here as a blank
+// button rather than silently disappearing from the picker.
+const ANCHOR_LABELS = {
+  'top-left': '左上',
+  'top-right': '右上',
+  'bottom-left': '左下',
+  'bottom-right': '右下',
+}
 
 // Horizontal layouts carry a long single line, so at the full 100% type scale
 // they overflow a gallery cell even at a generous width. Real wallpapers give
@@ -153,6 +163,7 @@ function ClockCard({ placement, index, view }) {
           theme={view.theme}
           use24Hour={view.use24Hour}
           size={sizeFor(placement, view.size)}
+          anchor={view.anchor}
           offsetX={view.offsetX}
           offsetY={view.offsetY}
           beat={view.beat}
@@ -213,6 +224,25 @@ function Toggle({ label, on, disabled, onChange }) {
   )
 }
 
+function AnchorPicker({ value, onChange }) {
+  return (
+    <div className="anchors" role="group" aria-label="锚点">
+      {ANCHORS.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className={value === id ? 'anchor anchor--on' : 'anchor'}
+          aria-pressed={value === id}
+          onClick={() => onChange(id)}
+          title={`anchor="${id}"`}
+        >
+          {ANCHOR_LABELS[id] ?? id}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function ClockDemo() {
   const [running, setRunning] = useState(true)
 
@@ -232,6 +262,7 @@ function ClockDemo() {
   const [visible, setVisible] = useState(true)
 
   // Placement.
+  const [anchor, setAnchor] = useState('bottom-left')
   const [offsetX, setOffsetX] = useState(DEMO_OFFSET_X)
   const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
 
@@ -280,6 +311,7 @@ function ClockDemo() {
       theme,
       use24Hour,
       size,
+      anchor,
       offsetX,
       offsetY,
       beat,
@@ -290,7 +322,7 @@ function ClockDemo() {
       locale,
       onToggleHourFormat,
     }),
-    [now, theme, use24Hour, size, offsetX, offsetY, beat, beatIntensity, beatCurve, tiltOn, maxTilt, tiltSpeed, visible, locale],
+    [now, theme, use24Hour, size, anchor, offsetX, offsetY, beat, beatIntensity, beatCurve, tiltOn, maxTilt, tiltSpeed, visible, locale],
   )
 
   return (
@@ -358,6 +390,7 @@ function ClockDemo() {
         </Row>
 
         <Row title="位置">
+          <AnchorPicker value={anchor} onChange={setAnchor} />
           <Slider
             label="水平 offsetX"
             value={offsetX}
@@ -459,6 +492,7 @@ function ClockDemo() {
               theme={theme}
               use24Hour={use24Hour}
               size={size}
+              anchor={anchor}
               offsetX={offsetX}
               offsetY={offsetY}
               beat={beat}
@@ -480,6 +514,7 @@ function ClockDemo() {
               theme={theme === 'dark' ? 'light' : 'dark'}
               use24Hour={use24Hour}
               size={size}
+              anchor={anchor}
               offsetX={offsetX}
               offsetY={offsetY}
               beat={beat}
@@ -510,6 +545,7 @@ function SpectrumDemo() {
   const [variant, setVariant] = useState('bars')
   const [colorHex, setColorHex] = useState('#a8c4ff')
   const [size, setSize] = useState(80)
+  const [anchor, setAnchor] = useState('bottom-left')
   const [offsetX, setOffsetX] = useState(DEMO_OFFSET_X)
   const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
   const [visible, setVisible] = useState(true)
@@ -530,6 +566,7 @@ function SpectrumDemo() {
     bars,
     colorHex,
     size,
+    anchor,
     offsetX,
     offsetY,
     visible,
@@ -601,6 +638,7 @@ function SpectrumDemo() {
             suffix="%"
             onChange={setSize}
           />
+          <AnchorPicker value={anchor} onChange={setAnchor} />
           <Slider
             label="水平 offsetX"
             value={offsetX}
@@ -841,6 +879,7 @@ function AlbumArtDemo() {
   const [withBars, setWithBars] = useState(true)
   const [paused, setPaused] = useState(false)
   const [size, setSize] = useState(70)
+  const [anchor, setAnchor] = useState('bottom-left')
   const [offsetX, setOffsetX] = useState(DEMO_OFFSET_X)
   const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
   const [visible, setVisible] = useState(true)
@@ -902,6 +941,7 @@ function AlbumArtDemo() {
             suffix="%"
             onChange={setSize}
           />
+          <AnchorPicker value={anchor} onChange={setAnchor} />
           <Slider
             label="水平 offsetX"
             value={offsetX}
@@ -953,6 +993,7 @@ function AlbumArtDemo() {
                 variant={v.id}
                 theme={theme}
                 size={size}
+                anchor={anchor}
                 offsetX={offsetX}
                 offsetY={offsetY}
                 visible={visible}

@@ -36,19 +36,24 @@
  */
 
 /**
- * Overlay placement — described here, but deliberately **not** a typedef:
- * there is no `Placement` object in the API.
+ * Corner anchoring for every floating overlay.
  *
- * Every overlay component takes three flat props instead:
+ * Each component takes an `anchor` and two offsets, all flat props — there is
+ * no `{ anchor, offsetX, offsetY }` object to build.
  *
- *   offsetX   viewport percentage from the left edge (0 = left, 100 = right)
- *   offsetY   viewport percentage from the bottom edge (0 = bottom, 100 = top)
- *   size      percentage of the component's own reference size, 100 = normal
+ * Both offsets grow **inward** from the anchored side, so `0` always means
+ * "flush with the corner" and a positive value pulls the widget toward the
+ * middle of the screen. Moving a widget from the left to the right does not
+ * flip the sign of `offsetX`; only the anchor changes.
  *
- * There is no `anchor` and no `scale` object: the anchor is always the
- * bottom-left corner, which keeps the coordinates of two overlays in the same
- * wallpaper directly comparable. `size` bounds differ per component
- * (`CLOCK_SIZE_MIN/MAX`, `SPECTRUM_SIZE_MIN/MAX`, `ALBUM_ART_SIZE_MIN/MAX`).
+ * `ANCHORS` (from `wallkit/core`) lists the four ids in reading order, which is
+ * also the order a 2x2 picker wants. Invalid values fall back to `bottom-left`.
+ *
+ * `size` is a separate prop: it scales the widget's own reference box, and its
+ * bounds differ per component (`CLOCK_SIZE_MIN/MAX`, `SPECTRUM_SIZE_MIN/MAX`,
+ * `ALBUM_ART_SIZE_MIN/MAX`).
+ *
+ * @typedef {'top-left'|'top-right'|'bottom-left'|'bottom-right'} Anchor
  */
 
 /**

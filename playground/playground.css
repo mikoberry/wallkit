@@ -244,6 +244,36 @@ body {
   cursor: not-allowed;
 }
 
+/* Four corner buttons laid out as a 2x2 map, so a button's position on screen
+   matches the corner it selects. ANCHORS is ordered row by row for this. */
+.anchors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.anchor {
+  font: inherit;
+  font-size: 12px;
+  min-width: 54px;
+  padding: 6px 10px;
+  color: #aab4cc;
+  background: #141926;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.anchor:hover {
+  background: #1d2434;
+}
+
+.anchor--on {
+  color: #cddcff;
+  background: #1f3358;
+  border-color: #3f63c8;
+}
+
 .ctl--on {
   border-color: rgba(125, 211, 252, 0.55);
   background: rgba(125, 211, 252, 0.14);

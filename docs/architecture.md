@@ -199,6 +199,7 @@ wallkit/
 │   │   ├── storage.js        # createStore(namespace)
 │   │   ├── clock.js          # 时间格式化、倾斜、缓动、进度 / 周数
 │   │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、重采样、整形）
+│   │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
 │   │   └── types.js          # JSDoc 类型约定（无运行时导出）
 │   ├── components/
 │   │   ├── index.js          # 便利 barrel
@@ -270,14 +271,19 @@ wallkit/
  */
 ```
 
-**定位不走 `Placement` 对象。** 早前设想的 `{ anchor, offsetX, offsetY, scale }` 未采用：所有浮层控件统一用三个平铺 prop，锚点固定为定位上下文的**左下角**。
+**定位不走 `Placement` 对象，但支持四角锚点。** 所有浮层控件用同样的四个平铺 prop：
 
 | prop | 含义 |
 |---|---|
-| `offsetX` / `offsetY` | 距左边缘 / 底边缘的视口百分比，0 贴边 |
+| `anchor` | `top-left` / `top-right` / `bottom-left`（默认）/ `bottom-right` |
+| `offsetX` / `offsetY` | 从锚点角落**向内**的视口百分比，0 = 完全贴角 |
 | `size` | 整体缩放百分比，100 = 正常大小（Clock 40–200，Spectrum 20–500，AlbumArt 20–300） |
 
-这样同一壁纸里挂两块控件时坐标心智一致，也不必为"锚点在右上角"维护一套换算。细节见 [spectrum-design.md](./spectrum-design.md) §4。
+早前设想的 `{ anchor, offsetX, offsetY, scale }` 对象形态仍然不采用——四个平铺 prop 更短，也不需要调用方构造对象。但 `anchor` 本身在 P3 之后补上了：一块壁纸里同时挂时钟、频谱、专辑卡时，全部挤在左下角不现实。
+
+**偏移只向内**，这是为了不出现符号翻转：`offsetX` 在 `left` 锚点时写 `left`，在 `right` 锚点时写 `right`，两者都是“距该边的距离”，所以 `0` 在四个角落都等于“贴角”，把一个控件从左下搬到右下只改 `anchor`，不动数字。
+
+实现只写两个 CSS inset（一个水平 + 一个垂直）。写四个会把盒子拉伸到四条边之间。`anchorOrigin()` 另外给 `Clock` 提供 `transform-origin`，让 `top-*` 锚点的 beat 放大向下生长而不是冲出屏幕。细节见 [spectrum-design.md](./spectrum-design.md) §4。
 
 ### 5.3 组件清单
 
@@ -448,7 +454,9 @@ useEffect(() => {
 - 该模式确认有效后，Spectrum 沿同一套模式实现，风险更低。
 - Spectrum 的定位方式较复杂，等 Clock 验证过基础模式后再定，能避免一上来就抽象错误。
 
-**定位设计已定（原三选一方案作废）**：没有 `Placement` 对象、没有 `anchor`，直接用 `offsetX` / `offsetY` / `size` 三个平铺 prop，锚点固定左下角（见 §5.2）。当初列的三个方案（`{anchor,…}` / `position + offset` / 视口中心 `{x,y,scale}`）都引入了"锚点在哪"的换算，而两种控件实际只需要一个锚点，平铺三个数字更短也更好记。
+**定位设计已定（原三选一方案作废）**：不做 `Placement` 对象，用 `anchor` + `offsetX` + `offsetY` + `size` 四个平铺 prop（见 §5.2）。当初列的三个方案（`{anchor,…}` 对象 / `position + offset` / 视口中心 `{x,y,scale}`）都引入了额外的构造与换算，平铺写法更短。
+
+`anchor` 是后来补的，不是最初的遗留：P2 时只有 Clock 与 Spectrum 两块控件，左下角够用；P3 加了 AlbumArt，三块挤在一个角落才暴露问题。`offset` 永远从锚点向内，所以补 `anchor` 没有改变任何已有配置的含义——`anchor` 默认 `bottom-left`，与旧行为完全一致。
 
 **必须保留的约束**：Canvas 尺寸必须用 `offsetWidth` / `offsetHeight` 测量，不能用 `getBoundingClientRect`——后者返回缩放后的尺寸，会导致双重缩放。
 

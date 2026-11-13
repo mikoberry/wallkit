@@ -86,8 +86,9 @@ function Controls() {
 // 主题：dark = 深色文字（配浅色壁纸），light = 浅色文字（配深色壁纸）
 <Clock now={now} theme="light" />
 
-// 位置：相对左下角的百分比，0 贴边
-<Clock now={now} offsetX={4} offsetY={4} size={120} />
+// 位置：先选角落，再从该角落向内偏移。0 = 完全贴角
+<Clock now={now} anchor="top-right" offsetX={4} offsetY={4} />
+<Clock now={now} anchor="bottom-left" size={120} />   // 默认锚点
 
 // 指针倾斜：false 关闭，或传对象调强度
 <Clock now={now} tilt={false} />
@@ -105,13 +106,16 @@ function Controls() {
 | `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
 | `use24Hour` | `true` | 12 / 24 小时制 |
 | `size` | `100` | 尺寸百分比，40–200 |
-| `offsetX` / `offsetY` | `0` | 距左 / 底边缘的视口百分比，0 贴边 |
+| `anchor` | `'bottom-left'` | 贴哪个角落：`top-left` / `top-right` / `bottom-left` / `bottom-right` |
+| `offsetX` / `offsetY` | `0` | 从锚点角落**向内**的视口百分比，0 完全贴角 |
 | `beat` | `0` | 音频节拍 0..1，由使用方算好传入。组件按帧缓动它，直接把原始值喂进来即可 |
 | `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
 | `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
 | `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节；`maxTilt: 0` 等同关闭 |
 | `labels` | `{}` | `{ locale, weekday, dateWithWeekday, aria }`，见上文 |
 | `onToggleHourFormat` | — | 可选回调，参数为 `'12'` 或 `'24'` |
+
+**关于 `anchor` 与偏移**：三个浮动控件（`Clock` / `Spectrum` / `AlbumArt`）用同一套定位。`anchor` 选角落，`offsetX` / `offsetY` 是**从该角落向内**的视口百分比，所以 `0` 永远等于“完全贴角”，把控件从左下换到右下不需要改偏移量的正负。`offset` 支持负值，用于有意让控件出血到屏幕外。`ANCHORS` 从 `wallkit/core` 导出，可直接拿来生成四角选择器。
 
 ### Spectrum
 
@@ -132,7 +136,8 @@ const bars = frame ? extractSpectrumBars(frame) : null
 | `variant` | `'bars'` | `bars` / `mirror` / `curve` / `pill` / `ring` / `ringwave` / `dots` / `ripples` / `aurora` |
 | `colorHex` | — | 只接受 `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
 | `size` | `100` | 20–500。100 = 正常大小（条状基准 `30vw × 15vh`） |
-| `offsetX` / `offsetY` | `0` | 同 Clock，左下锚点 |
+| `anchor` | `'bottom-left'` | 同 Clock，四个角落 |
+| `offsetX` / `offsetY` | `0` | 从锚点角落向内，0 完全贴角 |
 | `intensity` | `100` | 0–1000。100 = 原始柱高 |
 | `curve` | `1` | 0.2–2。响应曲线指数 |
 | `paused` | `false` | `true` 冻结画面（取消 rAF），保留控件在屏上 |
@@ -186,7 +191,8 @@ import { AlbumArt } from 'wallkit/components/album-art'
 | `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把默认 accent 压暗 |
 | `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
 | `size` | `100` | 20–300（`ALBUM_ART_SIZE_MIN/MAX`）。100 = 正常大小（封面直径基准 `18vh`） |
-| `offsetX` / `offsetY` | `0` | 同 Clock / Spectrum |
+| `anchor` | `'bottom-left'` | 同 Clock / Spectrum，四个角落 |
+| `offsetX` / `offsetY` | `0` | 从锚点角落向内，0 完全贴角 |
 | `paused` | `false` | 停转封面并冻结频谱 |
 | `labels` | `{}` | `{ aria, coverAlt }`。`coverAlt` 原样使用（传 `''` 表示装饰图），否则回退到曲名、专辑名 |
 
@@ -234,7 +240,7 @@ const track = useWallpaperMedia()
 | 入口 | 内容 |
 |---|---|
 | `wallkit` | 根入口 |
-| `wallkit/core` | 环境探测、存储工具、时钟与音频纯函数、类型约定 |
+| `wallkit/core` | 环境探测、存储工具、时钟与音频纯函数、锚点常量、类型约定 |
 | `wallkit/components/clock` | 日期时间控件 |
 | `wallkit/components/spectrum` | 独立浮动的音频频谱控件 |
 | `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
