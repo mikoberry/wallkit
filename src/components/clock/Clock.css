@@ -19,8 +19,10 @@
    legible over bright artwork. */
 .wallkit-clock__anchor {
   position: absolute;
-  bottom: var(--wallkit-gutter, clamp(14px, 1.2vh, 22px));
-  left: var(--wallkit-gutter, clamp(14px, 1.2vh, 22px));
+  /* `left` and `bottom` come from the inline style (offsetX / offsetY), so the
+     anchor sits at the bottom-left corner of the viewport unless the caller
+     pushes it away. Do not add edge padding here: the inline value would win
+     and the declaration would silently do nothing. */
   z-index: 5;
   pointer-events: none;
 }

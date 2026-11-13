@@ -209,7 +209,8 @@ src/
 - 类名统一 `<组件>__*`（BEM），前缀 `wallkit-`：`wallkit-clock__*`、`wallkit-spectrum__*`、`wallkit-mini-spectrum__*`、`wallkit-album-art__*`。主题修饰如 `wallkit-clock--theme-dark`。
 - **`--theme-light` 是默认态，没有专门规则**；只有 `--theme-dark` 做覆盖。这是原设计，不是遗漏。
 - CSS 变量全部 `--wallkit-` 前缀。组件内部的局部变量用 `--wallkit-clock-*`。
-- 引用共享主题变量时**必须给回退值**，例如 `var(--wallkit-gutter, clamp(14px, 1.2vh, 22px))`，保证使用方只引入组件 CSS 也能正确渲染。
+- 引用共享主题变量时**必须给回退值**，例如 `var(--wallkit-space-3, 12px)`，保证使用方只引入组件 CSS 也能正确渲染。
+- **没有全局边距变量**。曾经的 `--wallkit-gutter` 已删除：它只影响 AlbumArt 的视口钳制，Clock 与 Spectrum 的 `left` / `bottom` 由 inline style 给出，CSS 里写边距会被静默覆盖。需要留白请用 `offsetX` / `offsetY`（视口百分比），或用 `size` 缩小盒子。
 - 每个组件自带同名 CSS 并由组件自身 import。不要新增共享样式表。
 - 组件内部只用局部 z-index，不设全局层级。时钟锚点用 `z-index: 5`。
 

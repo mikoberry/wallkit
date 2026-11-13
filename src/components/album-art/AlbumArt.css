@@ -10,6 +10,10 @@
 
 .wallkit-album-art {
   --wallkit-album-art-unit: calc(18vh * var(--wallkit-album-art-scale, 1));
+  /* Breathing room kept when a large size has to be clamped to the viewport.
+     Local on purpose: it guards this card's own overflow, it is not a layout
+     margin other widgets could align to. */
+  --wallkit-album-art-safe: clamp(14px, 1.2vh, 22px);
 
   /* Ink palette. The `--theme-*` rules below only swap these, so every layout
      follows without repeating colour declarations. */
@@ -32,8 +36,8 @@
   width: calc(var(--wallkit-album-art-unit) * 3.6);
   height: var(--wallkit-album-art-unit);
   /* The viewport clamp stops a large setting from running off the screen. */
-  max-width: calc(100vw - var(--wallkit-gutter, clamp(14px, 1.2vh, 22px)) * 2);
-  max-height: calc(100vh - var(--wallkit-gutter, clamp(14px, 1.2vh, 22px)) * 2);
+  max-width: calc(100vw - var(--wallkit-album-art-safe) * 2);
+  max-height: calc(100vh - var(--wallkit-album-art-safe) * 2);
   color: var(--wallkit-album-art-fg);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.72);
   pointer-events: none;
@@ -695,6 +699,6 @@
   /* The horizontal layouts shrink their fixed width so they stay on screen. */
   .wallkit-album-art--variant-bar,
   .wallkit-album-art--variant-wall {
-    width: calc(100vw - var(--wallkit-gutter, clamp(14px, 1.2vh, 22px)) * 2);
+    width: calc(100vw - var(--wallkit-album-art-safe) * 2);
   }
 }

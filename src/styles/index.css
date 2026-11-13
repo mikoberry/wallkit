@@ -13,9 +13,6 @@
   /* Accent used by audio-reactive glows and spectrum bars. */
   --wallkit-accent: #a8c4ff;
 
-  /* Distance of free-floating widgets from the viewport edge. */
-  --wallkit-gutter: clamp(14px, 1.2vh, 22px);
-
   /* Spacing scale, exposed for components that need a shared rhythm. */
   --wallkit-space-1: 4px;
   --wallkit-space-2: 8px;
