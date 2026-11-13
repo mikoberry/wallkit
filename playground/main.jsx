@@ -12,6 +12,9 @@ const PLACEMENTS = [
   { id: 'infobar', label: '横向状态条' },
   { id: 'split', label: '双行分层' },
   { id: 'poster', label: '大字海报' },
+  { id: 'ring', label: '环形进度' },
+  { id: 'segments', label: '分段进度条' },
+  { id: 'stamp', label: '纪元记录卡' },
 ]
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']

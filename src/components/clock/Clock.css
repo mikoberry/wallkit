@@ -542,3 +542,285 @@
     bottom: var(--wallkit-space-5, clamp(20px, 1.7vh, 30px));
   }
 }
+
+/* ==========================================================================
+   8. 环形进度钟（Ring）
+   ==========================================================================
+   Time drawn as geometry: the outer arc is the day's progress, the inner arc
+   the hour's. Text sits in the hole so the ring frames it rather than boxing
+   it. */
+
+.wallkit-clock__ring {
+  --wallkit-clock-ring-size: calc(200px * var(--wallkit-clock-scale, 1));
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--wallkit-clock-ring-size);
+  height: var(--wallkit-clock-ring-size);
+  color: var(--wallkit-clock-fg);
+  user-select: none;
+  cursor: pointer;
+}
+
+.wallkit-clock__ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Start the arcs at 12 o'clock instead of 3 o'clock. */
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.wallkit-clock__ring-track {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  opacity: 0.16;
+}
+
+.wallkit-clock__ring-fill {
+  fill: none;
+  stroke-linecap: round;
+  /* A wrapping dash covers the whole circumference; the dash offset reveals
+     only the elapsed fraction. */
+  stroke-dasharray: 1 1;
+  transition: stroke-dashoffset 240ms linear;
+}
+
+.wallkit-clock__ring-fill--day {
+  stroke: var(--wallkit-clock-ring-accent, var(--wallkit-accent, #a8c4ff));
+  stroke-width: 3;
+}
+
+.wallkit-clock__ring-fill--hour {
+  stroke: currentColor;
+  stroke-width: 2;
+  opacity: 0.72;
+}
+
+.wallkit-clock__ring-core {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  text-align: center;
+  /* The inner arc sits at 36% of the box radius, so its horizontal chord at
+     the centre is roughly 72% wide. The text block must stay clear of it. */
+  max-width: 64%;
+}
+
+.wallkit-clock__ring .wallkit-clock__hm {
+  font-size: calc(var(--wallkit-clock-time-size) * 0.42 * var(--wallkit-clock-scale, 1));
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+}
+
+.wallkit-clock__ring .wallkit-clock__sec {
+  font-size: calc(var(--wallkit-clock-time-size) * 0.16 * var(--wallkit-clock-scale, 1));
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.wallkit-clock__ring-date {
+  margin-top: 0.3em;
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.82 * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.03em;
+  opacity: 0.66;
+  white-space: nowrap;
+}
+
+/* Dark theme paints dark ink for bright artwork, matching the other layouts. */
+.wallkit-clock__ring.wallkit-clock--theme-dark {
+  color: #1a1e28;
+}
+
+.wallkit-clock__ring.wallkit-clock--theme-dark .wallkit-clock__hm {
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.7);
+}
+
+.wallkit-clock__ring.wallkit-clock--theme-dark .wallkit-clock__ring-fill--day {
+  stroke: #3f5fa8;
+}
+
+/* ==========================================================================
+   9. 分段进度条钟（Segments）
+   ==========================================================================
+   Three stacked meters. The cells come from a repeating gradient driven by a
+   segment count, so a 60-cell bar costs one element instead of sixty. */
+
+.wallkit-clock__segments {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6px * var(--wallkit-clock-scale, 1));
+  /* Wide enough that a 60-cell bar still shows visible gaps: at 240px each
+     cell is 4px and the notches read as a solid line. */
+  min-width: calc(380px * var(--wallkit-clock-scale, 1));
+  padding: calc(12px * var(--wallkit-clock-scale, 1)) calc(16px * var(--wallkit-clock-scale, 1));
+  color: var(--wallkit-clock-fg);
+  user-select: none;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.wallkit-clock__seg-row {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--wallkit-clock-scale, 1));
+}
+
+.wallkit-clock__seg-value {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  font-size: calc(var(--wallkit-clock-date-size) * 0.92 * var(--wallkit-clock-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+.wallkit-clock__seg-bar {
+  position: relative;
+  flex: 1 1 auto;
+  height: calc(10px * var(--wallkit-clock-scale, 1));
+  /* Notched track: one repeating cell per unit of time, 2px of gap between
+     cells. The pitch is derived from the segment count so 24 and 60 both read
+     as discrete cells. */
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0,
+    currentColor calc(100% / var(--wallkit-clock-seg-count) - 3px),
+    transparent calc(100% / var(--wallkit-clock-seg-count) - 3px),
+    transparent calc(100% / var(--wallkit-clock-seg-count))
+  );
+  opacity: 0.2;
+}
+
+/* The filled portion overlays the notched track.
+ *
+ * The pseudo-element spans the FULL bar width so its percentage gradients share
+ * the track's pitch exactly; the elapsed fraction is applied by clipping with
+ * clip-path rather than by setting `width`. Sizing it to the fraction instead
+ * would rescale the percentages and drift every cell out of phase. */
+.wallkit-clock__seg-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--wallkit-clock-seg-accent, var(--wallkit-accent, #a8c4ff)) 0,
+    var(--wallkit-clock-seg-accent, var(--wallkit-accent, #a8c4ff))
+      calc(100% / var(--wallkit-clock-seg-count) - 3px),
+    transparent calc(100% / var(--wallkit-clock-seg-count) - 3px),
+    transparent calc(100% / var(--wallkit-clock-seg-count))
+  );
+  clip-path: inset(0 calc(100% - var(--wallkit-clock-seg-fill)) 0 0);
+  transition: clip-path 240ms linear;
+}
+
+.wallkit-clock__seg-foot {
+  margin-top: calc(2px * var(--wallkit-clock-scale, 1));
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.94 * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.05em;
+  opacity: 0.66;
+}
+
+.wallkit-clock__segments.wallkit-clock--theme-dark {
+  color: #1a1e28;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.75);
+}
+
+.wallkit-clock__segments.wallkit-clock--theme-dark .wallkit-clock__seg-bar::after {
+  background: #3f5fa8;
+}
+
+/* ==========================================================================
+   10. 纪元记录卡（Stamp）
+   ==========================================================================
+   Left-aligned record card: month and day as a large lockup, then a rule, then
+   the derived day-of-year and week-of-year. Reads like a label on a spool. */
+
+.wallkit-clock__stamp {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4px * var(--wallkit-clock-scale, 1));
+  min-width: calc(190px * var(--wallkit-clock-scale, 1));
+  padding: calc(14px * var(--wallkit-clock-scale, 1)) calc(18px * var(--wallkit-clock-scale, 1));
+  border-left: 2px solid var(--wallkit-clock-stamp-accent, var(--wallkit-accent, #a8c4ff));
+  background: rgba(0, 0, 0, 0.34);
+  color: var(--wallkit-clock-fg);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  cursor: pointer;
+}
+
+.wallkit-clock__stamp-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+
+.wallkit-clock__stamp-month {
+  font-size: calc(var(--wallkit-clock-zone-size) * 1.3 * var(--wallkit-clock-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.wallkit-clock__stamp-day {
+  font-size: calc(var(--wallkit-clock-time-size) * 0.74 * var(--wallkit-clock-scale, 1));
+  font-weight: 200;
+  line-height: 0.9;
+}
+
+.wallkit-clock__stamp-time {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25em;
+  font-size: calc(var(--wallkit-clock-time-size) * 0.44 * var(--wallkit-clock-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.wallkit-clock__stamp-time .wallkit-clock__sec {
+  font-size: 0.58em;
+  opacity: 0.55;
+}
+
+.wallkit-clock__stamp-rule {
+  height: 1px;
+  margin: calc(6px * var(--wallkit-clock-scale, 1)) 0 calc(2px * var(--wallkit-clock-scale, 1));
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.wallkit-clock__stamp-meta {
+  display: flex;
+  gap: 0.9em;
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.98 * var(--wallkit-clock-scale, 1));
+  opacity: 0.74;
+}
+
+.wallkit-clock__stamp-meta b {
+  font-weight: 700;
+  opacity: 1;
+}
+
+.wallkit-clock__stamp-foot {
+  font-size: calc(var(--wallkit-clock-zone-size) * 0.9 * var(--wallkit-clock-scale, 1));
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+}
+
+/* The stamp paints its own dark panel, so the light theme keeps light text on
+   it and the dark theme brightens the panel instead of darkening the ink. */
+.wallkit-clock__stamp.wallkit-clock--theme-dark {
+  background: rgba(255, 255, 255, 0.82);
+  color: #1a1e28;
+  border-left-color: #3f5fa8;
+}

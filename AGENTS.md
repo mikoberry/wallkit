@@ -66,7 +66,7 @@ src/
 │   ├── index.js          # 统一 re-export
 │   ├── env.js            # isWallpaperEngine / isWallpaperAudioAvailable
 │   ├── storage.js        # createStore(namespace)
-│   ├── clock.js          # 时间格式化、倾斜计算、缓动
+│   ├── clock.js          # 时间格式化、倾斜计算、缓动、进度/周数计算
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
 ├── components/
 │   ├── index.js
@@ -86,7 +86,7 @@ src/
 <Clock
   now={now}                    // 必选，使用方驱动
   labels={{ date, weekday, aria, locale }}
-  placement="card"             // card | bar | minimal | cyberpunk | infobar | split | poster
+  placement="card"             // card | bar | minimal | cyberpunk | infobar | split | poster | ring | segments | stamp
   theme="dark"                 // dark = 深色文字（用于浅色壁纸）
   use24Hour size offsetX offsetY
   beat beatIntensity beatCurve  // 音频响应走 prop

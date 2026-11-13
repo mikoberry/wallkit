@@ -263,7 +263,7 @@ wallkit/
 
 | 组件 | 入口 | 职责 | 阶段 |
 |---|---|---|---|
-| `Clock` | `wallkit/components/clock` | 日期时间显示，可选 3D 指针倾斜 | P1 |
+| `Clock` | `wallkit/components/clock` | 日期时间显示，10 种布局，可选 3D 指针倾斜 | P1 |
 | `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 |
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 |
 | `Spectrum` | `wallkit/components/spectrum` | 独立浮动的柱状频谱 | P2 |
@@ -358,6 +358,23 @@ useEffect(() => {
 - **尊重 `prefers-reduced-motion`**：系统要求减弱动效时直接不跟随，不看配置值。
 
 底层 `computeClockTilt(point, bounds, { maxTilt })` 本身已支持该参数，组件只是把它透出。
+
+#### Clock：三种几何布局（P1 补充）
+
+原有 7 种布局都是「文字排版的变体」。新增的 3 种改用**图形结构**表达时间，视觉语言与前 7 种不同：
+
+| 布局 | 表达方式 | 依赖数据 |
+|---|---|---|
+| `ring` | SVG 双环：外环 = 一天已过比例，内环 = 一小时已过比例，文字位于环心 | `clockProgress()` |
+| `segments` | 三段离散进度条：时/分/秒，各自表示当前值在本单位中的占比 | 时/分/秒 数值 |
+| `stamp` | 记录卡：月日大字 + 分隔线 + 年内第几天 / 第几周 | `calendarPosition()` |
+
+设计约束：
+
+- **派生数据放在 core**：`clockProgress()`、`ringDash()`、`calendarPosition()` 都是纯函数，组件只负责调用与排版。年内天数和 ISO 周数的边界情况（第 1 周可能跨年、第 1 天不一定是第 1 周）在 core 中处理，使用方不必重写。
+- **格段用渐变而非 DOM**：60 个格子会产生 180 个元素。`segments` 用一个 `repeating-linear-gradient` 画出格段，填充部分用 `clip-path` 裁切。伪元素必须**铺满整条宽度**再做裁切——若用 `width` 缩放到比例，渐变百分比会随之缩放，格子全部错位。
+- **数字与条必须同义**：`segments` 的数字表示当前值，条表示该值在本单位中的占比（`09` 时 → 9/24 = 37.5%），不是「本小时内已过多少分钟」。后者会让 `09` 配 3.3% 的条，视觉上自相矛盾。
+- **`ring` 的文字要避让内环**：内环半径 36%，环心文字块限制在 64% 宽度内，否则文字压到描边上。
 
 #### Clock：音频响应曲线可配置
 

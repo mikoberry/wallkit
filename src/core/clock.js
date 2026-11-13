@@ -125,6 +125,97 @@ export function formatClockDateParts(date, locale) {
 }
 
 /**
+ * Progress through the current day, current hour, and current minute, each as
+ * a 0..1 fraction. Drives the geometric layouts (ring, segments).
+ *
+ * Seconds are included in every fraction so a progress arc advances smoothly
+ * instead of jumping once a minute.
+ *
+ * @param {Date} date
+ * @returns {{ day: number, hour: number, minute: number, second: number }}
+ */
+export function clockProgress(date) {
+  const hours = date.getHours()
+  const minutes = date.getMinutes()
+  const seconds = date.getSeconds()
+  const millis = date.getMilliseconds()
+  const secondFraction = (seconds + millis / 1000) / 60
+
+  return {
+    day: (hours * 3600 + minutes * 60 + seconds + millis / 1000) / 86400,
+    hour: (minutes * 60 + seconds + millis / 1000) / 3600,
+    minute: secondFraction,
+    second: seconds / 60,
+  }
+}
+
+/**
+ * Dash geometry for a progress arc drawn on an SVG circle.
+ *
+ * The circle is stroked with `stroke-dasharray: dash gap; stroke-dashoffset:
+ * offset`, where the gap is the full circumference. Offsetting by
+ * `circumference * (1 - fraction)` reveals exactly `fraction` of the ring.
+ *
+ * @param {number} fraction  0..1
+ * @param {number} radius
+ * @returns {{ circumference: number, dash: number, offset: number }}
+ */
+export function ringDash(fraction, radius) {
+  const circumference = 2 * Math.PI * radius
+  const clamped = Math.min(Math.max(Number(fraction) || 0, 0), 1)
+  return {
+    circumference,
+    dash: circumference,
+    offset: circumference * (1 - clamped),
+  }
+}
+
+/**
+ * Day-of-year and ISO week number, for the record-stamp layout.
+ *
+ * These are derived values, not clock state. The library computes them here so
+ * a caller does not have to re-implement the edge cases (week 1 can begin in
+ * the previous calendar year, and day 1 is not always week 1).
+ *
+ * @param {Date} date
+ * @returns {{ dayOfYear: number, weekOfYear: number, daysInYear: number }}
+ */
+export function calendarPosition(date) {
+  const year = date.getFullYear()
+
+  // Day of year, counted from the local calendar date so a timezone offset
+  // cannot shift the result by a day.
+  const startOfYear = new Date(year, 0, 1)
+  const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const dayOfYear = Math.round((startOfDay - startOfYear) / 86400000) + 1
+
+  const daysInYear = isLeapYear(year) ? 366 : 365
+
+  return {
+    dayOfYear,
+    weekOfYear: isoWeekNumber(date),
+    daysInYear,
+  }
+}
+
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+}
+
+// ISO 8601: the week containing the first Thursday is week 1, and weeks start
+// on Monday.
+function isoWeekNumber(date) {
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  // Shift to the Thursday of this week; its year is the ISO week year.
+  const dayOfWeek = (target.getDay() + 6) % 7
+  target.setDate(target.getDate() - dayOfWeek + 3)
+  const firstThursday = new Date(target.getFullYear(), 0, 4)
+  const firstDayOfWeek = (firstThursday.getDay() + 6) % 7
+  firstThursday.setDate(firstThursday.getDate() - firstDayOfWeek + 3)
+  return 1 + Math.round((target - firstThursday) / (7 * 86400000))
+}
+
+/**
  * Resolve the viewer's time zone names.
  *
  * @param {Date} date

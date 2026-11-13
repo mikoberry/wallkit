@@ -66,8 +66,11 @@ function Controls() {
 ### 常用配置
 
 ```jsx
-// 布局：card | bar | minimal | cyberpunk | infobar | split | poster
+// 布局：card | bar | minimal | cyberpunk | infobar | split | poster | ring | segments | stamp
 <Clock now={now} placement="minimal" />
+<Clock now={now} placement="ring" />      // 环形进度：外环一天、内环一小时
+<Clock now={now} placement="segments" />  // 三段进度条：时 / 分 / 秒
+<Clock now={now} placement="stamp" />     // 记录卡：日期 + 年内天数 + 周数
 
 // 主题：dark = 深色文字（配浅色壁纸），light = 浅色文字（配深色壁纸）
 <Clock now={now} theme="light" />

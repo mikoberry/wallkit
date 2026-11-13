@@ -4,11 +4,14 @@ import {
   CLOCK_BEAT_INTENSITY_MIN,
   CLOCK_SIZE_MAX,
   CLOCK_SIZE_MIN,
+  calendarPosition,
+  clockProgress,
   computeClockTilt,
   formatClockDateParts,
   formatClockTime,
   formatClockZone,
   prefersReducedMotion,
+  ringDash,
   smoothStep,
   splitClockTime,
 } from '../../core/clock.js'
@@ -245,6 +248,12 @@ export default function Clock({
   const dateLabel =
     labels.dateWithWeekday ?? [parts.absolute, weekday].filter(Boolean).join(' ')
 
+  // Geometry for the layouts that draw time rather than typeset it.
+  const progress = clockProgress(now)
+  const calendar = calendarPosition(now)
+  const dayRing = ringDash(progress.day, 46)
+  const hourRing = ringDash(progress.hour, 36)
+
   const clampedSize = clamp(Number(size) || 100, CLOCK_SIZE_MIN, CLOCK_SIZE_MAX)
   const intensity =
     clamp(Number(beatIntensity) || 0, CLOCK_BEAT_INTENSITY_MIN, CLOCK_BEAT_INTENSITY_MAX) / 100
@@ -386,6 +395,106 @@ export default function Clock({
             <span className="wallkit-clock__date">{parts.absolute}</span>
             <span className="wallkit-clock__weekday">{weekday}</span>
             {zone && <span className="wallkit-clock__zone">{zone}</span>}
+          </div>
+        </div>
+      )
+      break
+
+    case 'ring':
+      content = (
+        <div {...shared}>
+          <svg
+            className="wallkit-clock__ring-svg"
+            viewBox="0 0 100 100"
+            aria-hidden="true"
+            focusable="false"
+          >
+            {/* Outer arc: progress through the whole day. */}
+            <circle className="wallkit-clock__ring-track" cx="50" cy="50" r="46" />
+            <circle
+              className="wallkit-clock__ring-fill wallkit-clock__ring-fill--day"
+              cx="50"
+              cy="50"
+              r="46"
+              strokeDasharray={dayRing.dash}
+              strokeDashoffset={dayRing.offset}
+            />
+            {/* Inner arc: progress through the current hour. */}
+            <circle className="wallkit-clock__ring-track" cx="50" cy="50" r="36" />
+            <circle
+              className="wallkit-clock__ring-fill wallkit-clock__ring-fill--hour"
+              cx="50"
+              cy="50"
+              r="36"
+              strokeDasharray={hourRing.dash}
+              strokeDashoffset={hourRing.offset}
+            />
+          </svg>
+          <div className="wallkit-clock__ring-core">
+            <span className="wallkit-clock__hm">
+              {hours}:{minutes}
+            </span>
+            <span className="wallkit-clock__sec">{seconds}</span>
+            <span className="wallkit-clock__ring-date">{parts.absolute}</span>
+          </div>
+        </div>
+      )
+      break
+
+    case 'segments':
+      content = (
+        <div {...shared}>
+          {[
+            // Each bar shows how far the displayed value has advanced through
+            // its own unit, so the number and the bar always agree: 09 hours
+            // fills 9/24 of the day meter, 57 seconds fills 57/60.
+            { key: 'hours', value: hours, fraction: Number(hours) / 24, count: 24 },
+            { key: 'minutes', value: minutes, fraction: Number(minutes) / 60, count: 60 },
+            { key: 'seconds', value: seconds, fraction: Number(seconds) / 60, count: 60 },
+          ].map((row) => (
+            <div className="wallkit-clock__seg-row" key={row.key}>
+              <span className="wallkit-clock__seg-value">{row.value}</span>
+              <span
+                className="wallkit-clock__seg-bar"
+                // Segment count drives the gradient pitch, so one bar reads as
+                // 24 or 60 discrete cells without emitting those cells as DOM.
+                style={{
+                  '--wallkit-clock-seg-count': row.count,
+                  '--wallkit-clock-seg-fill': `${(Number.isFinite(row.fraction) ? row.fraction : 0) * 100}%`,
+                }}
+                aria-hidden="true"
+              />
+            </div>
+          ))}
+          <div className="wallkit-clock__seg-foot">
+            {parts.absolute} {weekday}
+          </div>
+        </div>
+      )
+      break
+
+    case 'stamp':
+      content = (
+        <div {...shared}>
+          <div className="wallkit-clock__stamp-top">
+            <span className="wallkit-clock__stamp-month">{parts.month}</span>
+            <span className="wallkit-clock__stamp-day">{parts.day}</span>
+          </div>
+          <div className="wallkit-clock__stamp-time">
+            {hours}:{minutes}
+            <span className="wallkit-clock__sec">{seconds}</span>
+          </div>
+          <div className="wallkit-clock__stamp-rule" aria-hidden="true" />
+          <div className="wallkit-clock__stamp-meta">
+            <span>
+              第 <b>{calendar.dayOfYear}</b> 天
+            </span>
+            <span>
+              第 <b>{calendar.weekOfYear}</b> 周
+            </span>
+          </div>
+          <div className="wallkit-clock__stamp-foot">
+            {parts.year} · {weekday}
           </div>
         </div>
       )
