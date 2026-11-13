@@ -16,6 +16,7 @@ import {
   smoothStep,
   splitClockTime,
 } from '../../core/clock.js'
+import { isHexColor } from '../../core/audio.js'
 import './Clock.css'
 
 // Idle tilt eases back to flat when the pointer leaves the window.
@@ -60,6 +61,17 @@ function viewportBounds() {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
+}
+
+// Turn a `#rrggbb` colour into an rgba() with the given alpha, for the dim and
+// faint text tiers. The two fg variables are real colours (not opacity), so
+// they need their own alpha rather than relying on an `opacity` rule.
+function hexToRgba(hex, alpha) {
+  const value = parseInt(hex.slice(1), 16)
+  const r = (value >> 16) & 255
+  const g = (value >> 8) & 255
+  const b = value & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 // Pointer tilt defaults. `maxTilt` is the angle reached at the viewport edge;
@@ -119,6 +131,11 @@ function normalizeTilt(tilt) {
  * @param {'light'|'dark'} [props.theme='dark'] Text colour. 'dark' renders dark
  *   text over bright artwork; 'light' renders light text. Each layout that
  *   paints its own card reinterprets the theme against that card instead.
+ * @param {string} [props.color]  `#rrggbb` override for the clock's main text
+ *   colour, across every layout. Takes precedence over `theme`; the dim / faint
+ *   text tiers derive their alpha from the same colour. Layout accents that are
+ *   a distinct hue by design (ring / segment fills, the stamp rule, cyberpunk's
+ *   neon seconds) keep their own colour.
  * @param {boolean} [props.use24Hour=true]      24-hour or 12-hour clock.
  * @param {number} [props.size=100]             Size percentage.
  * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
@@ -149,6 +166,7 @@ export default function Clock({
   visible = true,
   placement = 'card',
   theme = 'dark',
+  color,
   use24Hour = true,
   size = 100,
   anchor = ANCHOR_DEFAULT,
@@ -356,6 +374,22 @@ export default function Clock({
     onClick: onToggleHourFormat
       ? () => onToggleHourFormat(use24Hour ? '12' : '24')
       : undefined,
+  }
+
+  // An explicit `color` wins over the theme. It is injected on every layout's
+  // root node because the text-colour variables are declared there (not on the
+  // anchor), so setting them higher up would be overridden by the layout class.
+  if (isHexColor(color)) {
+    const c = color.trim().toLowerCase()
+    shared.style = {
+      color: c,
+      '--wallkit-clock-fg': c,
+      '--wallkit-clock-fg-dim': hexToRgba(c, 0.82),
+      '--wallkit-clock-fg-faint': hexToRgba(c, 0.62),
+      // The neon card's headline follows the override while its seconds /
+      // meridiem keep their own accent hues.
+      '--wallkit-clock-cyber-accent': c,
+    }
   }
 
   let content = null

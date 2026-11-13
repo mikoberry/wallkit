@@ -1,4 +1,5 @@
 import { ANCHOR_DEFAULT, anchorStyle } from '../../core/anchor.js'
+import { isHexColor } from '../../core/audio.js'
 import MiniSpectrum from '../mini-spectrum/MiniSpectrum.jsx'
 import './AlbumArt.css'
 
@@ -46,6 +47,16 @@ const CARD_SPECTRUM_CURVE = 0.7
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
+}
+
+// Same dim / faint tier derivation as the clock: the two fg variables are real
+// colours, so they carry their own alpha rather than leaning on `opacity`.
+function hexToRgba(hex, alpha) {
+  const value = parseInt(hex.slice(1), 16)
+  const r = (value >> 16) & 255
+  const g = (value >> 8) & 255
+  const b = value & 255
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 function Cover({ track, variant, labels }) {
@@ -120,6 +131,10 @@ function Meta({ track, compact = false }) {
  *   `Clock`: `light` renders light text (dark wallpaper), `dark` renders dark
  *   text and flips the surfaces the card paints itself (glass panel, bar pill,
  *   record label, sleeves) so the ink stays readable on bright artwork.
+ * @param {string} [props.color]   `#rrggbb` override for the card's text colour,
+ *   taking precedence over `theme`. The dim / faint tiers derive their alpha
+ *   from it. The card's own tint (glass wash, wall edge) still comes from
+ *   `track.primaryColor`; use `colorHex` to recolour the inline spectrum.
  * @param {string} [props.colorHex]   `#rrggbb` for the **inline spectrum only**;
  *   the card's own tint comes from `track.primaryColor`. Defaults to
  *   `--wallkit-accent`.
@@ -146,6 +161,7 @@ export default function AlbumArt({
   visible = true,
   variant = 'classic',
   theme = 'light',
+  color,
   colorHex,
   size = 100,
   anchor = ANCHOR_DEFAULT,
@@ -191,6 +207,17 @@ export default function AlbumArt({
   }
   // The cover's dominant colour tints the glass panel and the wall's edge.
   if (track.primaryColor) style['--wallkit-album-art-tint'] = track.primaryColor
+
+  // An explicit `color` wins over the theme. The text-colour variables live on
+  // this same root node, so overriding them here covers every layout (and beats
+  // the `--theme-dark` re-declaration by inline specificity).
+  if (isHexColor(color)) {
+    const c = color.trim().toLowerCase()
+    style.color = c
+    style['--wallkit-album-art-fg'] = c
+    style['--wallkit-album-art-fg-dim'] = hexToRgba(c, 0.82)
+    style['--wallkit-album-art-fg-faint'] = hexToRgba(c, 0.62)
+  }
 
   const cover = <Cover track={track} variant={resolvedVariant} labels={labels} />
   const meta = (

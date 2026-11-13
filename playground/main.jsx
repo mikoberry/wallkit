@@ -189,6 +189,7 @@ function ClockCard({ placement, index, view }) {
           now={view.now}
           placement={placement}
           theme={view.theme}
+          color={view.color}
           use24Hour={view.use24Hour}
           size={sizeFor(placement, view.size)}
           anchor={view.anchor}
@@ -284,6 +285,8 @@ function ClockDemo() {
 
   // Appearance.
   const [theme, setTheme] = useState('dark')
+  const [colorOn, setColorOn] = useState(false)
+  const [color, setColor] = useState('#ff6b6b')
   const [use24Hour, setUse24Hour] = useState(true)
   const [size, setSize] = useState(100)
   const [locale, setLocale] = useState('zh-CN')
@@ -337,6 +340,7 @@ function ClockDemo() {
     () => ({
       now,
       theme,
+      color: colorOn ? color : undefined,
       use24Hour,
       size,
       anchor,
@@ -350,7 +354,7 @@ function ClockDemo() {
       locale,
       onToggleHourFormat,
     }),
-    [now, theme, use24Hour, size, anchor, offsetX, offsetY, beat, beatIntensity, beatCurve, tiltOn, maxTilt, tiltSpeed, visible, locale],
+    [now, theme, colorOn, color, use24Hour, size, anchor, offsetX, offsetY, beat, beatIntensity, beatCurve, tiltOn, maxTilt, tiltSpeed, visible, locale],
   )
 
   return (
@@ -394,6 +398,18 @@ function ClockDemo() {
               <option value="12">12 小时</option>
             </select>
           </label>
+          <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              文字色 color <b>{colorOn ? color : '未覆盖'}</b>
+            </span>
+            <input
+              type="color"
+              value={color}
+              disabled={!colorOn}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖 color" on={colorOn} onChange={setColorOn} />
           <label className="ctl">
             <span className="ctl__label">
               语言 labels.locale <b>{locale}</b>
@@ -518,6 +534,7 @@ function ClockDemo() {
               now={now}
               placement="poster"
               theme={theme}
+              color={colorOn ? color : undefined}
               use24Hour={use24Hour}
               size={size}
               anchor={anchor}
@@ -540,6 +557,7 @@ function ClockDemo() {
               now={now}
               placement="card"
               theme={theme === 'dark' ? 'light' : 'dark'}
+              color={colorOn ? color : undefined}
               use24Hour={use24Hour}
               size={size}
               anchor={anchor}
@@ -912,6 +930,8 @@ function AlbumArtDemo() {
   const [offsetY, setOffsetY] = useState(DEMO_OFFSET_Y)
   const [visible, setVisible] = useState(true)
   const [theme, setTheme] = useState('light')
+  const [colorOn, setColorOn] = useState(false)
+  const [color, setColor] = useState('#ff6b6b')
 
   const pausedBars = useBars(!paused, 120)
   const base = DEMO_TRACKS[trackIndex]
@@ -998,6 +1018,18 @@ function AlbumArtDemo() {
               <option value="dark">dark — 深色文字（浅色壁纸）</option>
             </select>
           </label>
+          <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              文字色 color <b>{colorOn ? color : '未覆盖'}</b>
+            </span>
+            <input
+              type="color"
+              value={color}
+              disabled={!colorOn}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖 color" on={colorOn} onChange={setColorOn} />
         </Row>
 
         <Row title="运行">
@@ -1020,6 +1052,7 @@ function AlbumArtDemo() {
                 bars={withBars ? pausedBars : null}
                 variant={v.id}
                 theme={theme}
+                color={colorOn ? color : undefined}
                 size={size}
                 anchor={anchor}
                 offsetX={offsetX}
