@@ -39,6 +39,8 @@ WallKit 通过 GitHub git 引用分发，不发布 npm。
 }
 ```
 
+固定 `<commit-sha>` 即锁定行为；各 commit 改了什么见 [CHANGELOG.md](CHANGELOG.md)。
+
 ```jsx
 import { Clock } from 'wallkit/components/clock'
 
