@@ -155,16 +155,52 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 | `ring` | 柱状弯成环，整体缓慢自转 | 时间（自转） |
 | `ringwave` | 波形弯成环 | 时间（自转） |
 | `dots` | LED 点阵 | 否 |
-| `ripples` | 低频驱动的同心涟漪 | bass + 时间 |
+| `ripples` | 一鼓一波的随机水波环（轮廓非正圆，见 §5.1） | bass（瞬态）+ 时间 |
 | `aurora` | 低频驱动的柔光带 | bass + 时间 |
 
 - **renderer 归属**：P2 时放在 `src/components/spectrum/renderers.js`、组件内部不导出；P3 的 `MiniSpectrum` 成为第二个消费者后，已提到 **`src/components/shared/renderers.js`**（含 `SPECTRUM_RENDERERS` 注册表），由 `Spectrum` 与 `MiniSpectrum` 共用。这是"第二个真实消费者出现后才抽象"的落地，不是提前设计。
 - **绘制循环归属**：同样在 P3 提到 **`src/components/shared/SpectrumCanvas.jsx`**。两个控件的像素完全一致，差别只在盒子怎么来的（视口 vs 父容器），所以循环、平滑、`ResizeObserver`、reduced-motion 处理都只有一份，避免两边行为漂移。
-- **state bag**：`ripples` 需要跨帧保留涟漪数组，由 `SpectrumCanvas` 持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
+- **state bag**：`ripples` 需要跨帧保留涟漪数组与瞬态检测状态（`prevBass` / `lastBeatAt` / `seq`），由 `SpectrumCanvas` 持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
 - **自转速度**：`ring` / `ringwave` 共用 `RING_SPIN`。`variant` 不再进入绘制循环的依赖，切换时在循环内换 renderer 与 state，`elapsed` 保留，因此相位**确实**连续。
 - **渐变**：柱子用 `createLinearGradient`，环用 `createRadialGradient`；每帧每柱单独建渐变是浪费，按原实现复用（`pill` 例外，实色填充，见 §12）。
 - **响应整形**：绘制前对每根柱调用 `shapeSpectrumLevel(level, shape)`（`shape` = `intensity` 百分比换算出的倍数 + `curve`），再由 `smoothAudioLevel` 平滑。
 - **柱数折叠**：`SpectrumCanvas` 有一个可选的 `barCount`，在循环内用 `resampleBars(bars, count, out)` 逐帧折叠。`Spectrum` 不传（保持"柱数由调用方决定"），`MiniSpectrum` 传 32 —— 小尺寸下 128 根柱子会变成一条条线，折叠是这个控件存在的前提。折叠放在循环内而不是 render，是因为调用方通常原地复用同一个 `Float32Array`，render 期的 memo 会永远画第一帧。
+
+### 5.1 `ripples`：一个鼓点一道随机水波
+
+两条硬规则：
+
+**① 波由鼓点（瞬态）发出，不由计时器发出。** 发射条件是低频**相对上一帧的上升量**，不是它的绝对值：持续的低频长音只在起音时发一次波，不会每帧都发；静音段一道波都不发。早先的实现除了 bass 阈值还有一个「平均电平超过下限就按固定间隔补一道」的源，听感上就是节拍器，已删除。参数：
+
+| 常量 | 值 | 作用 |
+|---|---|---|
+| `RIPPLE_ONSET` | 0.045 | 帧间上升量阈值；电平已由调用方平滑，真实鼓点远超此值，平直长音永远达不到 |
+| `RIPPLE_BEAT_FLOOR` | 0.14 | bass 绝对下限，避免近静音时的噪声触发 |
+| `RIPPLE_REFRACTORY` | 0.16s | 不应期，防止同一次起音在爬升过程中连发；150 BPM 的鼓点间距 0.2s，仍是一鼓一波 |
+
+**② 波形是每道波出生时随机定下的，之后不再随音乐改变。** 轮廓不再采样 `levels`——那会让「鼓点时所有环一起变形状」，而不是「发出新的一道波」。每道波用自己的种子（`state.seq` 递增，经 `rippleRandom()` 哈希，不用 `Math.random()`，重放可复现）掷出：
+
+- `lobes` 3–5、`lobes2` 2–4：两条不同频率的波列，反向行进；
+- `mix` 0.25–0.7：两条波列的相对权重；
+- `phase` / `phase2`：各自的初相；
+- `amp` 0.6–1.0：起伏幅度系数；
+- `spin` ±0.15 rad/s：极缓慢的相位漂移（让波峰有一点点游走，但整道波的形状始终认得出是同一道）。
+
+半径：
+
+```
+r(θ) = R × (1 + wobble × swell(θ))
+swell(θ) = sin(θ·lobes + phase + t·spin)·(1 − mix) + sin(θ·lobes2 − phase2 − t·spin·0.6)·mix
+wobble = RIPPLE_WOBBLE(0.16) × amp × (1 − t × 0.6)
+```
+
+`wobble` 只随这道波自己的年龄衰减（越远越平，真实涟漪如此），**不读当前电平**。峰值起伏约 ±14% 半径。
+
+路径沿圆周采样 `RIPPLE_SAMPLES = 96` 点，用相邻采样点的**中点**作二次曲线端点闭合，不会出现多边形折角。
+
+中心另有一圈**不扩张**的静态水面（半径 0.34R，缓慢相位漂移，透明度随平均电平 0.08–0.30），只负责静音时不至于空成一片。它不扩散，所以不会重新引入「固定间隔发波」的观感。
+
+代价是每帧每环一个 `Path2D`（≤ `RIPPLE_MAX_RINGS = 10` + 1 个静态层）与约 1k 段曲线，仍在 Canvas 2D 的合理范围内；采样点数组 `xs` / `ys` 是 state bag 里的定长 `Float32Array`，逐帧原地改写，不在绘制循环里分配。
 
 ---
 

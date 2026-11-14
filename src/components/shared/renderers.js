@@ -307,28 +307,75 @@ export function drawDots(ctx, levels, width, height, color) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Ripples — concentric rings that spread outward from the centre.
+// 7. Ripples — water rings, one per beat.
 //
-// Rings are driven by the music only: a bass hit and a broad level swell each
-// throw a ring. A fixed metronome would pile up rings during quiet passages and
-// look busy rather than calm. The steady breathe ring below keeps the widget
-// from looking dead in silence.
+// Two rules shape this style:
+//
+//   1. A wave is thrown by a *transient*, not by a timer. Emission is an onset
+//      test on the bass level (it must rise against the previous frame), so a
+//      quiet passage has no rings at all and a fast passage gets one per hit.
+//      An earlier version also fired on a fixed gap whenever the average level
+//      was above a floor, which read as a metronome regardless of the music.
+//
+//   2. Every ring draws its own random water silhouette, fixed at birth. The
+//      lobe counts, weights and phases come from a per-ring hash, so no two
+//      beats produce the same outline; the live spectrum no longer touches the
+//      outline at all, because that made the shape morph on the beat instead of
+//      sending a new wave out.
+//
+// The rings themselves are not circles: radius is sampled around the
+// circumference and runs through a couple of sine lobes (see `traceRing`), and
+// the swell flattens as the ring travels outward, like a real ripple.
 // ---------------------------------------------------------------------------
-// State: { rings: [{ born, strength }], lastBeatAt, lastLevelAt }
+
+// Angular resolution of one outline. The path is smoothed through segment
+// midpoints, so this only has to resolve the lobes; 96 keeps a large ring
+// smooth without turning into a visible polygon.
+const RIPPLE_SAMPLES = 96
+// Peak undulation as a fraction of the ring radius, before the per-ring random
+// amplitude and the outward decay.
+const RIPPLE_WOBBLE = 0.16
+// Bass must climb by this much between frames to count as a hit. The level is
+// already smoothed by the caller, so a real kick clears it easily while a
+// sustained bass line (flat, no rise) never fires twice.
+const RIPPLE_ONSET = 0.045
+// Bass floor below which no hit is accepted at all, so noise in near-silence
+// cannot throw rings.
+const RIPPLE_BEAT_FLOOR = 0.14
+// Refractory window: one hit may not fire the same wave twice while the level
+// is still climbing. Short on purpose — two fast kicks are two waves.
+const RIPPLE_REFRACTORY = 0.16
+
+// State: { rings: [{ born, strength, lobes, … }], lastBeatAt, prevBass, seq }
 export function createRippleState() {
-  return { rings: [], lastBeatAt: -Infinity, lastLevelAt: -Infinity }
+  return {
+    rings: [],
+    lastBeatAt: -Infinity,
+    prevBass: 0,
+    // Monotonic ring counter: the seed for the per-ring silhouette hash.
+    seq: 0,
+    // Scratch buffers, allocated once and rewritten in place every frame — the
+    // drawing loop must not allocate per ring (see AGENTS.md).
+    xs: new Float32Array(RIPPLE_SAMPLES),
+    ys: new Float32Array(RIPPLE_SAMPLES),
+  }
 }
 
-// Minimum spacing between rings. Generous on purpose: rings overlap for their
-// whole life, so a shorter gap reads as a blur rather than distinct waves.
-const RIPPLE_MIN_GAP = 0.34
-// The broad-level source fires less often than the bass source so the two do
-// not double up on every beat.
-const RIPPLE_LEVEL_GAP = 0.5
+// Deterministic pseudo-random in [0, 1) from an integer seed. The same beat
+// sequence replays as the same surface, and no Math.random call sits in the
+// draw loop.
+function rippleRandom(seed) {
+  let x = Math.imul(seed + 1, 0x27d4eb2d)
+  x ^= x >>> 15
+  x = Math.imul(x, 0x85ebca6b)
+  x ^= x >>> 13
+  return (x >>> 0) / 4294967296
+}
 
 // Hard ceiling on live rings. Beyond this the field is already visually dense
 // and extra rings only cost fill rate.
 const RIPPLE_MAX_RINGS = 10
+const RIPPLE_TAU = Math.PI * 2
 
 export function drawRipples(ctx, levels, width, height, color, state, { time = 0, bass = 0 } = {}) {
   const stops = resolveStops(color)
@@ -338,20 +385,46 @@ export function drawRipples(ctx, levels, width, height, color, state, { time = 0
   const maxRadius = Math.min(width, height) / 2
 
   const rings = state.rings
-  const level = levels.reduce((sum, v) => sum + v, 0) / Math.max(1, levels.length)
+  const count = levels.length
 
-  // Each source keeps its own timer, so a bass hit and a level swell can both
-  // register instead of the first one blocking the second. Thresholds sit low
-  // enough that quiet passages still ripple, but the gaps are long enough that
-  // rings never stack into a blur.
-  if (bass > 0.12 && time - state.lastBeatAt >= RIPPLE_MIN_GAP) {
-    state.lastBeatAt = time
-    rings.push({ born: time, strength: bass })
+  // A state bag from an older shape (or a hot reload) must not crash the loop.
+  if (!state.xs || state.xs.length !== RIPPLE_SAMPLES) {
+    state.xs = new Float32Array(RIPPLE_SAMPLES)
+    state.ys = new Float32Array(RIPPLE_SAMPLES)
   }
+  if (!Number.isFinite(state.prevBass)) state.prevBass = 0
+  if (!Number.isFinite(state.seq)) state.seq = 0
+  const { xs, ys } = state
 
-  if (level > 0.1 && time - state.lastLevelAt >= RIPPLE_LEVEL_GAP) {
-    state.lastLevelAt = time
-    rings.push({ born: time, strength: level })
+  // --- Emission: one wave per onset -----------------------------------------
+  // The test is on the *rise* of the bass level between frames, not on its
+  // value, so a sustained bass note fires once (at its attack) instead of
+  // throwing a ring every frame it stays loud. Nothing here is time-based: a
+  // bar of silence emits nothing.
+  const rise = bass - state.prevBass
+  state.prevBass = bass
+
+  if (bass > RIPPLE_BEAT_FLOOR && rise > RIPPLE_ONSET && time - state.lastBeatAt >= RIPPLE_REFRACTORY) {
+    state.lastBeatAt = time
+    const seed = state.seq
+    state.seq += 1
+    // The silhouette is decided here and never changes with the music again:
+    // 3–5 gross lobes plus 2–4 secondary ones, random weights and phases, and
+    // a very slow drift so the crests wander instead of being frozen.
+    rings.push({
+      born: time,
+      strength: Math.min(1, Math.max(0.35, bass)),
+      lobes: 3 + Math.floor(rippleRandom(seed + 17) * 3),
+      lobes2: 2 + Math.floor(rippleRandom(seed + 131) * 3),
+      phase: rippleRandom(seed + 277) * RIPPLE_TAU,
+      phase2: rippleRandom(seed + 389) * RIPPLE_TAU,
+      mix: 0.25 + rippleRandom(seed + 523) * 0.45,
+      amp: 0.6 + rippleRandom(seed + 673) * 0.4,
+      // Only a hint of drift: the silhouette has to stay recognisably the same
+      // shape for the whole journey, or it reads as a shape morphing on the
+      // beat instead of one wave travelling outward.
+      spin: (rippleRandom(seed + 811) - 0.5) * 0.3,
+    })
   }
 
   const life = 2.6
@@ -359,22 +432,62 @@ export function drawRipples(ctx, levels, width, height, color, state, { time = 0
   for (let i = rings.length - 1; i >= 0; i -= 1) {
     if (time - rings[i].born > life) rings.splice(i, 1)
   }
-  // Keep the field bounded even if several sources fire on the same frame.
+  // Keep the field bounded even if several hits land on the same frame.
   if (rings.length > RIPPLE_MAX_RINGS) {
     rings.splice(0, rings.length - RIPPLE_MAX_RINGS)
   }
 
+  /**
+   * Trace one closed, undulating outline into the scratch buffers and return it
+   * as a smooth path. `lobes` / `lobes2` set the wave count, `mix` their
+   * relative weight, `spin` how fast the crests creep around the circle.
+   */
+  const traceRing = (radius, wobble, { lobes, lobes2, phase, phase2, mix, spin = 0 }) => {
+    for (let k = 0; k < RIPPLE_SAMPLES; k += 1) {
+      const angle = (k / RIPPLE_SAMPLES) * RIPPLE_TAU - Math.PI / 2
+      // Two lobe trains of different frequency travelling in opposite
+      // directions. `mix` keeps their sum near ±1 so `wobble` is the actual
+      // peak displacement.
+      const swell =
+        Math.sin(angle * lobes + phase + time * spin) * (1 - mix) +
+        Math.sin(angle * lobes2 - phase2 - time * spin * 0.6) * mix
+      const r = radius * (1 + wobble * swell)
+      xs[k] = cx + Math.cos(angle) * r
+      ys[k] = cy + Math.sin(angle) * r
+    }
+
+    const path = new Path2D()
+    const last = RIPPLE_SAMPLES - 1
+    // Start on the midpoint of the closing segment so the join is as smooth as
+    // every other one.
+    path.moveTo((xs[last] + xs[0]) / 2, (ys[last] + ys[0]) / 2)
+    for (let k = 0; k < RIPPLE_SAMPLES; k += 1) {
+      const next = k === last ? 0 : k + 1
+      path.quadraticCurveTo(xs[k], ys[k], (xs[k] + xs[next]) / 2, (ys[k] + ys[next]) / 2)
+    }
+    path.closePath()
+    return path
+  }
+
   const baseWidth = Math.max(3, height * 0.018)
 
-  // A subtle breathe layer under the rings, tied to the overall level.
-  const breathe = (time * 0.55) % 1
-  const breatheRadius = (0.15 + breathe * 0.85) * maxRadius
-  ctx.beginPath()
-  ctx.arc(cx, cy, breatheRadius, 0, Math.PI * 2)
+  // A still inner surface so the widget is not blank in a silent passage. It
+  // does *not* expand — an expanding ring here would reintroduce exactly the
+  // metronome this style is trying to avoid — it only breathes in place.
+  const level = count > 0 ? levels.reduce((sum, v) => sum + v, 0) / count : 0
+  const breathePhase = time * 0.22
+  const stillPath = traceRing(maxRadius * 0.34, RIPPLE_WOBBLE * 0.5, {
+    lobes: 4,
+    lobes2: 3,
+    phase: breathePhase,
+    phase2: breathePhase * 0.7,
+    mix: 0.4,
+    spin: 0.15,
+  })
   ctx.strokeStyle = stops.top
   ctx.lineWidth = baseWidth * 0.9
-  ctx.globalAlpha = 0.3 * (1 - breathe) * (0.5 + Math.min(0.5, level * 2))
-  ctx.stroke()
+  ctx.globalAlpha = 0.08 + Math.min(0.22, level * 0.45)
+  ctx.stroke(stillPath)
 
   for (const ring of rings) {
     const age = Math.max(0, time - ring.born)
@@ -388,21 +501,22 @@ export function drawRipples(ctx, levels, width, height, color, state, { time = 0
     const fade = t < 0.68 ? 1 : 1 - (t - 0.68) / 0.32
     const alpha = fade * (0.7 + Math.min(0.3, ring.strength))
 
+    // The swell flattens as the ring travels outward, exactly like a real
+    // ripple losing amplitude. It depends only on the ring's own amplitude, set
+    // at birth — the live level must not reshape an already-emitted wave.
+    const wobble = RIPPLE_WOBBLE * ring.amp * (1 - t * 0.6)
+    const path = traceRing(radius, wobble, ring)
+
     // Early rings are thicker and brighter, tapering as they travel outward.
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
-    ctx.strokeStyle = stops.top
     ctx.lineWidth = baseWidth * (1.6 - t * 0.6)
     ctx.globalAlpha = alpha
-    ctx.stroke()
+    ctx.stroke(path)
 
     // A second, wider and softer pass gives the ring a halo so it reads at a
     // distance instead of as a hairline.
-    ctx.beginPath()
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
     ctx.lineWidth = baseWidth * (4.5 - t * 2)
     ctx.globalAlpha = alpha * 0.22
-    ctx.stroke()
+    ctx.stroke(path)
   }
   ctx.globalAlpha = 1
 }
