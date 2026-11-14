@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:wallpaper": "vite build --config vite.wallpaper.config.js",
+    "gen:project": "node scripts/gen-project.mjs",
+    "check:project": "node scripts/gen-project.mjs --check",
+    "test:project": "node scripts/test-project.mjs",
     "deploy:wallpaper": "npm run build:wallpaper && node scripts/deploy-wallpaper.mjs"
   },
   "dependencies": {

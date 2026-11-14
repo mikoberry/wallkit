@@ -16,6 +16,7 @@
     "./components/pointer-fx": "./src/components/pointer-fx/index.js",
     "./components/ambient-fx": "./src/components/ambient-fx/index.js",
     "./components/spotlight": "./src/components/spotlight/index.js",
+    "./project": "./src/project/index.js",
     "./we": "./src/we/index.js",
     "./we/vite": "./src/we/vite-plugin.js",
     "./styles": "./src/styles/index.css"

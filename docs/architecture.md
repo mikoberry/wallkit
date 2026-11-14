@@ -132,6 +132,7 @@ npm 的 git 依赖（`github:user/repo`）**只能指向仓库根**，无法指�
     "./components/pointer-fx":  "./src/components/pointer-fx/index.js",
     "./we":                     "./src/we/index.js",
     "./we/vite":                "./src/we/vite-plugin.js",
+    "./project":                "./src/project/index.js",
     "./styles":                 "./src/styles/index.css"
   },
   "peerDependencies": {
@@ -545,6 +546,8 @@ useEffect(() => {
 ### 7.1 由使用方负责
 
 - `project.json` 的形状（`general.supportsaudioprocessing` 必须嵌套在 `general` 内，`type` 必须是 `"Web"`）
+
+  可选工具 `wallkit/project` 能帮忙生成与合并这份文件（固化上面两个坑、保留 `workshopid`），但**责任仍在使用方**：工具是构建期纯函数，不进运行时，也不由 Vite 插件调用（§7.3 的「不触碰 project.json」不变）。用法见 [project.json 生成工具](./project-tool.md)。
 - 背景层实现与画布管理
 - 数据构建（音频帧、媒体信息）
 - 应用状态（选中模型、偏好持久化）
@@ -765,6 +768,8 @@ README 与游戏仓库的 README 都必须声明这一点，避免他人误以�
 `PointerFx` 是 P4 之后按需追加的交互控件，不占 P5 / P6 的档期；它的验收前提是 WE 开启鼠标交互，与「新项目解耦验证」互不相同，详见 §5.3。
 
 `SettingsDrawer` **不在计划内**，永久留在应用层。
+
+候补控件提案（Calendar / Frame / InfoCard / Text）记录在 [候补控件待办](./backlog.md)，**全部未开始**，且不排进 P5 / P6 档期——先验证解耦，再考虑扩组件集。
 
 **关于模板仓库（P6）**：不要在第二个游戏落地之前建立。第一个游戏可能含特例，第二个游戏才会暴露真实共性。过早建模板会把特例固化成"标准"，后续返工成本更高。
 

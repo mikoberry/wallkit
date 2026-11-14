@@ -1,77 +1,144 @@
 {
+  "contentrating": "Everyone",
+  "description": "测试页：一屏同时摆四个控件，按 8 秒轮换布局，用来验证 WallKit 的视觉效果。\n\nTestbed: four widgets on one screen, cycling their layout every 8 seconds — a visual check for WallKit.\n\n主页 Homepage: https://github.com/mikoberry\n\n源码与文档 Source & docs: https://github.com/mikoberry/wallkit",
   "file": "wallpaper.html",
   "general": {
     "properties": {
       "schemecolor": {
         "order": 0,
-        "text": "schemecolor",
+        "text": "ui_browse_properties_scheme_color",
         "type": "color",
         "value": "0 0 0"
       },
-      "accentColor": {
+      "followBanner": {
         "index": 0,
         "order": 100,
-        "text": "强调色",
+        "text": "<center><img src=\"https://github.com/mikoberry.png?size=140\" width=\"140\" alt=\"mikoberry\" /><h2>⭐ 喜欢就点个赞 + 订阅 ⭐</h2><h5>在创意工坊页面点「点赞」和「订阅」，就是最大的支持 🙏</h5><h3>github.com/mikoberry</h3><h6>新版 / 源码 / 问题反馈都在上面的地址（面板里的链接无法点击，请复制到浏览器打开）</h6></center><hr><center><h4>⭐ Like &amp; Subscribe if you enjoy it ⭐</h4><h6>Hitting Like / Subscribe on the Workshop page is the best way to help.</h6><h6>New versions, source and the issue tracker live at github.com/mikoberry — panel links cannot be clicked, please copy the address into your browser.</h6></center>",
+        "type": "text",
+        "value": false
+      },
+      "sectionClock": {
+        "index": 1,
+        "order": 101,
+        "text": "<hr><h3>🕒 时钟 Clock</h3>",
+        "type": "text",
+        "value": false
+      },
+      "accentColor": {
+        "index": 2,
+        "order": 102,
+        "text": "强调色 Accent color",
         "type": "color",
         "value": "168 196 255"
       },
       "sizeScale": {
         "fraction": true,
-        "index": 1,
+        "index": 3,
         "max": 2,
         "min": 0,
-        "order": 101,
+        "order": 103,
         "precision": 2,
         "step": 0.1,
-        "text": "尺寸倍率",
+        "text": "尺寸倍率 Size scale",
         "type": "slider",
         "value": 1
       },
-      "showSeconds": {
-        "index": 2,
-        "order": 102,
-        "text": "显示秒",
-        "type": "bool",
-        "value": true
-      },
       "clockAnchor": {
-        "index": 3,
+        "index": 4,
         "options": [
-          { "label": "左下", "value": "bottom-left" },
-          { "label": "右下", "value": "bottom-right" },
-          { "label": "左上", "value": "top-left" },
-          { "label": "右上", "value": "top-right" }
+          {
+            "label": "左下 Bottom left",
+            "value": "bottom-left"
+          },
+          {
+            "label": "右下 Bottom right",
+            "value": "bottom-right"
+          },
+          {
+            "label": "左上 Top left",
+            "value": "top-left"
+          },
+          {
+            "label": "右上 Top right",
+            "value": "top-right"
+          }
         ],
-        "order": 103,
-        "text": "时钟锚点",
+        "order": 104,
+        "text": "时钟锚点 Clock anchor",
         "type": "combo",
         "value": "bottom-right"
       },
+      "showSeconds": {
+        "index": 5,
+        "order": 105,
+        "text": "显示秒 Show seconds",
+        "type": "bool",
+        "value": true
+      },
+      "sectionCaption": {
+        "index": 6,
+        "order": 106,
+        "text": "<h3>📝 文案 Caption</h3>",
+        "type": "text",
+        "value": false
+      },
+      "showCaption": {
+        "index": 7,
+        "order": 107,
+        "text": "显示副标题 Show caption",
+        "type": "bool",
+        "value": false
+      },
       "captionText": {
-        "index": 4,
-        "order": 104,
-        "text": "副标题",
+        "condition": "showCaption.value == 1",
+        "index": 8,
+        "order": 108,
+        "text": "副标题 Caption text",
         "type": "textinput",
+        "value": "WallKit · 四个控件同屏"
+      },
+      "sectionMedia": {
+        "index": 9,
+        "order": 109,
+        "text": "<hr><h3>🖼 图像 Image</h3>",
+        "type": "text",
+        "value": false
+      },
+      "customImage": {
+        "index": 10,
+        "order": 110,
+        "text": "自定义图片 Custom image",
+        "type": "file",
         "value": ""
       },
       "imageDir": {
-        "index": 5,
+        "index": 11,
         "mode": "ondemand",
-        "order": 105,
-        "text": "图片目录",
+        "order": 111,
+        "text": "图片目录 Image folder",
         "type": "directory",
         "value": ""
       },
-      "customImage": {
-        "index": 6,
-        "order": 106,
-        "text": "自定义图片",
-        "type": "file",
-        "value": ""
+      "sectionAbout": {
+        "index": 12,
+        "order": 112,
+        "text": "<hr><h3>ℹ️ 关于 About</h3>",
+        "type": "text",
+        "value": false
+      },
+      "credits": {
+        "index": 13,
+        "order": 113,
+        "text": "WallKit · 源码与文档 Source &amp; docs: github.com/mikoberry/wallkit<br/><h6>测试页，非发布壁纸。Testbed, not a published wallpaper.</h6>",
+        "type": "text",
+        "value": false
       }
     },
     "supportsaudioprocessing": true
   },
+  "tags": [
+    "Abstract"
+  ],
   "title": "WallKit Testbed",
   "type": "Web"
 }

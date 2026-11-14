@@ -250,6 +250,12 @@ WE 官方对 `MediaTimelineListener` 的警告是「不是所有播放器都支�
 
 **这是最容易出错的地方。**
 
+> 不想手写这份文件？`wallkit/project`（构建期工具）能按声明生成并合并它，把下面 §3.1 / §3.2 的坑固化掉，同时保住 `workshopid`。见 [project.json 生成工具](./project-tool.md)。
+
+> `schemecolor` 的 `text` 写本地化 key（`ui_browse_properties_scheme_color`），引擎会翻译；手写 `"schemecolor"` 会在面板里显示成这个词本身。
+
+两个只写在生成工具文档里、但读形状时会用到的点：`text` 类型条目的 `text` 会被当成 HTML 渲染（分区标题、分隔线、主页链接都靠它，见 [project-tool.md 的面板排版](./project-tool.md#面板排版html-与-condition)），`condition: "key.value == 1"` 可让控制项随另一个属性显隐。
+
 ```json
 {
   "file": "index.html",
@@ -257,7 +263,7 @@ WE 官方对 `MediaTimelineListener` 的警告是「不是所有播放器都支�
     "properties": {
       "schemecolor": {
         "order": 0,
-        "text": "schemecolor",
+        "text": "ui_browse_properties_scheme_color",
         "type": "color",
         "value": "0 0 0"
       },

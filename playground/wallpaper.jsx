@@ -209,7 +209,7 @@ const SCENE_AMBIENT = {
 // HUD
 // ---------------------------------------------------------------------------
 
-function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, paused, accent, mode, preview, propertyLines, fromProperty, eventLines, hidden }) {
+function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, paused, accent, mode, preview, propertyLines, fromProperty, eventLines, simulated, hidden }) {
   const lines = [
     `scene    ${SCENES.indexOf(scene) + 1}/${SCENES.length}  ${scene.label}`,
     `clock    ${clock} · anchor ${anchor}`,
@@ -247,6 +247,11 @@ function Hud({ scene, clock, anchor, album, spectrum, ambient, audio, media, pau
     `props    ${propertyLines[0]}`,
     ...propertyLines.slice(1).map((line) => `         ${line}`),
     ...eventLines,
+    // Only in the dev server. Said out loud because a populated props line is
+    // otherwise indistinguishable from the real engine having pushed values.
+    ...(simulated > 0
+      ? [`sim      ${simulated} 项 · 按 project.config.js 模拟（浏览器专用，非引擎推送）`]
+      : []),
     `keys     ← → 步进 · ↑ ↓ 换场景 · 空格 停/启循环 · H 显隐 · A 预览封面色 · M 强调色模式`,
   ]
 
@@ -272,6 +277,8 @@ function Wallpaper() {
   // null = follow the engine; an index = a synthetic cover chosen with A.
   const [previewCover, setPreviewCover] = useState(null)
   const [accentMode, setAccentMode] = useState(ACCENT.mode)
+  // How many properties the dev-only simulator pushed; 0 in a real wallpaper.
+  const [simulated, setSimulated] = useState(0)
 
   const paused = useWallpaperPaused()
   const now = useNow(paused)
@@ -293,6 +300,25 @@ function Wallpaper() {
     const id = setInterval(() => setStep((value) => value + 1), CYCLE_MS)
     return () => clearInterval(id)
   }, [cycling])
+
+  // Dev server only: feed the manifest to the page so the property wiring is
+  // visible without opening Wallpaper Engine. `import.meta.env.DEV` is false in
+  // the wallpaper build, so neither this effect nor the module it imports can
+  // reach a shipped wallpaper. See ./dev-properties.js.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined
+
+    let alive = true
+    import('./dev-properties.js')
+      .then((module) => {
+        if (alive) setSimulated(module.simulateUserProperties())
+      })
+      .catch((error) => console.warn('[wallkit] 属性模拟未生效', error))
+
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // Keyboard is useless inside the engine, but it makes the page practical in a
   // browser: step through variants without waiting for the timer.
@@ -431,6 +457,7 @@ function Wallpaper() {
         propertyLines={propertyLines}
         fromProperty={Boolean(propertyAccent)}
         eventLines={eventLines}
+        simulated={simulated}
         paused={paused}
         hidden={!hudVisible}
       />

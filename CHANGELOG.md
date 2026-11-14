@@ -11,6 +11,26 @@
 
 ### Added
 
+- **新增构建期工具 `wallkit/project`**：按声明生成 / 合并 `project.json`，不再每次手抄
+  工程清单。`defineProject({ file, title, description, tags, preview, properties })` 补
+  齐引擎默认值（`schemecolor`、`general.supportsaudioprocessing`、`type: "Web"`），属性
+  用构造器声明——`color('#a8c4ff')` 自动转成 manifest 要的 `"168 196 255"`，
+  `slider` / `bool` / `combo` / `text` / `html` / `file` / `directory` / `group` 各自校验
+  必填项，`index` / `order` 按声明顺序自动编号。`html()` 产出 `type: "text"` 区块：
+  引擎把它的 `text` 当 HTML 渲染，这是 `project.json` 里唯一能放分区标题、分隔线、
+  主页链接与图标的位置（没有 homepage / icon 字段）；`condition: 'showAudio.value == 1'`
+  可让控制项随另一个属性显隐，工具会校验格式，并拒绝引用未声明的 key。
+  `mergeProject()` 是合并而非覆盖：未声明的键与
+  属性保留，`workshopid` / `version` / `snapshotformat` / `snapshotoverlay` 无条件保留
+  （丢了 `workshopid`，下次发布会变成新建 Workshop 条目）。`diffProject()` 供 `--check`
+  做语义比较（`type` 大小写、键顺序、缩进都不算漂移）。**这是纯函数模块，不进运行时、
+  不进 Vite 插件、不自动跑**：编辑器会整份重写该文件，所以只作为手动步骤使用。
+  用法见 [docs/project-tool.md](docs/project-tool.md)，playground 里有一份示例配置
+  （`npm run gen:project` / `check:project`），并带 50 条断言的自测
+  `npm run test:project`（`node:assert`，不需要 WE）。开发服务器里
+  `playground/dev-properties.js` 会把该配置按引擎的格式推给页面，HUD 上标为
+  `sim`——用来在不打开 WE 的情况下看属性是否真的接到了控件。
+
 - **新增 `Spotlight` 控件（`wallkit/components/spotlight`）**：跟随指针的聚光灯 / 关灯
   效果——一个亮圈跟着鼠标，圈外压暗。`size`（直径 80–3000px）、`feather`（边缘软硬
   0–1，0 为硬边）、`dim`（遮罩浓度）、`glow`（圈内高光，`screen` 混合只提亮）、

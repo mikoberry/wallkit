@@ -8,6 +8,8 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有四个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层）、`Spotlight`（跟随指针的聚光遮罩，同样需 WE 鼠标交互），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
 
+候补控件提案（Calendar / Frame / InfoCard / Text）记录在 [docs/backlog.md](docs/backlog.md)，**全部未开始**：那里只放设计与触发条件，不代表已排期，也不要因为「文档里写了」就提前实现。
+
 ## Execution rules
 
 - **不要自行启动开发服务器。** 用户自己执行 `npm run dev`。需要验证渲染时，用无头浏览器截图，或在改动后直接报告，不要留下常驻进程。
@@ -27,14 +29,28 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 - `npm run build` — 生产构建，输出到 `playground/dist/`。只在用户要求时执行。
 - `npm run build:wallpaper` — 构建 WE 测试页，输出到 `playground/dist-wallpaper/`（含 `project.json`），可直接被 Wallpaper Engine 当作壁纸项目打开。用独立的 `vite.wallpaper.config.js`，与 playground 的构建互不干扰。
 - `npm run deploy:wallpaper` — 构建 + 复制到 WE 项目目录（默认 `F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\wallpaper`，可用 `WE_PROJECT_DIR` 覆盖）。脚本是 `playground/scripts/deploy-wallpaper.mjs`。
+- `npm run gen:project` — 由 `playground/project.config.js` 生成 `playground/public/project.json`（合并语义，保留 `workshopid`）。
+- `npm run check:project` — 同上但只报告漂移、不写盘；不一致时退出码 1。
+- `npm run test:project` — `wallkit/project` 的自测（`node:assert`，50 条断言，不启动服务）。改 `src/project/` 后跑这个。
 
 库本身没有构建步骤，也没有依赖安装：`src/` 下的源码由使用方的 Vite 直接编译。
+
+## project.json 工具
+
+`wallkit/project`（`src/project/`）是**构建期纯函数**，组件与壁纸运行时都不依赖它。用户只需声明会变的部分（标题、描述段落、tags、属性），形状与 `schemecolor` / `general.supportsaudioprocessing` / `type` 等引擎默认值由 `defineProject()` 补齐，`mergeProject()` 保证 `workshopid` 等引擎自有字段不被抹掉。
+
+规则（详见 [docs/project-tool.md](docs/project-tool.md)）：
+
+- **不要把它挂成构建钩子。** 编辑器会整份重写 `project.json`，构建期覆盖会打架；`deploy-wallpaper.mjs` 也因此只创建不覆盖。
+- **个人信息不进库。** 主页、固定文案、默认 tags 属于使用方的 `project.config.js`，库只提供机制。
+- 这个模块对坏输入**抛错**，与控件层「安静降级」相反——manifest 写错是在引擎里静默失效。
+- `contentrating` / `visibility` 没有默认值，不写就保留文件原值。
 
 ## WE testbed
 
 `playground/wallpaper.html` 是**给 Wallpaper Engine 用的单页**，不是画廊：它把四个控件同时挂在一张壁纸尺寸的画面上，数据来自 `wallkitWE()` 注入 `<head>` 的内联脚本（音频 / 媒体 / 用户属性 / 暂停，timeline 可选），与真实壁纸的接线方式完全一致；React 侧由 `wallkit/we` 的 hooks 消费。
 
-- 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`、`bars` 保持全零，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。
+- 浏览器预览：`npm run dev` 后打开 `http://localhost:5174/wallpaper.html`。此时没有 WE 宿主，音频帧为 `null`、`bars` 保持全零，频谱画的是空图 —— **这是正确行为，不要为了好看在这里掺合成数据**（合成数据只允许出现在 playground 的四个画廊里）。唯一例外是用户属性：`playground/dev-properties.js` 在 `import.meta.env.DEV` 下把 `project.config.js` 过一遍 `defineProject()` 再按引擎格式推给桥接，否则浏览器里 `props` 行永远全是 `—`，属性接线无从验证。HUD 上那行 `sim N 项 · 按 project.config.js 模拟` 是刻意标的：它与真机推送长得一模一样，不标就会把模拟当引擎行为。该模块只在开发服务器里被动态 import，`build:wallpaper` 的生产构建里搜不到它。
 - WE 预览：`npm run deploy:wallpaper`（构建 + 同步到 WE 项目目录）。**不要**把 Vite 的 `outDir` 指到 WE 目录：那里有编辑器写的 `preview.gif` 与改过的 `project.json`，`emptyOutDir` 会把它们吃掉。同步规则是「`assets/` 整体替换，其余文件只覆盖同名产物，`project.json` 只在缺失时创建」。
 - 页面自己**按 8 秒轮换**布局：专辑 6 种、时钟 10 种、频谱 9 种，每跑完一圈换一次背景（2 深 2 亮），主题随背景走。原因很实际——WE 里没有鼠标和键盘焦点，任何控制面板都点不到。
 - 键盘（仅浏览器有用）：`← →` 步进、`↑ ↓` 换背景、空格停/启轮换、`H` 显隐 HUD。HUD 里那几行（WE 探测、音频帧数、帧龄、媒体字段、paused、props、events）就是排查音频与属性时的第一手信息。`props` 是合并后的当前快照，`events` 是推送流水（`window.__wallkitPropertyLog`，写在内联桥里，因为加载期那次全量推送早于 React 挂载）。
@@ -72,6 +88,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
 | `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡氛围层） |
 | `./components/spotlight` | `src/components/spotlight/index.js` | Spotlight 组件（跟随指针的聚光 / 关灯遮罩） |
+| `./project` | `src/project/index.js` | project.json 生成工具（构建期纯函数，**不进运行时**） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
@@ -132,6 +149,10 @@ src/
 │       ├── Spotlight.jsx     # 全容器覆盖层、两层 CSS 渐变、指针只改两个变量
 │       └── Spotlight.css
 ├── styles/index.css      # --wallkit-* 变量
+├── project/              # 构建期工具，组件与运行时都不依赖
+│   ├── index.js          # 统一 re-export
+│   ├── project.js        # defineProject / mergeProject / diffProject / stringifyProject
+│   └── properties.js     # 属性构造器：color / bool / slider / combo / text / file / directory / group
 └── we/                   # 可选外壳层（控件层不依赖）
     ├── index.js          # hooks 统一 re-export
     ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵

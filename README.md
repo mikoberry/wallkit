@@ -400,7 +400,35 @@ const props = useWallpaperProperties() // project.json 里声明的用户属性�
 
 `timeline` 默认关闭：WE 官方明确警告 `wallpaperRegisterMediaTimelineListener` 可能永不触发。需要 `useWallpaperTimeline()` 时显式打开；取不到值就保持 `null`，不要用 `0:00` 兜底。
 
-不使用 Vite 的项目仍可手动粘贴四段（加可选 timeline 共五段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
+不使用 Vite 的项目仍可手动粘贴四段（加可选 timeline 共五段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状仍由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
+
+### project.json 生成（可选，构建期）
+
+`project.json` 里三个坑都是静默失败：`supportsaudioprocessing` 写在顶层（音频回调 0 次）、颜色写成 0–1 浮点（显示黑色）、属性改名后忘改应用层。`wallkit/project` 把形状收进代码，只留会变的部分让人写：
+
+```js
+// project.config.js —— 放在你自己的壁纸仓库里
+import { color, slider, bool } from 'wallkit/project'
+
+export default {
+  file: 'index.html',
+  title: '你的壁纸名',
+  description: ['这是什么、有什么可调。', '主页 https://… · 源码 https://…'],
+  properties: {
+    accentColor: color({ text: '强调色', value: '#a8c4ff' }),
+    sizeScale: slider({ text: '尺寸倍率', value: 1, min: 0, max: 2, fraction: true }),
+    showSeconds: bool({ text: '显示秒', value: true }),
+  },
+}
+```
+
+```bash
+node scripts/gen-project.mjs           # 合并写入 public/project.json
+node scripts/gen-project.mjs --check   # 只报告漂移，不一致时退出码 1
+npm run test:project                   # 工具自测（50 条断言，不需要 WE）
+```
+
+这是**手动步骤，不是构建钩子**：编辑器会整份重写这份文件，构建期覆盖会和它打架。合并时 `workshopid` / `version` / `snapshotformat` / `snapshotoverlay` 无条件保留——丢了 `workshopid`，下次发布会变成新建 Workshop 条目。完整规则与属性构造器表见 [project.json 生成工具](./docs/project-tool.md)。
 
 ---
 
@@ -419,6 +447,7 @@ const props = useWallpaperProperties() // project.json 里声明的用户属性�
 | `wallkit/components/spotlight` | 跟随指针的聚光遮罩（亮圈 + 圈外压暗） |
 | `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
+| `wallkit/project` | project.json 生成工具（构建期纯函数，不进运行时） |
 | `wallkit/styles` | 主题变量 |
 
 ---
