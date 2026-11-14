@@ -144,7 +144,7 @@ const RING_SPIN = (Math.PI * 2) / 36
 
 export function drawRing(ctx, levels, width, height, color, options = {}) {
   const stops = resolveStops(color)
-  const { time = 0, baseRatio = 0.46 } = options
+  const { time = 0, baseRatio = 0.46, spin = true } = options
   const cx = width / 2
   const cy = height / 2
   // Leave a little padding so the longest bar does not clip on the bounding box.
@@ -168,11 +168,13 @@ export function drawRing(ctx, levels, width, height, color, options = {}) {
 
   // The whole ring turns; the bars keep their own heights while the pattern
   // drifts around the circle. Drawing in one rotated transform for the entire
-  // ring is cheaper than adding the angle per bar.
-  const spin = time * RING_SPIN
+  // ring is cheaper than adding the angle per bar. `spin: false` pins the
+  // pattern instead — the album's record ring is welded to a disc that already
+  // turns in CSS, and two independent rotations would read as a wobble.
+  const rotation = spin ? time * RING_SPIN : 0
   ctx.save()
   ctx.translate(cx, cy)
-  ctx.rotate(spin)
+  ctx.rotate(rotation)
 
   for (let i = 0; i < count; i += 1) {
     const level = Math.max(0.02, Math.min(1, levels[i]))
@@ -194,19 +196,19 @@ export function drawRing(ctx, levels, width, height, color, options = {}) {
 // smoothed into a closed loop and the area between the base circle and that
 // loop is filled, so the ring looks like a circular waveform rather than bars.
 // ---------------------------------------------------------------------------
-export function drawRingWave(ctx, levels, width, height, color, { time = 0 } = {}) {
+export function drawRingWave(ctx, levels, width, height, color, { time = 0, baseRatio = 0.46, spin = true } = {}) {
   const stops = resolveStops(color)
   const cx = width / 2
   const cy = height / 2
   const outer = Math.min(width, height) / 2 - 1
-  const base = outer * 0.46
+  const base = outer * baseRatio
   const reach = outer - base
   const count = levels.length
   const step = (Math.PI * 2) / count
 
   // The wave turns with the same speed as the bar ring, so the two styles stay
-  // in step when switching between them.
-  const spin = time * RING_SPIN
+  // in step when switching between them. `spin: false` holds it still.
+  const rotation = spin ? time * RING_SPIN : 0
 
   // Sample the band levels onto the circle. Sampling twice as many points as
   // bands gives the curve enough resolution to look smooth.
@@ -216,7 +218,7 @@ export function drawRingWave(ctx, levels, width, height, color, { time = 0 } = {
     // Map the sample back onto the band array (wrapping around the loop).
     const bandLevel = levels[Math.floor(t * count) % count]
     const radius = base + Math.max(0.02, Math.min(1, bandLevel)) * reach
-    const angle = t * Math.PI * 2 - Math.PI / 2 + spin
+    const angle = t * Math.PI * 2 - Math.PI / 2 + rotation
     return { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius }
   }
 

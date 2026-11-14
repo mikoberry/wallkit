@@ -29,6 +29,14 @@ export const MINI_SPECTRUM_BARS = 32
  *   Pass `bars.length` to draw one column per incoming bar.
  * @param {number} [props.intensity=100]        Response strength, percent (0..1000).
  * @param {number} [props.curve=1]              Response curve exponent (0.2..2).
+ * @param {number} [props.ringBase]             `ring` / `ringwave` only: how much
+ *   of the radius the empty centre takes (0.05..0.98). Omit for the renderer
+ *   default (`0.46`). The album card raises it so the ring starts exactly on the
+ *   record's rim — it makes the ring *bigger within its box*, it does not move
+ *   the box; to paint outside the parent, size the parent larger.
+ * @param {boolean} [props.ringSpin=true]       `ring` / `ringwave` only: let the
+ *   pattern drift around the circle. Set `false` when the parent already spins,
+ *   otherwise the two rotations fight.
  * @param {boolean} [props.paused=false]        Freeze the draw loop while true.
  */
 export default function MiniSpectrum({
@@ -39,6 +47,8 @@ export default function MiniSpectrum({
   barCount = MINI_SPECTRUM_BARS,
   intensity = SPECTRUM_INTENSITY_DEFAULT,
   curve = SPECTRUM_CURVE_DEFAULT,
+  ringBase,
+  ringSpin = true,
   paused = false,
 }) {
   const hasBars = bars != null && bars.length > 0
@@ -62,6 +72,8 @@ export default function MiniSpectrum({
         intensity={intensity}
         curve={curve}
         barCount={columns}
+        ringBaseRatio={ringBase}
+        ringSpin={ringSpin}
         paused={paused}
       />
     </div>

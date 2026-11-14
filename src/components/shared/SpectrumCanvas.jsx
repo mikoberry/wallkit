@@ -83,6 +83,10 @@ export function resolveShape(intensity, curve) {
  * @param {number} [props.curve=1]
  * @param {number} [props.barCount]  Fold the incoming bars to this many columns
  *   before drawing. Omit to draw one column per incoming bar.
+ * @param {number} [props.ringBaseRatio]  Ring styles only: how much of the radius
+ *   the empty centre takes (0.05..0.98). Omit for the renderer default.
+ * @param {boolean} [props.ringSpin=true] Ring styles only: let the pattern drift
+ *   around the circle. `false` pins it, for a ring welded to a spinning parent.
  * @param {boolean} [props.paused=false] Cancel the rAF while true.
  * @param {string} [props.className]
  */
@@ -93,6 +97,8 @@ export default function SpectrumCanvas({
   intensity = SPECTRUM_INTENSITY_DEFAULT,
   curve = SPECTRUM_CURVE_DEFAULT,
   barCount,
+  ringBaseRatio,
+  ringSpin = true,
   paused = false,
   className,
 }) {
@@ -105,6 +111,9 @@ export default function SpectrumCanvas({
   const variantRef = useRef('bars')
   const shapeRef = useRef({ intensity: 1, curve: 1 })
   const barCountRef = useRef(0)
+  // Ring geometry is a drawing option, not part of the loop's identity, so it
+  // travels in the same ref bag as the response settings.
+  const ringRef = useRef({ baseRatio: undefined, spin: true })
   // Phase and per-style state outlive the loop, so pausing (which cancels the
   // rAF) or switching style resumes instead of snapping back to zero.
   const elapsedRef = useRef(0)
@@ -130,6 +139,16 @@ export default function SpectrumCanvas({
     const next = Number.isFinite(barCount) ? Math.floor(barCount) : 0
     barCountRef.current = next > 0 ? next : 0
   }, [barCount])
+
+  useEffect(() => {
+    // An out-of-range ratio would fold the ring inside out (base past the rim,
+    // negative reach), so it is clamped rather than trusted.
+    const ratio = Number(ringBaseRatio)
+    ringRef.current = {
+      baseRatio: Number.isFinite(ratio) ? clamp(ratio, 0.05, 0.98) : undefined,
+      spin: ringSpin !== false,
+    }
+  }, [ringBaseRatio, ringSpin])
 
   // Colour is read from the DOM, so it has to wait for the element to exist.
   // Re-running on `resolvedVariant` covers a theme-class change on the parent.
@@ -226,9 +245,13 @@ export default function SpectrumCanvas({
 
       context.clearRect(0, 0, canvas.width, canvas.height)
       const render = SPECTRUM_RENDERERS[activeVariant] ?? SPECTRUM_RENDERERS.bars
+      // The ring options are passed even to the flat styles; they ignore them.
+      const ringOptions = ringRef.current
       render(context, levels, canvas.width, canvas.height, colorRef.current, stateRef.current, {
         time: elapsed,
         bass: bassLevel(levels),
+        baseRatio: ringOptions.baseRatio,
+        spin: ringOptions.spin,
       })
 
       frameId = window.requestAnimationFrame(tick)

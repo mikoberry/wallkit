@@ -140,7 +140,7 @@ function normalizeTilt(tilt) {
  *   `--wallkit-clock-stamp-accent`, `--wallkit-clock-cyber-accent`), which
  *   inherit into the component.
  * @param {boolean} [props.use24Hour=true]      24-hour or 12-hour clock.
- * @param {number} [props.size=100]             Size percentage.
+ * @param {number} [props.size=100]             Size percentage (40..400).
  * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
  *   Viewport point the clock pins to. Invalid values fall back to the default.
  * @param {number|string} [props.offsetX=0]     Distance from the anchored side.

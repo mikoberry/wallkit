@@ -57,7 +57,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 - 用户属性**只在应用层映射**：`useWallpaperProperties()` 拿到的是宿主原值（颜色是 0–1 浮点、slider 是 0–1、file 缺 `file:///`），校验/换算/回落全部写在 `wallpaper.jsx`，组件只收干净的 props。判断「没收到」用 `undefined` 而不是 falsy；没有对应 prop 的属性宁可先不接，也不要把原值硬塞给组件（`showSeconds`、`captionText` 属于这一类）。
 - 数据层已收进 `wallkit/we`：`useWallpaperAudio()` 返回长期复用、原地改写的 `Float32Array`（无数据时全零，**不是 `null`**，否则频谱组件连 DOM 都不画），控件在自己的绘制循环里读它，60Hz 音频零 React 重渲染；`useWallpaperBeat()` 单独拆出，不需要时钟的项目不付重渲染成本。`playground/wallpaper-data.js` 退役为应用层残留，只保留 `useNow()` 与 HUD 诊断采集。
 
-`playground/layout.html` 是**几何验证页**，与测试页分开：一屏同时摆三种定位（贴底满宽频谱、距角 100px 的时钟、同心唱片 + 环形频谱），带参考线（`G` 显隐）。数据是合成的，所以不依赖 WE 回调、浏览器里就能看。`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`；要在 WE 里看它，把 `project.json` 的 `"file"` 改成 `layout.html`。
+`playground/layout.html` 是**几何验证页**，与测试页分开：一屏同时摆三种定位（贴底满宽频谱、距角 100px 的时钟、带外圈频谱的唱片），带参考线（`G` 显隐）。数据是合成的，所以不依赖 WE 回调、浏览器里就能看。`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`；要在 WE 里看它，把 `project.json` 的 `"file"` 改成 `layout.html`。
 
 ## Architecture
 
@@ -252,8 +252,10 @@ src/
 ```
 
 - **两种不渲染**：`track == null`；`track.playback === 'stopped'`。`playback === null`（未知）**必须渲染**，见下方数据约定。
-- `bars` 可选：没有时卡片照常显示，只是少了频谱（`vinyl` 布局永远没有图）。预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）**没有 bars 时必须不渲染那个槽位**，否则空出一截；`poster` 的均衡器区同理。
-- 十一种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars、vinyl 无图。绑定表在 `AlbumArt.jsx` 的 `SPECTRUM_VARIANT_BY_CARD`，不要在 CSS 里做这种判断。
+- `bars` 可选：没有时卡片照常显示，只是少了频谱（`vinyl` 的碟缘环也一起消失）。预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）**没有 bars 时必须不渲染那个槽位**，否则空出一截；`poster` 的均衡器区同理。
+- `spectrum` 是**三态**：`undefined` = 跟随布局（`vinyl` 关、其余开），显式布尔值优先。判断统一走 `showSpectrum = spectrum ?? resolvedVariant !== 'vinyl'`，再由它和 `bars` 合成 `hasSpectrum`；所有布局的频谱渲染条件都必须是 `hasSpectrum`，不要退回只看 `bars`——否则 `spectrum={false}` 会在已经布局好的槽位里留一块空画布。
+- 十一种布局各自绑定频谱样式：classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars。绑定表在 `AlbumArt.jsx` 的 `SPECTRUM_VARIANT_BY_CARD`，不要在 CSS 里做这种判断。
+- `vinyl` 的环是**从碟缘往外长的柱状环（`ring`）**，不是普通插槽，而且**默认不画**（该布局 `spectrum` 默认 `false`，要环必须显式传 `spectrum`）：基准圆正好落在唱片边缘，柱子在唱片**外面**伸缩。柱数是独立的 `VINYL_RING_BARS = 128`（满频段），不是卡片默认的 32——同样的根数摊到整个圆周会变成稀疏栅栏，而这张画布还是唱片的 1.44 倍（出血 0.22）；调密就改这一个数，`barCount` 的折叠不会上采样。为此 `__vinyl-ring` 四周各向外出血 `VINYL_RING_BLEED = 0.22 ×` 直径（内联 `inset`，因为渲染器的 `ringBase` 由同一个数推导，`VINYL_RING_BASE = 0.5 / (0.5 + bleed)`，不要手写第二份），于是这个布局的视觉范围比 `size` 大一圈——唱片与锚点不变，出血是对称的。贴边锚点会被视口裁掉柱尖，这是「环在外面」的必然代价，不要靠缩小唱片去补偿（那会破坏 `size` = 唱片直径的语义）。环是唱片元素的子节点，跟着 24s 一起转、一起暂停，因此**必须** `ringSpin={false}`——渲染器默认自己也转，两个转速会互相追成抖动。
 - `type` 是唯一**完全不渲染封面**的布局：竖排排版（衬线大字曲名 / 字距拉开的 artist / 斜体专辑行），唯一图形是 `track.primaryColor` 染色的左边框竖线和底部淡 dots 频谱。高度 `auto` 随内容走，且**不进 Meta 的 compact 列表**——三行文字是它的构图本体。文字走主题 ink，没有表面要翻转。
 - 封面 24s 转一圈；`paused` 或 `playback === 'paused'` 停转；`prefers-reduced-motion` 下不转。卡片里的频谱用绝对定位铺满 body，文字浮在其上——这个覆盖写在 `AlbumArt.css`，`MiniSpectrum` 自己只管 100% 填充。
 - `theme` 与 `Clock` 同一套约定（类名指**文字色**）：`--theme-dark` 只换 `--wallkit-album-art-fg*` 等变量，**外加**把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把 `--wallkit-accent` 压暗让频谱在浅底上可见。唱片、CD 与磁带壳刻意保持深色——它们是物件，不是文字底板。**纸面样式例外**：磁带标签、拍立得、票根用固定深色墨（印在纸上），海报用固定浅色墨（背景永远压暗），都不随主题翻转。

@@ -440,7 +440,7 @@ function ClockDemo() {
             label="尺寸 size"
             value={size}
             min={40}
-            max={200}
+            max={400}
             step={5}
             suffix="%"
             onChange={setSize}
@@ -981,6 +981,9 @@ function AlbumArtDemo() {
   const [trackIndex, setTrackIndex] = useState(0)
   const [playback, setPlayback] = useState('playing')
   const [withBars, setWithBars] = useState(true)
+  // Tri-state: `auto` omits the prop so each layout uses its own default
+  // (`vinyl` off, everything else on); the other two force it either way.
+  const [spectrum, setSpectrum] = useState('auto')
   const [paused, setPaused] = useState(false)
   const [size, setSize] = useState(70)
   const [anchor, setAnchor] = useState('bottom-left')
@@ -1011,6 +1014,8 @@ function AlbumArtDemo() {
           <code>playback === null</code> 表示未知，**按正在播放处理**——引擎只在切歌时推送，
           把未知当成停止会让封面永久消失。<code>bars</code> 可选，没有它卡片仍然显示，只是少了频谱
           （<code>bar</code> 布局会把那条 38% 的频谱槽位一起收掉，不留空洞）。
+          <code>spectrum</code> 是另一个开关，可选三态：省略时跟随布局——<code>vinyl</code> 默认关
+          （干净碟面）、其余默认开；传 <code>true</code> / <code>false</code> 则强制显示或隐藏。
         </p>
       </header>
 
@@ -1110,6 +1115,16 @@ function AlbumArtDemo() {
           <Toggle label="显示 visible" on={visible} onChange={setVisible} />
           <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
           <Toggle label="频谱 bars" on={withBars} onChange={setWithBars} />
+          <label className="ctl">
+            <span className="ctl__label">
+              频谱 spectrum <b>{spectrum}</b>
+            </span>
+            <select value={spectrum} onChange={(e) => setSpectrum(e.target.value)}>
+              <option value="auto">默认（vinyl 关，其余开）</option>
+              <option value="on">true（强制显示）</option>
+              <option value="off">false（强制隐藏）</option>
+            </select>
+          </label>
         </Row>
       </section>
 
@@ -1124,6 +1139,7 @@ function AlbumArtDemo() {
               <AlbumArt
                 track={track}
                 bars={withBars ? pausedBars : null}
+                spectrum={spectrum === 'auto' ? undefined : spectrum === 'on'}
                 variant={v.id}
                 theme={theme}
                 color={colorOn ? color : undefined}
@@ -1144,15 +1160,19 @@ function AlbumArtDemo() {
 
       <footer className="foot">
         库的默认值：<code>variant="classic"</code>、<code>theme="light"</code>、<code>size=100</code>、
-        <code>offsetX=0, offsetY=0</code>、<code>paused=false</code>、<code>bars</code> 可省略。
+        <code>offsetX=0, offsetY=0</code>、<code>paused=false</code>、<code>bars</code> 可省略、
+        <code>spectrum</code> 省略时跟随布局（<code>vinyl</code> 关、其余开）。
         <code>color</code> 覆盖文字色，<code>colorHex</code> 只覆盖内嵌频谱（省略时取
         <code>--wallkit-accent</code>，卡片自身染色仍来自 <code>track.primaryColor</code>）。
         <code>theme="dark"</code> 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）一并翻成浅色，
         并把默认 accent 压暗，否则浅底上的频谱看不见；纸面样式（磁带标签、拍立得、票根）用固定深色墨、
         海报用固定浅色墨，不随主题翻转。`type` 纯排版不渲染封面，唯一图形是封面主色的竖线与频谱点。
         十一种布局各自绑定频谱样式：
-        classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、
-        cd→curve、poster→bars、ticket→bars、vinyl 无频谱。
+        classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、
+        polaroid→dots、cd→curve、poster→bars、ticket→bars。
+        vinyl 的环形柱状图从碟缘往外长（基准圆落在唱片边缘，柱数 128），随唱片一起转、一起暂停；
+        它默认不画（传 <code>spectrum</code> 才出现），
+        覆盖层四周出血 22%，所以它的视觉范围比 size 大一圈，贴边锚点会裁掉柱尖。
         封面每 24s 转一圈，<code>paused</code> 或 <code>playback="paused"</code> 时停转；
         <code>prefers-reduced-motion</code> 下不转。
       </footer>

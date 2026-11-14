@@ -5,7 +5,7 @@
 //
 //   1. a spectrum spanning the bottom edge at a fixed thickness,
 //   2. a clock at the top-left with a fixed 100px gutter,
-//   3. a vinyl record and a ring spectrum sharing one exact centre.
+//   3. a vinyl record whose own spectrum ring bleeds outside the disc.
 //
 // Data is synthetic on purpose (this is the playground): the page is about
 // placement, and it has to render identically in a browser and in Wallpaper
@@ -104,25 +104,22 @@ function LayoutProof() {
         labels={{ locale: 'zh-CN', aria: '当前时间' }}
       />
 
-      {/* 3 · one shared centre: record 34vh across, ring 46vh, so the bars
-          radiate out past the record's rim instead of hiding behind it. */}
+      {/* 3 · record with its own outer ring: 34vh across, and the ring bleeds
+          ~22% of the diameter past the rim on every side. There used to be a
+          separate 46vh Spectrum pinned to the same centre, but that ring now
+          lands in the same band as the record's own bleed — one of them has to
+          go, and the built-in one is what real wallpapers ship. `spectrum` is
+          explicit because `vinyl` defaults to a bare disc. */}
       <AlbumArt
         track={TRACK}
+        bars={BARS}
+        spectrum
         variant="vinyl"
         theme="light"
         anchor="center"
         offsetX={CENTRE_OFFSET_X}
         size="34vh"
         labels={{ aria: '正在播放' }}
-      />
-      <Spectrum
-        bars={BARS}
-        variant="ring"
-        anchor="center"
-        offsetX={CENTRE_OFFSET_X}
-        width="46vh"
-        height="46vh"
-        colorHex="#8fb4ff"
       />
 
       <div className="lp-caption lp-caption--bottom">
@@ -132,7 +129,7 @@ function LayoutProof() {
         2 · anchor="top-left" offsetX/Y="100px"
       </div>
       <div className="lp-caption lp-caption--centre">
-        3 · anchor="center" offsetX={-30} size="34vh" / "46vh"
+        3 · anchor="center" offsetX={-30} size="34vh"（自带外圈频谱，出血 ~41.5vh）
       </div>
       <div className="lp-hint">G 显隐参考线 · R 重载</div>
     </div>

@@ -164,6 +164,8 @@ Canvas 2D，单次 paint，不用 128 个 DOM 节点。
 - **绘制循环归属**：同样在 P3 提到 **`src/components/shared/SpectrumCanvas.jsx`**。两个控件的像素完全一致，差别只在盒子怎么来的（视口 vs 父容器），所以循环、平滑、`ResizeObserver`、reduced-motion 处理都只有一份，避免两边行为漂移。
 - **state bag**：`ripples` 需要跨帧保留涟漪数组与瞬态检测状态（`prevBass` / `lastBeatAt` / `seq`），由 `SpectrumCanvas` 持有并在 `variant` 变化时重建（`createRendererState(variant)`）。
 - **自转速度**：`ring` / `ringwave` 共用 `RING_SPIN`。`variant` 不再进入绘制循环的依赖，切换时在循环内换 renderer 与 state，`elapsed` 保留，因此相位**确实**连续。
+- **环的两个绘制选项**（2026-11 补）：`baseRatio` 决定中心空白占半径多少，`spin` 决定环是否自转。两者都走绘制入口的 `meta`，不是 renderer 的私有常量——专辑卡的唱片环需要「基准圆落在碟缘 + 不自转」（`MiniSpectrum` 的 `ringBase` / `ringSpin` 就是它们的对外开关）：唱片元素本身用 CSS 24s 在转，渲染器再自转一次，两个转速会互相追成抖动。`Spectrum` 不暴露这两个 prop，浮动环保持默认。
+- **`baseRatio` 的边界**：外传会被夹在 0.05–0.98。超过 1 会让基准圆跑到外半径之外（负柱长），小于 0 会让环向内翻。它同时也决定了环占用画布的哪一段半径——把环画到「盒子外面」不是靠它，而是靠更大的画布（专辑卡的唱片环就是让覆盖层四周出血）。
 - **渐变**：柱子用 `createLinearGradient`，环用 `createRadialGradient`；每帧每柱单独建渐变是浪费，按原实现复用（`pill` 例外，实色填充，见 §12）。
 - **响应整形**：绘制前对每根柱调用 `shapeSpectrumLevel(level, shape)`（`shape` = `intensity` 百分比换算出的倍数 + `curve`），再由 `smoothAudioLevel` 平滑。
 - **柱数折叠**：`SpectrumCanvas` 有一个可选的 `barCount`，在循环内用 `resampleBars(bars, count, out)` 逐帧折叠。`Spectrum` 不传（保持"柱数由调用方决定"），`MiniSpectrum` 传 32 —— 小尺寸下 128 根柱子会变成一条条线，折叠是这个控件存在的前提。折叠放在循环内而不是 render，是因为调用方通常原地复用同一个 `Float32Array`，render 期的 memo 会永远画第一帧。

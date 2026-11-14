@@ -109,7 +109,7 @@ function Controls() {
 | `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
 | `color` | — | `#rrggbb`，覆盖主文字色（优先于 `theme`），暗 / 淡两级文字从同一色派生。**布局强调色不受它影响**（`ring` / `segments` 的进度填充、`stamp` 刻线、`cyberpunk` 霓虹标题是刻意独立的另一色相）——要用文字同色或换强调色，在包裹层写 CSS 变量（`--wallkit-clock-seg-accent` / `--wallkit-clock-ring-accent` / `--wallkit-clock-stamp-accent` / `--wallkit-clock-cyber-accent`），变量继承进组件即生效 |
 | `use24Hour` | `true` | 12 / 24 小时制 |
-| `size` | `100` | 尺寸百分比，40–200 |
+| `size` | `100` | 尺寸百分比，40–400 |
 | `anchor` | `'bottom-left'` | 贴哪个锚点：四角 + 四边中点 + 居中，共 9 个，见下方「锚点与偏移」 |
 | `offsetX` / `offsetY` | `0` | 从锚点**向内**的偏移。数字 = 视口百分比，字符串 = 任意 CSS 长度（`'100px'`）。0 完全贴边 |
 | `beat` | `0` | 音频节拍 0..1，由使用方算好传入。组件按帧缓动它，直接把原始值喂进来即可 |
@@ -139,7 +139,8 @@ bottom-left bottom-center bottom-right
 <Clock now={now} anchor="top-left" offsetX="100px" offsetY="100px" />
 
 // 同心：两个控件钉在同一个点，尺寸各写各的绝对长度
-<AlbumArt track={track} variant="vinyl" anchor="center" offsetX={-30} size="34vh" />
+// （vinyl 自带外圈频谱，不需要再叠；这里用 classic 圆盘 + 外部悬浮环）
+<AlbumArt track={track} anchor="center" offsetX={-30} size="34vh" />
 <Spectrum bars={bars} variant="ring" anchor="center" offsetX={-30} width="46vh" height="46vh" />
 ```
 
@@ -194,6 +195,8 @@ import { MiniSpectrum } from 'wallkit/components/mini-spectrum'
 | `colorHex` | — | 同 `Spectrum` |
 | `barCount` | `32` | 折叠到几根柱子。小尺寸下 128 根会变成一条条线；传 `bars.length` 可关闭折叠 |
 | `intensity` / `curve` | `100` / `1` | 同 `Spectrum` |
+| `ringBase` | — | 仅 `ring` / `ringwave`：中心空白占半径的比例（0.05–0.98）。调大把柱子推到边缘——专辑卡的唱片环就是这么贴到碟缘的。省略用渲染器默认 `0.46` |
+| `ringSpin` | `true` | 仅 `ring` / `ringwave`：环是否自转。父容器自己已经在转时传 `false`，否则两个转速会互相打架 |
 | `visible` / `paused` | `true` / `false` | 同 `Spectrum` |
 
 > 父容器必须有确定高度，否则 `height: 100%` 会塌成 0。
@@ -216,7 +219,8 @@ import { AlbumArt } from 'wallkit/components/album-art'
 |---|---|---|
 | `track` | — | **必选**。`null` 时不渲染 |
 | `bars` | — | 可选。没有时卡片照常显示，只是少了频谱；预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）会连槽位一起收掉，`poster` 的均衡器区消失 |
-| `variant` | `'classic'` | 11 种布局；`vinyl` 无频谱，`type` 不渲染封面。列表见 `ALBUM_ART_VARIANTS` |
+| `spectrum` | 按布局 | 是否画内嵌频谱。省略即跟随布局：`vinyl` 默认 `false`（干净碟面），其余默认 `true`。传 `true` 可把唱片的环形柱状频谱放回来，传 `false` 可让任何布局保持安静 |
+| `variant` | `'classic'` | 11 种布局；`type` 不渲染封面，`vinyl` 开了频谱后环形柱状图会画到 `size` 之外。列表见 `ALBUM_ART_VARIANTS` |
 | `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把默认 accent 压暗。纸面样式（磁带标签 / 拍立得 / 票根）用固定深色墨、海报用固定浅色墨，不随主题翻转 |
 | `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
 | `size` | `100` | 数字：20–300（`ALBUM_ART_SIZE_MIN/MAX`），100 = 正常大小（封面直径基准 `18vh`）。字符串：封面直径的绝对长度（`'34vh'`），整张卡片都由它派生 |
@@ -229,7 +233,7 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 **两种"不渲染"**：`track == null` 不渲染；`track.playback === 'stopped'` 也不渲染。`playback === null` 表示**未知**，按正在播放处理——引擎只在切歌时推送，把未知当成停止会让封面永久消失。
 
-十一种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars、vinyl 无图。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
+十一种布局各自绑定频谱样式：classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars。**`vinyl` 是唯一默认不画频谱的布局**（省略 `spectrum` 就是一张干净唱片），要那条环就显式传 `spectrum`；反过来对所有布局传 `spectrum={false}` 也能一键静音。`vinyl` 的 `ring` 是一圈**贴着碟缘向外长的柱子**：基准圆落在唱片边缘上，柱子从碟缘往外伸缩，安静时几乎贴着碟缘、最大探出 `0.22 ×` 直径；柱数固定 128（`VINYL_RING_BARS`）——取满整个频段，同样 32 根在直条上是正常密度、摊到整个圆周就成了稀疏栅栏（画布还是唱片的 1.44 倍），128 根在这条半径上刚好是几像素一根的连续电平表。为此覆盖层四周各向外出血 22%，所以开了频谱时这个布局的**视觉范围比 `size` 大一圈**——唱片本身和锚点都没变，只是光画到了盒子外面；贴边锚点（`offsetX/Y = 0`）会被视口裁掉柱尖。环是唱片元素的子节点，跟着 24s 一起转、一起暂停，因此对渲染器关了自转（`ringSpin={false}`），两者不会互相追。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
 
 ### PointerFx
 

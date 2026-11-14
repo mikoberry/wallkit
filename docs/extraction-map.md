@@ -228,7 +228,8 @@ P2 已迁移以下文件：
 | 定位设计 | 无 `Placement` 对象：`anchor` + `offsetX` / `offsetY` / `size` 四个平铺 prop。`anchor` 四角可选，默认 `bottom-left`；偏移永远从锚点向内，0 = 贴角 | `src/core/anchor.js`、[architecture.md](./architecture.md) §5.2 |
 | `Clock` 是否需要 `paused` | 不需要。暂停由使用方停止更新 `now` 处理，组件不感知 | [architecture.md](./architecture.md) §5.4 |
 | `MiniSpectrum` 与 `AlbumArt` 是否共享内部柱状渲染 | **是**：`renderers.js` 与绘制循环提到 `components/shared/`（`SpectrumCanvas.jsx`） | `src/components/shared/` |
-| `AlbumArt` 的 `bars` 必传还是可选 | **可选**：没有 `bars` 时卡片照常显示，`vinyl` 布局本就无频谱 | `src/components/album-art/AlbumArt.jsx` |
+| `AlbumArt` 的 `bars` 必传还是可选 | **可选**：没有 `bars` 时卡片照常显示，`vinyl` 的碟缘环也不画 | `src/components/album-art/AlbumArt.jsx` |
+| `AlbumArt` 默认画不画频谱 | **按布局**：`spectrum` 省略时 `vinyl` 关、其余开；显式 `true` / `false` 覆盖 | `src/components/album-art/AlbumArt.jsx` |
 
 ### 仍待定
 

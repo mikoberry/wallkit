@@ -25,7 +25,7 @@ function cachedFormatter(key, locale, options) {
 /** Minimum clock size percentage. */
 export const CLOCK_SIZE_MIN = 40
 /** Maximum clock size percentage. */
-export const CLOCK_SIZE_MAX = 200
+export const CLOCK_SIZE_MAX = 400
 /** Minimum beat-response intensity percentage. */
 export const CLOCK_BEAT_INTENSITY_MIN = 0
 /** Maximum beat-response intensity percentage. */

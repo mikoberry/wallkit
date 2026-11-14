@@ -34,6 +34,8 @@ export const ALBUM_ART_SIZE_MAX = 300
 //
 //   classic   tall column behind the text       bars
 //   glass     same tall column, softer panel    curve
+//   vinyl     bars bent into a ring outside      ring      (opt-in, see
+//             the rim                                     `spectrum`)
 //   minimal   tall column under the type        bars
 //   type      small LED dot grid under notes    dots
 //   bar       wide, short strip                 curve
@@ -42,11 +44,10 @@ export const ALBUM_ART_SIZE_MAX = 300
 //   cd        same tall column as classic       curve
 //   poster    low equalizer over the backdrop   bars
 //   ticket    barcode-like block on the stub    bars
-//
-// `vinyl` is deliberately absent: that layout is a clean record with no graph.
 const SPECTRUM_VARIANT_BY_CARD = {
   classic: 'bars',
   glass: 'curve',
+  vinyl: 'ring',
   minimal: 'bars',
   type: 'dots',
   bar: 'curve',
@@ -66,6 +67,29 @@ const SPECTRUM_VARIANT_BY_CARD = {
 // `MiniSpectrum` directly when you want to tune the response.
 const CARD_SPECTRUM_INTENSITY = 130
 const CARD_SPECTRUM_CURVE = 0.7
+
+// The record's spectrum ring sits *outside* the disc, so its canvas has to
+// bleed past the record's box by this fraction of the diameter on every side —
+// that band is where the bars travel. The bleed is symmetric, so the record
+// still lands exactly on the anchor point; what grows is the painted extent,
+// not the layout box. 0.22 lets a full-level bar reach a fifth of the diameter
+// past the rim, which at a 300px record is ~66px of headroom.
+const VINYL_RING_BLEED = 0.22
+
+// The renderer measures the empty centre as a fraction of the *canvas* radius,
+// so the base that lands exactly on the rim is discRadius / canvasRadius —
+// derived rather than hand-tuned, or the two numbers would drift apart.
+const VINYL_RING_BASE = 0.5 / (0.5 + VINYL_RING_BLEED)
+
+// Column count for the record's ring. The card default (32, `MINI_SPECTRUM_BARS`)
+// is tuned for a straight strip, where every column owns a slice of a short
+// edge; on a circle the same 32 columns are spread over the whole circumference
+// and read as a sparse fence, all the more so here because the canvas is 1.44×
+// the record. 128 is the full band count: at this radius the bars come out a few
+// pixels wide with a hairline seam, so the ring reads as a continuous level
+// meter that still resolves individual beats. The fold never upsamples, so a
+// narrower input still draws one bar per source band.
+const VINYL_RING_BARS = 128
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
@@ -147,11 +171,20 @@ function Meta({ track, compact = false }) {
  * @param {Object|null} props.track   `TrackInfo` (see types.js). `null` renders nothing.
  * @param {Float32Array|number[]|null} [props.bars]  Optional bar magnitudes for
  *   the inline spectrum. Without them the card still renders, minus the graph
- *   (and the `bar` layout drops the strip instead of leaving it blank).
+ *   (and the `bar` layout drops the strip instead of leaving it blank,
+ *   `vinyl` drops its rim ring).
+ * @param {boolean} [props.spectrum]  Whether the card draws its inline graph at
+ *   all, regardless of `bars`. Omit to follow the layout: `vinyl` defaults to
+ *   `false` (a clean disc), every other layout to `true`. Pass `true` to bring
+ *   the record's rim ring back, `false` to keep any layout quiet.
  * @param {boolean} [props.visible=true]
  * @param {'classic'|'glass'|'vinyl'|'minimal'|'type'|'bar'|'cassette'|'polaroid'|'cd'|'poster'|'ticket'} [props.variant='classic']
  *   Invalid values fall back to `classic`. `ALBUM_ART_VARIANTS` has the list.
  *   `type` renders no cover at all — pure typography with a tinted rule.
+ *   `vinyl` is a bare record; with `spectrum` on it also draws a ring of bars
+ *   that grows outward from the rim, so it then paints past `size` by ~22%
+ *   of the diameter on each side (the record and the anchor point are
+ *   unchanged; only the painted extent grows).
  *   The paper layouts (`cassette` label, `polaroid` note, `ticket` stub) print
  *   their text in fixed dark ink regardless of `theme` / `color` — it is ink on
  *   paper, not text on a wallpaper. `poster` is the mirror case: its backdrop
@@ -187,6 +220,7 @@ function Meta({ track, compact = false }) {
 export default function AlbumArt({
   track,
   bars,
+  spectrum,
   visible = true,
   variant = 'classic',
   theme = 'light',
@@ -211,7 +245,13 @@ export default function AlbumArt({
 
   // The spectrum is optional, so the layouts that reserve a slot for it must
   // check first — a fixed-width empty box would read as a broken card.
-  const hasBars = bars != null && bars.length > 0
+  //
+  // `spectrum` is a tri-state on purpose: `undefined` means "the layout
+  // decides", and only `vinyl` opts out (a record with a graph on it is no
+  // longer a record). Anything explicit wins, so a caller can switch the ring
+  // back on, or silence every other layout the same way.
+  const showSpectrum = spectrum ?? resolvedVariant !== 'vinyl'
+  const hasSpectrum = showSpectrum && bars != null && bars.length > 0
 
   const rootClass = [
     'wallkit-album-art',
@@ -262,7 +302,7 @@ export default function AlbumArt({
       }
     />
   )
-  const spectrum = (
+  const spectrumNode = (
     <MiniSpectrum
       bars={bars}
       variant={SPECTRUM_VARIANT_BY_CARD[resolvedVariant]}
@@ -275,9 +315,17 @@ export default function AlbumArt({
 
   let body
   switch (resolvedVariant) {
-    case 'vinyl':
-      // One big record. The sleeve notes sit on the centre label and the whole
-      // widget turns as a single piece; no spectrum, so it stays a clean disc.
+    case 'vinyl': {
+      // One big record. The sleeve notes sit on the centre label, the whole
+      // widget turns as a single piece, and — only when `spectrum` is on (off
+      // by default here) — a ring of bars rises out past the rim. The ring is a
+      // child of the disc so it inherits that rotation (and its pause) — hence
+      // `ringSpin={false}`: the renderer must not drift on its own, or the two
+      // rotations would fight and the bars would read as wobbling. Its wrapper
+      // bleeds outward by `VINYL_RING_BLEED` on every side, which is what puts
+      // the bars outside the record instead of on it; the inset stays inline so
+      // that number exists in exactly one place.
+      const ringInset = `calc(var(--wallkit-album-art-unit) * -${VINYL_RING_BLEED})`
       body = (
         <div className="wallkit-album-art__vinyl">
           <div className="wallkit-album-art__vinyl-cover">
@@ -286,9 +334,25 @@ export default function AlbumArt({
           <div className="wallkit-album-art__vinyl-label">
             <div className="wallkit-album-art__meta">{meta}</div>
           </div>
+          {hasSpectrum && (
+            <div className="wallkit-album-art__vinyl-ring" style={{ inset: ringInset }}>
+              <MiniSpectrum
+                bars={bars}
+                variant={SPECTRUM_VARIANT_BY_CARD.vinyl}
+                colorHex={colorHex}
+                barCount={VINYL_RING_BARS}
+                intensity={CARD_SPECTRUM_INTENSITY}
+                curve={CARD_SPECTRUM_CURVE}
+                ringBase={VINYL_RING_BASE}
+                ringSpin={false}
+                paused={isPaused}
+              />
+            </div>
+          )}
         </div>
       )
       break
+    }
 
     case 'minimal':
       // Text-first: a small square thumbnail above oversized type.
@@ -296,7 +360,7 @@ export default function AlbumArt({
         <div className="wallkit-album-art__body wallkit-album-art__body--minimal">
           <div className="wallkit-album-art__thumb">{cover}</div>
           <div className="wallkit-album-art__meta">{meta}</div>
-          {spectrum}
+          {hasSpectrum && spectrumNode}
         </div>
       )
       break
@@ -309,7 +373,7 @@ export default function AlbumArt({
       body = (
         <div className="wallkit-album-art__body wallkit-album-art__body--type">
           <div className="wallkit-album-art__meta">{meta}</div>
-          {hasBars && <div className="wallkit-album-art__type-spectrum">{spectrum}</div>}
+          {hasSpectrum && <div className="wallkit-album-art__type-spectrum">{spectrumNode}</div>}
         </div>
       )
       break
@@ -322,7 +386,7 @@ export default function AlbumArt({
         <div className="wallkit-album-art__body wallkit-album-art__body--bar">
           <div className="wallkit-album-art__thumb">{cover}</div>
           <div className="wallkit-album-art__meta">{meta}</div>
-          {hasBars && <div className="wallkit-album-art__bar-spectrum">{spectrum}</div>}
+          {hasSpectrum && <div className="wallkit-album-art__bar-spectrum">{spectrumNode}</div>}
         </div>
       )
       break
@@ -342,7 +406,7 @@ export default function AlbumArt({
               <div className="wallkit-album-art__meta">{meta}</div>
             </div>
             <div className="wallkit-album-art__cassette-window">
-              {hasBars && spectrum}
+              {hasSpectrum && spectrumNode}
               <span className="wallkit-album-art__reel wallkit-album-art__reel--left" />
               <span className="wallkit-album-art__reel wallkit-album-art__reel--right" />
             </div>
@@ -359,7 +423,7 @@ export default function AlbumArt({
           <div className="wallkit-album-art__polaroid-frame">
             <div className="wallkit-album-art__polaroid-photo">{cover}</div>
             <div className="wallkit-album-art__polaroid-note">{meta}</div>
-            {hasBars && <div className="wallkit-album-art__polaroid-strip">{spectrum}</div>}
+            {hasSpectrum && <div className="wallkit-album-art__polaroid-strip">{spectrumNode}</div>}
           </div>
         </div>
       )
@@ -373,7 +437,7 @@ export default function AlbumArt({
           <div className="wallkit-album-art__poster-bg">{cover}</div>
           <div className="wallkit-album-art__poster-body">
             <div className="wallkit-album-art__meta">{meta}</div>
-            {spectrum}
+            {hasSpectrum && spectrumNode}
           </div>
         </div>
       )
@@ -387,7 +451,7 @@ export default function AlbumArt({
           <div className="wallkit-album-art__thumb">{cover}</div>
           <div className="wallkit-album-art__ticket-divider" />
           <div className="wallkit-album-art__meta">{meta}</div>
-          {hasBars && <div className="wallkit-album-art__ticket-spectrum">{spectrum}</div>}
+          {hasSpectrum && <div className="wallkit-album-art__ticket-spectrum">{spectrumNode}</div>}
         </div>
       )
       break
@@ -405,7 +469,7 @@ export default function AlbumArt({
           <div className="wallkit-album-art__disc">{cover}</div>
           <div className="wallkit-album-art__body">
             <div className="wallkit-album-art__meta">{meta}</div>
-            {spectrum}
+            {hasSpectrum && spectrumNode}
           </div>
         </>
       )
