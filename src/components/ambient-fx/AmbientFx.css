@@ -1,4 +1,4 @@
-/* Ambient particle layer (snow / cherry petals / bubbles).
+/* Ambient particle layer (snow / cherry petals / bubbles / steam / rain / fog / leaves).
  *
  * Fills its positioning context rather than using the anchor triple: an effect
  * layer has no box of its own to place. The parent must be a positioning context

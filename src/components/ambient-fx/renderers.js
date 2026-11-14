@@ -5,7 +5,12 @@
 // paths, no shadow blur in here — those are all paid once when the sprite is
 // built (see ./sprites.js).
 
-import { AMBIENT_STRIDE, AMBIENT_SIZE, ambientOffset } from '../../core/ambient.js'
+import {
+  AMBIENT_STRIDE,
+  AMBIENT_SIZE,
+  AMBIENT_DRIFT,
+  ambientOffset,
+} from '../../core/ambient.js'
 
 // Rewritten in place by `ambientOffset`, so a 60 fps loop allocates nothing.
 const scratch = [0, 0, 0, 0]
@@ -33,13 +38,13 @@ function drawFlakes(ctx, particles, count, t, unit, width, height, sprite, gain)
   }
 }
 
-function drawPetals(ctx, particles, count, t, unit, width, height, sprite, gain) {
+function drawTumbling(ctx, particles, count, t, unit, width, height, sprite, gain, variant) {
   const pad = Math.max(32, unit * 7)
   const span = height + pad * 2
 
   for (let i = 0; i < count; i += 1) {
     const offset = i * AMBIENT_STRIDE
-    ambientOffset('sakura', particles, offset, t, scratch)
+    ambientOffset(variant, particles, offset, t, scratch)
     const x = scratch[0] * width
     if (x < -pad || x > width + pad) continue
     const y = scratch[1] * span - pad
@@ -72,6 +77,80 @@ function drawBubbles(ctx, particles, count, t, unit, width, height, sprite, gain
   }
 }
 
+function drawSteam(ctx, particles, count, t, unit, width, height, sprite, gain) {
+  // Fog's vertical twin (see `drawFog`): the horizontal axis is the anchor
+  // and gets a pad, while the vertical crossing is faded in and out by the
+  // life ramp inside `ambientOffset` — so banks are meant to be cut by the
+  // frame's top and bottom edges.
+  const pad = Math.max(32, unit * 6)
+  const span = height + pad * 2
+
+  for (let i = 0; i < count; i += 1) {
+    const offset = i * AMBIENT_STRIDE
+    ambientOffset('steam', particles, offset, t, scratch)
+    if (scratch[3] <= 0.004) continue
+    const x = scratch[0] * width
+    if (x < -pad || x > width + pad) continue
+    const y = scratch[1] * span - pad
+    const radius = particles[offset + AMBIENT_SIZE] * unit
+    // Elongation along the axis of travel, like fog: rising banks stretch
+    // vertically.
+    const w = radius
+    const h = radius * 1.7
+    ctx.globalAlpha = clamp01(scratch[3] * gain)
+    ctx.drawImage(sprite, x - w / 2, y - h / 2, w, h)
+  }
+}
+
+function drawRain(ctx, particles, count, t, unit, width, height, sprite, gain) {
+  const pad = Math.max(24, unit * 6)
+  const span = height + pad * 2
+
+  // The shower slants with the wind, so every streak shares one tilt angle:
+  // horizontal speed is `width * drift / travel` px/s against `span / travel`
+  // px/s vertical, and `travel` cancels out of the ratio.
+
+  for (let i = 0; i < count; i += 1) {
+    const offset = i * AMBIENT_STRIDE
+    ambientOffset('rain', particles, offset, t, scratch)
+    const x = scratch[0] * width
+    if (x < -pad || x > width + pad) continue
+    const y = scratch[1] * span - pad
+    const radius = particles[offset + AMBIENT_SIZE] * unit
+    const w = Math.max(1.5, radius * 0.45)
+    const h = radius * 3.4
+    const angle = Math.atan2(particles[offset + AMBIENT_DRIFT] * width, span)
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+
+    ctx.globalAlpha = clamp01(scratch[3] * gain)
+    ctx.setTransform(cos, sin, -sin, cos, x, y)
+    ctx.drawImage(sprite, -w / 2, -h / 2, w, h)
+  }
+}
+
+function drawFog(ctx, particles, count, t, unit, width, height, sprite, gain) {
+  // No pad for the vertical edges: fog banks are meant to be cut by the
+  // frame. Horizontal entry and exit are handled by `bankLife` inside
+  // `ambientOffset`, which fades each bank out before it wraps. `drawSteam`
+  // is this loop's vertical twin.
+  const pad = Math.max(32, unit * 6)
+  const span = height + pad * 2
+
+  for (let i = 0; i < count; i += 1) {
+    const offset = i * AMBIENT_STRIDE
+    ambientOffset('fog', particles, offset, t, scratch)
+    if (scratch[3] <= 0.004) continue
+    const x = scratch[0] * width
+    const y = scratch[1] * span - pad
+    const radius = particles[offset + AMBIENT_SIZE] * unit
+    const w = radius * 1.7
+    const h = radius
+    ctx.globalAlpha = clamp01(scratch[3] * gain)
+    ctx.drawImage(sprite, x - w / 2, y - h / 2, w, h)
+  }
+}
+
 /**
  * Paint one frame.
  *
@@ -100,14 +179,22 @@ export function drawAmbient(
 ) {
   if (!sprite || count <= 0) return
 
-  if (variant === 'sakura') {
-    drawPetals(ctx, particles, count, t, unit, width, height, sprite, gain)
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
+  if (variant === 'sakura' || variant === 'leaves') {
+    drawTumbling(ctx, particles, count, t, unit, width, height, sprite, gain, variant)
   } else if (variant === 'bubble') {
     drawBubbles(ctx, particles, count, t, unit, width, height, sprite, gain)
+  } else if (variant === 'steam') {
+    drawSteam(ctx, particles, count, t, unit, width, height, sprite, gain)
+  } else if (variant === 'rain') {
+    drawRain(ctx, particles, count, t, unit, width, height, sprite, gain)
+  } else if (variant === 'fog') {
+    drawFog(ctx, particles, count, t, unit, width, height, sprite, gain)
   } else {
     drawFlakes(ctx, particles, count, t, unit, width, height, sprite, gain)
   }
 
+  // Rotated loops (petals, leaves, rain streaks) leave a transform behind;
+  // one unconditional reset covers them all.
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.globalAlpha = 1
 }

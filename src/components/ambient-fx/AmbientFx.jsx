@@ -10,6 +10,9 @@ import {
   AMBIENT_SIZE_DEFAULT,
   AMBIENT_SIZE_MAX,
   AMBIENT_SIZE_MIN,
+  AMBIENT_SPEED_DEFAULT,
+  AMBIENT_SPEED_MAX,
+  AMBIENT_SPEED_MIN,
   AMBIENT_STRIDE,
   ambientCount,
   ambientPresetColor,
@@ -50,7 +53,8 @@ function resolveRgb(colorHex, variant, host) {
 }
 
 /**
- * Full-screen ambient particle layer: snow, cherry petals, or rising bubbles.
+ * Full-screen ambient particle layer: snow, cherry petals, rising bubbles,
+ * water vapour, rain, fog, or falling leaves.
  *
  * This layer collects nothing. It has no input from the host, no pointer
  * listeners, no audio — a particle's position is a pure function of its
@@ -68,19 +72,29 @@ function resolveRgb(colorHex, variant, host) {
  * so `visible={false}` renders nothing and leaves no canvas behind.
  *
  * @param {Object} props
- * @param {'snow'|'sakura'|'bubble'} [props.variant='snow']
+ * @param {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'} [props.variant='snow']
  *   `snow` falls slowly with a narrow sway; `sakura` falls with wind drift,
- *   wide swings and per-petal spin; `bubble` rises with a gentle wobble.
+ *   wide swings and per-petal spin; `bubble` rises with a gentle wobble;
+ *   `steam` is fog's vertical twin: huge diffuse banks that rise slowly and
+ *   condense and evaporate at the edges;
+ *   `rain` falls fast as thin wind-slanted streaks; `fog` banks slide
+ *   sideways as huge diffuse masses that condense and evaporate at the
+ *   edges; `leaves` tumble down in wind-driven zigzags, each spinning.
  *   Invalid values fall back to `snow`.
  * @param {boolean} [props.visible=true]     Render nothing when false.
- * @param {string} [props.colorHex]          `#rrggbb`. Snow and petals default
- *   to their preset colour; `bubble` falls back to `--wallkit-accent`.
+ * @param {string} [props.colorHex]          `#rrggbb`. Every variant except
+ *   `bubble` defaults to its own preset colour; `bubble` falls back to
+ *   `--wallkit-accent`.
  * @param {number} [props.density=100]       Percentage of the preset's particle
  *   count (10..300). Particles shrink the count but never the size.
  * @param {number} [props.size=100]          Shared scale percentage (20..300),
  *   relative to the preset's base particle radius.
- * @param {number} [props.intensity=100]     Opacity percentage (0..300).
- * @param {boolean} [props.paused=false]     Freeze the layer and stop the draw
+ * @param {number} [props.intensity=100]    Opacity percentage (0..300).
+ * @param {number} [props.speed=100]        Motion pace percentage (20..300).
+ *   Scales the layer's clock, so falling/rising/drift, sway, twinkle and the
+ *   life ramps all speed up or slow down together — this is what turns rain
+ *   into a drizzle (slower) or a downpour (faster) on top of `density`.
+ * @param {boolean} [props.paused=false]    Freeze the layer and stop the draw
  *   loop; the last frame stays on screen.
  */
 export default function AmbientFx({
@@ -90,6 +104,7 @@ export default function AmbientFx({
   density = AMBIENT_DENSITY_DEFAULT,
   size = AMBIENT_SIZE_DEFAULT,
   intensity = AMBIENT_INTENSITY_DEFAULT,
+  speed = AMBIENT_SPEED_DEFAULT,
   paused = false,
 }) {
   const canvasRef = useRef(null)
@@ -117,6 +132,15 @@ export default function AmbientFx({
       AMBIENT_INTENSITY_MIN,
       AMBIENT_INTENSITY_MAX,
     ) / 100
+  // The pace factor travels through settingsRef rather than the loop effect's
+  // deps: changing speed mid-run must not rebuild the canvas plumbing, the
+  // next tick just picks it up.
+  const pace =
+    clamp(
+      Number.isFinite(Number(speed)) ? Number(speed) : AMBIENT_SPEED_DEFAULT,
+      AMBIENT_SPEED_MIN,
+      AMBIENT_SPEED_MAX,
+    ) / 100
 
   // Parameters depend on the variant and the count only, so they are written
   // once here and never touched by the draw loop.
@@ -135,8 +159,9 @@ export default function AmbientFx({
       baseSize: preset.baseSize,
       scale,
       gain,
+      pace,
     }
-  }, [resolvedVariant, count, preset.baseSize, scale, gain])
+  }, [resolvedVariant, count, preset.baseSize, scale, gain, pace])
 
   // Sprites are bitmaps, so they are rebuilt only when the look changes.
   useEffect(() => {
@@ -205,7 +230,9 @@ export default function AmbientFx({
       // delta and teleport every particle to a new position in one step.
       const delta = Math.min((nowMs - lastMs) / 1000, 0.1)
       lastMs = nowMs
-      elapsedRef.current += delta
+      // `speed` scales the layer's clock, not the parameters: every motion
+      // (translation, sway, life ramps) stays in sync at any pace.
+      elapsedRef.current += delta * (settingsRef.current.pace || 1)
       paint()
       frameId = window.requestAnimationFrame(tick)
     }

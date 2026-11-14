@@ -283,7 +283,7 @@ import { PointerFx } from 'wallkit/components/pointer-fx'
 
 ### AmbientFx
 
-全屏氛围粒子层：飘雪、樱花、上浮气泡。和 `PointerFx` 一样铺满定位容器，也**没有** `anchor` / `offsetX` / `offsetY`。
+全屏氛围粒子层：飘雪、樱花、上浮气泡、水蒸气、雨、雾、落叶。和 `PointerFx` 一样铺满定位容器，也**没有** `anchor` / `offsetX` / `offsetY`。
 
 ```jsx
 import { AmbientFx } from 'wallkit/components/ambient-fx'
@@ -292,19 +292,32 @@ import { AmbientFx } from 'wallkit/components/ambient-fx'
   <AmbientFx variant="snow" />          {/* 飘雪 */}
   <AmbientFx variant="sakura" />        {/* 樱花瓣 */}
   <AmbientFx variant="bubble" />       {/* 上浮气泡，跟随主题强调色 */}
+  <AmbientFx variant="steam" />        {/* 水蒸气：雾的竖直孪生，大团缓升 */}
+  <AmbientFx variant="rain" />         {/* 雨：高速细雨丝，随风斜落 */}
+  <AmbientFx variant="fog" />          {/* 雾：大团薄雾横向漂移 */}
+  <AmbientFx variant="leaves" />       {/* 落叶：之字翻滚、逐叶自转 */}
   <Clock now={now} />                  {/* 控件在它的上层 */}
 </div>
 ```
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆。非法值回退 `snow` |
+| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆 / `steam` 雾的竖直孪生：大团薄雾缓升、边缘淡入淡出 / `rain` 高速细雨丝、随风整体倾斜 / `fog` 大团薄雾横向漂移、边缘淡入淡出 / `leaves` 强风斜落、之字翻滚、逐叶自转。非法值回退 `snow` |
 | `visible` | `true` | `false` 不渲染 DOM，也不留 canvas |
-| `colorHex` | — | `#rrggbb`。雪 / 樱有自己的固有色（`#dbe9ff` / `#f5b8cd`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
+| `colorHex` | — | `#rrggbb`。除 `bubble` 外每种形态都有自己的固有色（雪 `#dbe9ff` / 樱 `#f5b8cd` / 蒸气 `#eef1f4` / 雨 `#a8c0dc` / 雾 `#dfe6ee` / 落叶 `#d98a4f`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
 | `density` | `100` | 10–300，粒子数量的百分比（相对该形态的预设数量），只改数量不改尺寸 |
 | `size` | `100` | 20–300，粒子半径的缩放百分比 |
 | `intensity` | `100` | 0–300，不透明度百分比 |
+| `speed` | `100` | 20–300，运动速度百分比。缩放整层时钟：位移、摆动、生命期全部同步快慢 |
 | `paused` | `false` | 冻结画面并停掉绘制循环，最后一帧留在屏上 |
+
+**小雨 / 大雨（以及大雪小雪）不需要新的变体**，组合现有旋钮即可：
+
+```jsx
+<AmbientFx variant="rain" density={45} size={75} intensity={60} speed={70} />   {/* 毛毛雨：稀、短、淡、慢 */}
+<AmbientFx variant="rain" />                                                    {/* 中雨：默认 */}
+<AmbientFx variant="rain" density={250} intensity={150} speed={160} />          {/* 暴雨：密、浓、急 */}
+```
 
 **这一层不采集任何东西**：没有指针监听、没有音频、没有宿主回调。粒子的位置是 `(参数, 时间)` 的纯函数，所以整幅画面每帧从一张固定的参数表重算，**不存粒子数组**（`core/ambient.js` 的 `fillAmbientParticles()` 只写一次，绘制循环只读）。
 

@@ -18,6 +18,9 @@ import {
   AMBIENT_DENSITY_MAX,
   AMBIENT_INTENSITY_MIN,
   AMBIENT_INTENSITY_MAX,
+  AMBIENT_SPEED_MIN,
+  AMBIENT_SPEED_MAX,
+  AMBIENT_SPEED_DEFAULT,
 } from '../src/components/ambient-fx/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
@@ -1224,15 +1227,24 @@ const AMBIENT_VARIANT_LABELS = {
   snow: '飘雪 — 匀速下落 + 窄摆',
   sakura: '樱花 — 风斜、大幅摆动、逐片自转',
   bubble: '气泡 — 匀速上浮，颜色跟随强调色',
+  steam: '水蒸气 — 雾的竖直孪生：大团缓升、边缘涨消',
+  rain: '雨 — 高速细雨丝，随风斜落',
+  fog: '雾 — 大团薄雾横向漂移、边缘涨消',
+  leaves: '落叶 — 强风斜落、之字翻滚、逐叶自转',
 }
 
 // Each variant is judged against the backdrop it will actually be used on:
 // flakes need a dark night, petals read best over dusk, bubbles need something
-// with contrast or they disappear.
+// with contrast or they disappear, steam and rain are pale and need dark too,
+// fog reads over any busy backdrop, leaves carry their own warm colour.
 const AMBIENT_STAGES = {
   snow: 'stage--dark',
   sakura: 'stage--photo',
   bubble: 'stage--b',
+  steam: 'stage--dark',
+  rain: 'stage--dark',
+  fog: 'stage--photo',
+  leaves: 'stage--photo',
 }
 
 function AmbientFxDemo() {
@@ -1251,6 +1263,7 @@ function AmbientFxDemo() {
   const [density, setDensity] = useState(100)
   const [size, setSize] = useState(100)
   const [intensity, setIntensity] = useState(100)
+  const [pace, setPace] = useState(AMBIENT_SPEED_DEFAULT)
 
   const shared = {
     visible: on,
@@ -1258,6 +1271,7 @@ function AmbientFxDemo() {
     density,
     size,
     intensity,
+    speed: pace,
     ...(customColor ? { colorHex } : {}),
   }
 
@@ -1343,6 +1357,16 @@ function AmbientFxDemo() {
             disabled={!on}
             onChange={setIntensity}
           />
+          <Slider
+            label="速度 speed"
+            value={pace}
+            min={AMBIENT_SPEED_MIN}
+            max={AMBIENT_SPEED_MAX}
+            step={10}
+            suffix="%"
+            disabled={!on}
+            onChange={setPace}
+          />
         </Row>
       </section>
 
@@ -1372,11 +1396,13 @@ function AmbientFxDemo() {
 
       <footer className="foot">
         库的默认值：<code>variant="snow"</code>、<code>visible=true</code>、<code>density=100</code>、
-        <code>size=100</code>、<code>intensity=100</code>、<code>paused=false</code>。
-        数量按预设基数乘 <code>density</code> 后封顶（共 240 上限：snow 220 / sakura 90 / bubble 80），
-        <code>size</code> 只缩放粒子、不改数量。<code>colorHex</code> 省略时雪的 <code>#dbe9ff</code>、
-        花瓣的 <code>#f5b8cd</code> 优先，气泡才回落到 <code>--wallkit-accent</code>——
-        雪和花瓣是具象物件，跟着封面色变蓝会像 bug。
+        <code>size=100</code>、<code>intensity=100</code>、<code>speed=100</code>、<code>paused=false</code>。
+        数量按预设基数乘 <code>density</code> 后封顶（共 240 上限：snow 220 / sakura 90 / bubble 80 / steam 30 / rain 220 / fog 30 / leaves 70），
+        <code>size</code> 只缩放粒子、不改数量。<code>speed</code> 缩放整层时钟，运动、摆动、生命期全部同步快慢。
+        <code>colorHex</code> 省略时各形态用自己的固有色
+        （雪 <code>#dbe9ff</code> / 樱 <code>#f5b8cd</code> / 蒸气 <code>#eef1f4</code> / 雨 <code>#a8c0dc</code> /
+        雾 <code>#dfe6ee</code> / 落叶 <code>#d98a4f</code>），气泡才回落到 <code>--wallkit-accent</code>——
+        具象物件跟着封面色变会像 bug。
         <code>prefers-reduced-motion</code> 下只画一帧静止画面。
       </footer>
     </>

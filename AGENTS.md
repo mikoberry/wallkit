@@ -265,11 +265,12 @@ src/
 
 ```jsx
 <AmbientFx
-  variant="snow"             // snow | sakura | bubble
-  colorHex                   // 省略：雪 #dbe9ff / 樱 #f5b8cd / 气泡读 --wallkit-accent
+  variant="snow"             // snow | sakura | bubble | steam | rain | fog | leaves
+  colorHex                   // 省略：除 bubble 外每种形态都有自己的固有色，bubble 读 --wallkit-accent
   density={100}              // 10-300，数量百分比（相对预设数）；只改数量不改尺寸
   size={100}                 // 20-300，半径缩放
   intensity={100}            // 0-300，不透明度
+  speed={100}                // 20-300，运动速度百分比
   visible paused
 />
 ```
@@ -277,7 +278,10 @@ src/
 - **不存粒子数组**：`core/ambient.js` 的 `fillAmbientParticles(variant, count, out)` 只在 variant / count 变化时写一次扁平 `Float32Array`（固定 `AMBIENT_STRIDE = 10`），绘制循环用 `ambientOffset()` 原地算 `[x01, y01, rotation, alpha]`，60fps 零分配。加粒子形态时往预设表加一条 + `renderers.js` 加一个循环，不要另起一套系统。
 - **`paused` 只是停止推进时间**（`elapsedRef`），恢复时从原处继续而不是重头播；位置全部归一化，**不存像素**，所以窗口缩放后下一帧自动正确映射。樱花片的 `drift` 在 wrap 时会跳一段横移，但那时它已经在屏幕上下方之外的 pad 区里，看不见。
 - **每片的下落时长各不相同**（`travel` 9–17s / 12–20s），所以不会出现整排同步下落的机械感——这是「长度必须随机」而不是「位置必须随机」的差别，`fillAmbientParticles` 里每一项都要独立取随机数。
-- **软边不进绘制循环**：`shadowBlur` / 每帧新建渐变在 60fps × 数小时下不可接受。`sprites.js` 用离屏 canvas 预渲染一张 64px 精灵（雪=径向渐变、樱=带缺口的贝塞尔花瓣 + `destination-out` 切角、气泡=双环 + 高光），循环里只做 `drawImage`；樱花用 `setTransform(cos, sin, -sin, cos, x, y)` 代替每片 `save` / `rotate` / `restore`，末尾统一复位。
+- **软边不进绘制循环**：`shadowBlur` / 每帧新建渐变在 60fps × 数小时下不可接受。`sprites.js` 用离屏 canvas 预渲染一张 64px 精灵（雪=径向渐变、樱=带缺口的贝塞尔花瓣 + `destination-out` 切角、气泡=双环 + 高光、蒸气=与雾共用同一张横向大团软雾、雨=竖向渐隐雨丝、雾=横向大团软雾、落叶=带中脉的透镜叶形；蒸气与雾在绘制时还要非等比拉伸），循环里只做 `drawImage`；樱花用 `setTransform(cos, sin, -sin, cos, x, y)` 代替每片 `save` / `rotate` / `restore`，`drawAmbient` 末尾统一复位。
+- **`steam` 是 `fog` 的竖直孪生**：同一套 bank 运动（`ambientOffset` 有各自分支但形状相同）——雾横向漂移、蒸气竖直上升，锚点轴带慢摆，`bankLife()` 生命期 alpha 在进出边缘淡入淡出、顺带把 wrap 藏掉。蒸气数量 / 尺寸沿用雾的预设（count 12 / baseSize 110），雾则再大一号（baseSize 140）；精灵也共用同一张弥散团形状，只有颜色不同。`twinkle` 对两者不生效。
+- **`speed` 是时钟缩放，不是改参数表**：`tick` 里 `elapsedRef += delta * pace`，位移、摆动、twinkle、steam/fog 的生命期曲线全部同步快慢——不会出现「粒子跑得快但消散曲线还是老速度」的错位。走 `settingsRef.pace` 而不是 loop effect 的依赖：运行中调速不重建 canvas 接线，下一帧直接生效。小雨/大雨这类区分靠 `density` + `size` + `intensity` + `speed` 组合，不为单一形态加专用 prop。
+- **`rain` / `fog` / `leaves` 的分工**：rain 走通用路径，但雨丝按风向整体倾斜（`atan2(drift * width, span)`，`travel` 在比值里约掉）；fog 在 `ambientOffset` 有横向漂移专用分支（X 槽复用为纵向锚点、phase 兼作横向起点，一半向左一半向右，`bankLife()` 双端淡入淡出藏 wrap），绘制时不旋转、横向拉伸；leaves 与樱花共用同一个绘制循环（`drawTumbling`），但走双频摆动分支得到之字翻滚，自转幅度也大得多。
 - `prefers-reduced-motion` 下**只画一帧**静止构图（保留构图、去掉运动）；`paused` 连这一帧都不重画，最后一帧留在屏上。
 - 粒子尺寸按视口缩放（`sqrt(min(w/1920, h/1080))` 钳到 0.7–2），否则 4K 壁纸会是 1080p 大小的雪。数量有 `AMBIENT_COUNT_MAX = 240` 的硬上限，预设另有更低的 `max`。
 - **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），所以雪从时钟背后穿过、文字不被压住。

@@ -86,6 +86,58 @@ function paintBubble(ctx, rgb) {
   ctx.fill()
 }
 
+/** Steam bank: the same diffuse mass as fog — the draw loop stretches it
+ * along the rise instead. Only the tint differs (see the presets). */
+function paintSteam(ctx, rgb) {
+  paintFog(ctx, rgb)
+}
+
+/** Rain streak: a thin vertical bar, transparent head into a bright tail. */
+function paintRain(ctx, rgb) {
+  const gradient = ctx.createLinearGradient(0, 6, 0, AMBIENT_SPRITE_SIZE - 6)
+  gradient.addColorStop(0, rgba(rgb, 0))
+  gradient.addColorStop(0.6, rgba(rgb, 0.85))
+  gradient.addColorStop(1, rgba(rgb, 0.3))
+  ctx.fillStyle = gradient
+  ctx.fillRect(HALF - 3, 6, 6, AMBIENT_SPRITE_SIZE - 12)
+}
+
+/** Fog bank: a very diffuse mass with a horizontal bias. */
+function paintFog(ctx, rgb) {
+  const lobes = [
+    [HALF, HALF, HALF * 0.72],
+    [HALF * 0.62, HALF * 0.94, HALF * 0.44],
+    [HALF * 1.4, HALF * 1.06, HALF * 0.44],
+  ]
+  for (const [cx, cy, r] of lobes) {
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r)
+    gradient.addColorStop(0, rgba(rgb, 0.6))
+    gradient.addColorStop(0.5, rgba(rgb, 0.26))
+    gradient.addColorStop(1, rgba(rgb, 0))
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+/** Autumn leaf: a pointed lens with a pale midrib; the spin comes from the loop. */
+function paintLeaf(ctx, rgb) {
+  ctx.fillStyle = rgba(rgb, 1)
+  ctx.beginPath()
+  ctx.moveTo(HALF, HALF * 0.24)
+  ctx.bezierCurveTo(HALF * 1.52, HALF * 0.72, HALF * 1.5, HALF * 1.32, HALF, HALF * 1.76)
+  ctx.bezierCurveTo(HALF * 0.48, HALF * 1.32, HALF * 0.5, HALF * 0.72, HALF, HALF * 0.24)
+  ctx.fill()
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(HALF, HALF * 0.34)
+  ctx.quadraticCurveTo(HALF * 1.04, HALF, HALF, HALF * 1.66)
+  ctx.stroke()
+}
+
 /**
  * Build the sprite for one variant and colour.
  *
@@ -101,7 +153,13 @@ export function createAmbientSprite(variant, rgb) {
 
   if (variant === 'sakura') paintPetal(ctx, rgb)
   else if (variant === 'bubble') paintBubble(ctx, rgb)
+  else if (variant === 'steam') paintSteam(ctx, rgb)
+  else if (variant === 'rain') paintRain(ctx, rgb)
+  else if (variant === 'fog') paintFog(ctx, rgb)
+  else if (variant === 'leaves') paintLeaf(ctx, rgb)
   else paintSnow(ctx, rgb)
 
   return canvas
 }
+
+

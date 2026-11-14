@@ -22,7 +22,7 @@
 
 import { isHexColor } from './audio.js'
 
-export const AMBIENT_VARIANTS = ['snow', 'sakura', 'bubble']
+export const AMBIENT_VARIANTS = ['snow', 'sakura', 'bubble', 'steam', 'rain', 'fog', 'leaves']
 
 export const AMBIENT_SIZE_MIN = 20
 export const AMBIENT_SIZE_MAX = 300
@@ -35,6 +35,13 @@ export const AMBIENT_DENSITY_DEFAULT = 100
 export const AMBIENT_INTENSITY_MIN = 0
 export const AMBIENT_INTENSITY_MAX = 300
 export const AMBIENT_INTENSITY_DEFAULT = 100
+
+// Global motion pace, a percentage applied to the layer's clock. It scales the
+// elapsed time rather than any per-particle parameter, so translation, sway,
+// twinkle and the life ramps all speed up or slow down together.
+export const AMBIENT_SPEED_MIN = 20
+export const AMBIENT_SPEED_MAX = 300
+export const AMBIENT_SPEED_DEFAULT = 100
 
 // Hard ceiling across every variant. A wallpaper runs for hours at 60 fps, so
 // the count is capped here rather than left to a caller that asks for 300% of a
@@ -71,7 +78,7 @@ export const AMBIENT_TWINKLE = 9
  * component scales it by the viewport and by its `size` prop.
  *
  * @type {Record<string, {
- *   count: number, max: number, color: string, direction: 'down'|'up',
+ *   count: number, max: number, color: string, direction: 'down'|'up'|'side',
  *   baseSize: number, travel: [number, number], swayAmp: [number, number],
  *   swayFreq: [number, number], drift: [number, number],
  *   size: [number, number], spin: [number, number],
@@ -128,7 +135,102 @@ export const AMBIENT_PRESETS = {
     alpha: [0.25, 0.65],
     twinkle: [0.1, 0.4],
   },
+  steam: {
+    // Fog's vertical twin: same bank look and motion, rising instead of
+    // sliding. The bank is anchored horizontally, crosses the screen
+    // vertically, and the life ramp fades it in at the bottom and out before
+    // the top edge — which also hides the wrap. Bob is horizontal.
+    count: 12,
+    max: 30,
+    color: '#eef1f4',
+    direction: 'up',
+    baseSize: 110,
+    travel: [34, 58],
+    swayAmp: [0.008, 0.02],
+    swayFreq: [0.04, 0.1],
+    drift: [0, 0],
+    size: [1.0, 2.0],
+    spin: [0, 0],
+    // Peak alpha of the life ramp is 1 mid-crossing, so the base range can
+    // sit a little higher than a constant-alpha variant would.
+    alpha: [0.08, 0.16],
+    twinkle: [0.02, 0.08],
+  },
+  rain: {
+    count: 150,
+    max: 220,
+    color: '#a8c0dc',
+    direction: 'down',
+    baseSize: 9,
+    // Fast and near-straight: rain that takes four seconds to cross the
+    // screen reads as snow. The small signed drift slants the whole shower
+    // one way, like wind, and the streak sprite is tilted to match (see
+    // `drawRain`).
+    travel: [1.6, 3.2],
+    swayAmp: [0.002, 0.012],
+    swayFreq: [0.3, 0.8],
+    drift: [0.05, 0.15],
+    size: [0.5, 1.0],
+    spin: [0, 0],
+    alpha: [0.35, 0.75],
+    twinkle: [0, 0],
+  },
+  fog: {
+    count: 12,
+    max: 30,
+    color: '#dfe6ee',
+    direction: 'side',
+    baseSize: 140,
+    // Fog banks slide sideways over the whole screen. `travel` is seconds to
+    // cross the width; the stored X slot doubles as the vertical anchor, the
+    // phase doubles as the horizontal start, and sway becomes vertical
+    // bobbing (see the fog branch in `ambientOffset`).
+    travel: [34, 58],
+    swayAmp: [0.008, 0.02],
+    swayFreq: [0.04, 0.1],
+    drift: [0, 0],
+    size: [1.0, 2.0],
+    spin: [0, 0],
+    alpha: [0.08, 0.16],
+    twinkle: [0.02, 0.08],
+  },
+  leaves: {
+    count: 28,
+    max: 70,
+    color: '#d98a4f',
+    direction: 'down',
+    baseSize: 14,
+    // Windy autumn: wide swing plus a second quicker eddy gives the zigzag
+    // tumble, and every leaf spins on its own.
+    travel: [7, 14],
+    swayAmp: [0.035, 0.08],
+    swayFreq: [0.1, 0.24],
+    drift: [0.05, 0.16],
+    size: [0.75, 1.3],
+    spin: [-2.2, 2.2],
+    alpha: [0.5, 0.9],
+    twinkle: [0, 0.1],
+  },
 }
+
+// Per-variant shuffle salt: switching style reshuffles the scatter instead of
+// reusing the snow positions for petals.
+const AMBIENT_SALTS = {
+  snow: 0x9e3779b1,
+  sakura: 0x4f1bbcdd,
+  bubble: 0x27d4eb2d,
+  steam: 0x71c3e9ad,
+  rain: 0x3c6ef372,
+  fog: 0x85c05c1a,
+  leaves: 0xd3a2e91b,
+}
+
+/**
+ * Upward variants rise from the bottom edge instead of falling. Only the
+ * generic motion path consults this — `steam` and `fog` have their own
+ * branches and never reach it.
+ */
+const UPWARD_VARIANTS = ['bubble']
 
 const TAU = Math.PI * 2
 
@@ -164,7 +266,7 @@ function span(next, range) {
 
 /**
  * @param {unknown} variant
- * @returns {'snow'|'sakura'|'bubble'} Always a variant the presets know about.
+ * @returns {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'} Always a variant the presets know about.
  */
 export function normalizeAmbientVariant(variant) {
   return AMBIENT_VARIANTS.includes(variant) ? variant : 'snow'
@@ -206,9 +308,7 @@ export function ambientCount(variant, density = AMBIENT_DENSITY_DEFAULT) {
 export function fillAmbientParticles(variant, count, out) {
   const name = normalizeAmbientVariant(variant)
   const preset = AMBIENT_PRESETS[name]
-  // A different salt per variant means switching style reshuffles the scatter
-  // instead of reusing the snow positions for petals.
-  const salt = name === 'sakura' ? 0x4f1bbcdd : name === 'bubble' ? 0x27d4eb2d : 0x9e3779b1
+  const salt = AMBIENT_SALTS[name] || 0x9e3779b1
   const total = Math.max(0, Math.floor(count))
 
   for (let i = 0; i < total; i += 1) {
@@ -230,6 +330,19 @@ export function fillAmbientParticles(variant, count, out) {
   }
 
   return out
+}
+
+// Smoothstep 0..1, the easing behind the bank life ramp.
+function smoothstep(value) {
+  const v = value < 0 ? 0 : value > 1 ? 1 : value
+  return v * v * (3 - 2 * v)
+}
+
+// Bank life over one crossing (fog slides horizontally, steam rises
+// vertically): fade in from the entry edge, hold, fade out before the exit
+// edge. Hides the wrap for a mass far too large to exit the frame cleanly.
+function bankLife(progress) {
+  return smoothstep(progress / 0.1) * (1 - smoothstep((progress - 0.88) / 0.1))
 }
 
 /**
@@ -255,13 +368,62 @@ export function ambientOffset(variant, particles, offset, t, out = [0, 0, 0, 0])
   const drift = particles[offset + AMBIENT_DRIFT]
   const spin = particles[offset + AMBIENT_SPIN]
   const alpha = particles[offset + AMBIENT_ALPHA]
-  const twinkle = particles[offset + AMBIENT_TWINKLE]
 
   // Wrapped progress down (or up) the screen. `Math.floor` rather than `%` so
   // the result stays correct for the negative values a wrapped phase produces.
   const raw = phase + t / travel
   const progress = raw - Math.floor(raw)
-  const y = variant === 'bubble' ? 1 - progress : progress
+
+  // Steam is fog's vertical twin: a bank anchored on one axis that crosses
+  // the other, faded in and out by the life ramp instead of exiting the
+  // frame. The anchor carries a slow bob; drift is unused — steam rises
+  // straight.
+  if (variant === 'steam') {
+    const rawY = phase + t / travel
+    const p = rawY - Math.floor(rawY)
+    const bob = Math.sin(t * swayFreq * TAU + phase * TAU) * swayAmp
+    out[0] = x0 + bob
+    out[1] = 1 - p
+    out[2] = 0
+    out[3] = alpha * bankLife(p)
+    return out
+  }
+
+  // Fog banks slide sideways instead of falling: the stored X slot doubles as
+  // the vertical anchor, the phase doubles as the horizontal start, and sway
+  // becomes vertical bobbing. Half the banks drift each way, and `bankLife`
+  // fades them over the horizontal edges, which hides the wrap of a mass too
+  // wide to exit the frame cleanly.
+  if (variant === 'fog') {
+    const dir = phase < 0.5 ? -1 : 1
+    const rawX = phase + (dir * t) / travel
+    const x = rawX - Math.floor(rawX)
+    const bob = Math.sin(t * swayFreq * TAU + phase * TAU) * swayAmp
+    out[0] = x
+    out[1] = x0 + bob
+    out[2] = 0
+    out[3] = alpha * bankLife(x)
+    return out
+  }
+
+  // Leaves tumble: the same two sway octaves the steam branch uses, stacked
+  // on the generic fall, plus per-leaf spin.
+  if (variant === 'leaves') {
+    const twinkle = particles[offset + AMBIENT_TWINKLE]
+    const eddy = Math.sin(t * swayFreq * 2.4 * TAU + phase * 4.7 * TAU)
+    out[0] =
+      x0 +
+      drift * (progress - 0.5) +
+      Math.sin(t * swayFreq * TAU + phase * TAU) * swayAmp +
+      eddy * swayAmp * 0.5
+    out[1] = progress
+    out[2] = phase * TAU + t * spin
+    out[3] = alpha * (0.78 + 0.22 * Math.sin(t * twinkle * TAU + phase * TAU))
+    return out
+  }
+
+  const y = UPWARD_VARIANTS.includes(variant) ? 1 - progress : progress
+  const twinkle = particles[offset + AMBIENT_TWINKLE]
 
   // `drift` tilts the fall so petals travel, `sway` makes them tumble around
   // that line. Both are fractions of the viewport width.
@@ -287,8 +449,9 @@ export function ambientRgb(hex) {
 /**
  * The tint a variant uses when the caller passes no `colorHex`.
  *
- * Snow and petals carry their own colour: a blue snowflake or a pink bubble
- * looks like a mistake, so only `bubble` follows the theme accent.
+ * Every variant except `bubble` carries its own colour: a blue snowflake, a
+ * pink petal or an accent-tinted raindrop looks like a mistake, so only
+ * `bubble` follows the theme accent.
  *
  * @param {unknown} variant
  * @returns {string} `#rrggbb`, or `''` when the caller should read the accent
