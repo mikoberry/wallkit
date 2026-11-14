@@ -153,7 +153,7 @@ export const AMBIENT_PRESETS = {
     spin: [0, 0],
     // Peak alpha of the life ramp is 1 mid-crossing, so the base range can
     // sit a little higher than a constant-alpha variant would.
-    alpha: [0.08, 0.16],
+    alpha: [0.14, 0.3],
     twinkle: [0.02, 0.08],
   },
   rain: {
@@ -191,7 +191,7 @@ export const AMBIENT_PRESETS = {
     drift: [0, 0],
     size: [1.0, 2.0],
     spin: [0, 0],
-    alpha: [0.08, 0.16],
+    alpha: [0.14, 0.3],
     twinkle: [0.02, 0.08],
   },
   leaves: {
