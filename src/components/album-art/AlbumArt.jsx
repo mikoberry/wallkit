@@ -35,7 +35,7 @@ export const ALBUM_ART_SIZE_MAX = 300
 //   classic   tall column behind the text       bars
 //   glass     same tall column, softer panel    curve
 //   minimal   tall column under the type        bars
-//   type      quiet dot baseline under notes    dots
+//   type      small LED dot grid under notes    dots
 //   bar       wide, short strip                 curve
 //   cassette  thin strip under the shell        bars
 //   polaroid  faint dotted line in the margin   dots
@@ -303,8 +303,8 @@ export default function AlbumArt({
 
     case 'type':
       // Pure typography: no cover is rendered at all. The only graphics are a
-      // vertical rule tinted by the artwork's dominant colour and a quiet dot
-      // baseline under the notes — for wallpapers where even a thumbnail is
+      // vertical rule tinted by the artwork's dominant colour and a small LED
+      // dot grid under the notes — for wallpapers where even a thumbnail is
       // one image too many.
       body = (
         <div className="wallkit-album-art__body wallkit-album-art__body--type">

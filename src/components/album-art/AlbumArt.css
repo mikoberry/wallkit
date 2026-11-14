@@ -704,16 +704,25 @@
    fixed dark — the frame is paper in both themes.
    ========================================================================== */
 
+/* The root is an invisible plate slightly larger than the frame: the frame
+   inside is rotated -3deg, and its corners stick out by roughly half the
+   height * sin(3deg) on each side. Without this margin the card's overflow
+   clipping takes the corners off. */
 .wallkit-album-art--variant-polaroid {
   align-items: center;
   justify-content: center;
-  width: calc(var(--wallkit-album-art-unit) * 1.45);
-  height: calc(var(--wallkit-album-art-unit) * 1.92);
+  width: calc(var(--wallkit-album-art-unit) * 1.6);
+  height: calc(var(--wallkit-album-art-unit) * 2.36);
+  padding: calc(var(--wallkit-album-art-unit) * 0.07) calc(var(--wallkit-album-art-unit) * 0.09);
 }
 
 .wallkit-album-art--variant-polaroid .wallkit-album-art__body--polaroid {
   height: 100%;
   padding-bottom: 0;
+  /* The base body hides overflow to box in the spectrum overlays; here the
+     frame inside is rotated, so its corners legitimately extend past the body
+     box and must stay visible. The photo clips its own cover instead. */
+  overflow: visible;
 }
 
 .wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-frame {
@@ -721,7 +730,7 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: calc(var(--wallkit-album-art-unit) * 0.085);
+  padding: calc(var(--wallkit-album-art-unit) * 0.12);
   padding-bottom: calc(var(--wallkit-album-art-unit) * 0.3);
   border-radius: 2px;
   background: linear-gradient(180deg, #f8f5ec, #efeadd);
@@ -756,30 +765,44 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  padding: calc(var(--wallkit-album-art-unit) * 0.07) calc(var(--wallkit-album-art-unit) * 0.02) 0;
+  /* Centred, not top-aligned: one-line titles would otherwise pool all the
+     slack between the text and the exposure strip below. */
+  justify-content: center;
+  gap: calc(var(--wallkit-album-art-unit) * 0.02);
+  padding: 0 calc(var(--wallkit-album-art-unit) * 0.02);
 }
 
 .wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-note .wallkit-album-art__title {
   font-family:
     "Segoe Script", "Bradley Hand", "Comic Sans MS", "Cormorant Garamond", Georgia, serif;
   font-style: italic;
-  font-size: calc(var(--wallkit-album-art-unit) * 0.105);
+  font-size: calc(var(--wallkit-album-art-unit) * 0.095);
+  line-height: 1.2;
   color: #3a362c;
   text-shadow: none;
-  white-space: nowrap;
+  /* Handwriting wraps: a two-line note is exactly what a polaroid margin is
+     for. Clamp keeps runaway titles from eating the photo above. The global
+     single-line ellipsis would clip long titles to nothing here. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-note .wallkit-album-art__artist {
   font-size: calc(var(--wallkit-album-art-unit) * 0.08);
+  line-height: 1.3;
   color: rgba(58, 54, 44, 0.6);
 }
 
-/* The spectrum reads as a faint exposure strip under the note. */
+/* The spectrum reads as a small LED exposure grid under the note. Like the
+   `type` strip it needs real height for `drawDots` to show several rows. */
 .wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-strip {
   position: relative;
-  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.07);
-  min-height: 8px;
+  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.16);
+  min-height: 18px;
   margin-top: calc(var(--wallkit-album-art-unit) * 0.03);
   opacity: 0.75;
   overflow: hidden;
@@ -932,7 +955,7 @@
    --------------------------------------------------------------------------
    Pure typography: no cover is rendered at all. The height is content-driven
    and the only graphics are a vertical rule tinted by the artwork's dominant
-   colour and a quiet dot baseline under the notes — a type-specimen card for
+   colour and a small LED dot grid under the notes — a type-specimen card for
    wallpapers where even a thumbnail is one image too many. Text follows the
    theme ink like the other chrome-less layouts; there is no surface to flip.
    ========================================================================== */
@@ -983,13 +1006,15 @@
   font-size: calc(var(--wallkit-album-art-unit) * 0.085);
 }
 
-/* The dots sit as a quiet baseline under the notes. */
+/* The dots sit as a small LED grid under the notes. `drawDots` budgets one
+   cell per 8px, so the strip needs real height — anything under ~28px
+   collapses into a low single row of pips. */
 .wallkit-album-art--variant-type .wallkit-album-art__type-spectrum {
   position: relative;
-  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.07);
-  min-height: 8px;
-  margin-top: calc(var(--wallkit-album-art-unit) * 0.04);
-  opacity: 0.55;
+  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.32);
+  min-height: 32px;
+  margin-top: calc(var(--wallkit-album-art-unit) * 0.05);
+  opacity: 0.85;
   overflow: hidden;
 }
 
