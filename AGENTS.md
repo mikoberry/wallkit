@@ -210,7 +210,7 @@ src/
 ```
 
 - `bars` **必须由使用方传入**：用 `extractSpectrumBars(frame)` 从原始 128 帧加工。`bars == null`（或空）时返回 `null`，不渲染。
-- **柱数 = `bars.length`**，组件不自带 `barCount`。要调整柱数，用 core 的 `resampleBars(bars, count)` 折叠后再传入（数据加工归 core）。
+- **柱数 = `bars.length`，九种样式一律如此**（含 `aurora`）。要调整柱数，用 core 的 `resampleBars(bars, count)` 折叠后再传入（数据加工归 core）。`aurora` 也是柱数即光晕数——想让它看起来像「几条宽光带」，就把它折到 7 根；不做隐式折叠，否则同一份 `bars` 在不同样式下长度含义不一致。
 - `visible` 与 `paused` 不同：`visible={false}` 不渲染 DOM；`paused` 保留在屏上但冻结。两者都停止绘制循环。
 - `variant` 是形态（不是 `style`，避免与 DOM `style` 冲突）；`colorHex` 只接受 `#rrggbb`，非法值回退 `--wallkit-accent` → `#a8c4ff`。
 - `intensity`（0–1000，默认 100）/ `curve`（0.2–2，默认 1）：组件把 `intensity` 百分比换算成倍数，连同 `curve` 交给 core 的 `shapeSpectrumLevel()`；默认值等于原始柱高。
@@ -225,7 +225,7 @@ src/
   bars={bars}                  // 必选，同 Spectrum
   variant="curve"              // 同 Spectrum 的 9 种
   colorHex barCount={32}       // barCount 默认 32：小尺寸下 128 根柱子会变成细线
-  intensity={100} curve={1}
+  intensity={100} curve={1}   // 无 bands：aurora 也按 barCount / bars.length 决定光晕数
   visible paused
 />
 ```

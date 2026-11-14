@@ -522,30 +522,33 @@ export function drawRipples(ctx, levels, width, height, color, state, { time = 0
 }
 
 // ---------------------------------------------------------------------------
-// 8. Aurora — soft glowing bands driven by broad tonal energy.
+// 8. Aurora — soft glowing columns driven by tonal energy.
+//
+// One glow per incoming column, exactly like `bars`: the component does not fold
+// anything, so density is purely `bars.length`. Feed it 128 bars and you get 128
+// narrow glows (a curtain with visible blades); fold with `resampleBars(bars, 7)`
+// and you get the classic seven wide bands. Deciding that on the caller's side
+// keeps this the only place a column is ever collapsed.
 // ---------------------------------------------------------------------------
 export function drawAurora(ctx, levels, width, height, color, state, { time = 0 } = {}) {
   const warm = tintStops(color, { r: 1.25, g: 0.75, b: 1.35 })
   const cool = tintStops(color, { r: 0.65, g: 1.1, b: 1.25 })
 
-  // Fold into a handful of wide bands so the result reads as a glow, not bars.
-  const bands = 7
   const count = levels.length
-  const groupSize = count / bands
-  const energy = new Float32Array(bands)
-  for (let b = 0; b < bands; b += 1) {
-    const start = Math.floor(b * groupSize)
-    const end = Math.floor((b + 1) * groupSize)
-    let sum = 0
-    for (let i = start; i < end; i += 1) sum += levels[i]
-    energy[b] = sum / Math.max(1, end - start)
-  }
+  // A caller may hand over a very high column count; below one column there is
+  // nothing to place, so bail instead of dividing by zero.
+  if (count === 0) return
 
-  for (let b = 0; b < bands; b += 1) {
-    const cx = ((b + 0.5) / bands) * width
-    const sway = Math.sin(time * 0.6 + b * 1.7) * width * 0.02
-    const radiusX = (width / bands) * (0.9 + energy[b] * 0.6)
-    const radiusY = height * (0.35 + energy[b] * 0.85)
+  const slice = width / count
+
+  for (let b = 0; b < count; b += 1) {
+    const energy = levels[b]
+    const cx = (b + 0.5) * slice
+    // The sway scales with the column width, so a dense curtain reads as one
+    // shimmering mass instead of 128 independently drifting blades.
+    const sway = Math.sin(time * 0.6 + b * 1.7) * slice * 0.35
+    const radiusX = slice * (0.9 + energy * 0.6)
+    const radiusY = height * (0.35 + energy * 0.85)
 
     const gradient = ctx.createRadialGradient(cx + sway, height, 0, cx + sway, height, radiusY)
     gradient.addColorStop(0, b % 2 === 0 ? warm.top : cool.top)

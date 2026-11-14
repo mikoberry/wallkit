@@ -171,7 +171,7 @@ const bars = frame ? extractSpectrumBars(frame) : null
 
 **盒子规则分两组**：条状样式（`bars` / `mirror` / `curve` / `pill` / `dots`）用 `30vw × 15vh` 宽条；径向样式（`ring` / `ringwave` / `ripples` / `aurora`）强制方形 `min(30vw, 28vh)` 保正圆——所以同一 `size` 下环形显示范围比柱状小一圈，属刻意设计。`intensity` / `curve` 在绘制入口统一整形，九种样式行为一致；径向样式另有随时间的自转/涟漪/极光动画（`prefers-reduced-motion` 下冻结动画、保留电平响应）。
 
-**柱数不由组件决定**：要画更少/更多柱子，先 `resampleBars(bars, count)` 折叠再传入。`dots` 按画布宽度自动折成 6–48 列，`aurora` 固定 7 条带。
+**柱数不由组件决定**：要画更少/更多柱子，先 `resampleBars(bars, count)` 折叠再传入。九种样式都遵守这一条，`aurora` 也不例外——每根柱子就是一个光晕，128 根就是 128 道细光，折到 7 根才是那几条宽光带。`dots` 是唯一例外：它按画布宽度自动折成 6–48 列。
 
 `visible` 与 `paused` 的区别：前者完全不渲染，后者保留画面但冻结，两者都停止绘制循环。
 

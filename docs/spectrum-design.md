@@ -66,7 +66,9 @@
 
 **为什么 `bars` 而不是原始帧**：抽取、降噪、左右声道镜像属于数据加工，放在 core 纯函数里由使用方调用（§3）。组件只消费最终柱高，和 Clock 只消费 `now` 是同一个模式。
 
-**柱数怎么调**：柱数由 `bars.length` 决定，组件本身固定不了，也没有 `barCount` prop。想画更少/更多柱子时，使用方在传入前调用 `resampleBars(bars, count)` 折叠（数据加工归 core，组件保持无状态）。特例：`dots` 不看柱数，按画布宽度自动折叠成 6–48 列；`aurora` 固定折成 7 条带。
+**柱数怎么调**：柱数由 `bars.length` 决定，组件本身固定不了，也没有 `barCount` prop。想画更少/更多柱子时，使用方在传入前调用 `resampleBars(bars, count)` 折叠（数据加工归 core，组件保持无状态）。九种样式一律如此：`dots` 例外地按画布宽度自动折成 6–48 列；`aurora` 则是**一根柱子一个光晕**，折到 7 根是那几条宽光带，不折就是 128 道细光——密度由使用方给，渲染器不再隐式聚合。
+
+> 曾经给 `aurora` 开过一个 `bands` prop 做隐式折叠。已删除：那份折叠与 `resampleBars` 逐位等价（实测最大差异 0），等于把 core 的算法在渲染器里写了两遍；而且同一份 `bars` 在别的样式里长度就是柱数，只在 `aurora` 里不是，接口语义不一致。
 
 **bass 不单列 prop**：`ripples` / `aurora` 等需要整体低频能量，由组件从 `bars` 的低频段内部推导（`bassLevel()`），保持单一数据输入。
 
@@ -281,7 +283,7 @@ src/
 
 - 新增 Spectrum 画廊：9 种样式各一格，深浅两种背景。
 - 合成数据（`syntheticSpectrum` / `syntheticAudioLevel`）复制进 playground，**只在 playground 存在**。
-- 控制项：`variant`、`colorHex`、`size`、`offsetX/offsetY`、`intensity`/`curve`、柱数（`resampleBars` 折叠）、`visible`、`paused`、合成 BPM。
+- 控制项：`variant`、`colorHex`、`size`、`offsetX/offsetY`、`intensity`/`curve`、柱数（`resampleBars` 折叠，`aurora` 同）、`visible`、`paused`、合成 BPM。
 - 沿用现有 Clock 演示的 `useNow` 式写法：数据由页面驱动，组件不生成。
 
 ---
