@@ -215,7 +215,7 @@ src/
 <AlbumArt
   track={track}                // 必选，TrackInfo | null
   bars={bars}                  // 可选，卡片内嵌频谱
-  variant="classic"            // classic | glass | vinyl | minimal | bar | wall
+  variant="classic"            // classic | glass | vinyl | minimal | type | bar | cassette | polaroid | cd | poster | ticket
   theme="light"                // light = 浅色文字，dark = 深色文字（名字指文字色）
   colorHex size={100} offsetX={0} offsetY={0}
   anchor="bottom-left"         // 四个视角角落
@@ -225,10 +225,11 @@ src/
 ```
 
 - **两种不渲染**：`track == null`；`track.playback === 'stopped'`。`playback === null`（未知）**必须渲染**，见下方数据约定。
-- `bars` 可选：没有时卡片照常显示，只是少了频谱（`vinyl` 布局永远没有图）。`bar` 布局的频谱槽位是 `flex: 0 0 38%`，**没有 bars 时必须不渲染那个槽位**，否则条子右侧空出一截。
-- 六种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无图。绑定表在 `AlbumArt.jsx` 的 `SPECTRUM_VARIANT_BY_CARD`，不要在 CSS 里做这种判断。
+- `bars` 可选：没有时卡片照常显示，只是少了频谱（`vinyl` 布局永远没有图）。预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）**没有 bars 时必须不渲染那个槽位**，否则空出一截；`poster` 的均衡器区同理。
+- 十一种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars、vinyl 无图。绑定表在 `AlbumArt.jsx` 的 `SPECTRUM_VARIANT_BY_CARD`，不要在 CSS 里做这种判断。
+- `type` 是唯一**完全不渲染封面**的布局：竖排排版（衬线大字曲名 / 字距拉开的 artist / 斜体专辑行），唯一图形是 `track.primaryColor` 染色的左边框竖线和底部淡 dots 频谱。高度 `auto` 随内容走，且**不进 Meta 的 compact 列表**——三行文字是它的构图本体。文字走主题 ink，没有表面要翻转。
 - 封面 24s 转一圈；`paused` 或 `playback === 'paused'` 停转；`prefers-reduced-motion` 下不转。卡片里的频谱用绝对定位铺满 body，文字浮在其上——这个覆盖写在 `AlbumArt.css`，`MiniSpectrum` 自己只管 100% 填充。
-- `theme` 与 `Clock` 同一套约定（类名指**文字色**）：`--theme-dark` 只换 `--wallkit-album-art-fg*` 等变量，**外加**把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把 `--wallkit-accent` 压暗让频谱在浅底上可见。唱片本体与木架刻意保持深色——它们是物件，不是文字底板。
+- `theme` 与 `Clock` 同一套约定（类名指**文字色**）：`--theme-dark` 只换 `--wallkit-album-art-fg*` 等变量，**外加**把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把 `--wallkit-accent` 压暗让频谱在浅底上可见。唱片、CD 与磁带壳刻意保持深色——它们是物件，不是文字底板。**纸面样式例外**：磁带标签、拍立得、票根用固定深色墨（印在纸上），海报用固定浅色墨（背景永远压暗），都不随主题翻转。
 - 内嵌频谱的 `intensity` / `curve` 是内部常量（130 / 0.7），**不要暴露成 props**：这组值是为卡片尺寸定的，放出去只能被改坏。
 - `ALBUM_ART_VARIANTS`、`ALBUM_ART_SIZE_MIN/MAX` 从 `components/album-art` 导出；新增布局时改那一处，调用方的选择器就会自动跟上。
 

@@ -7,7 +7,19 @@ import './AlbumArt.css'
 // the cover, the metadata and the inline spectrum.
 //
 // Exported so a caller can build a layout picker without hardcoding the list.
-export const ALBUM_ART_VARIANTS = ['classic', 'glass', 'vinyl', 'minimal', 'bar', 'wall']
+export const ALBUM_ART_VARIANTS = [
+  'classic',
+  'glass',
+  'vinyl',
+  'minimal',
+  'type',
+  'bar',
+  'cassette',
+  'polaroid',
+  'cd',
+  'poster',
+  'ticket',
+]
 
 // Size percentage bounds. 100 is the reference card (cover diameter 18vh).
 // Below 20 the two-line metadata stops being legible; a card much past 300 is
@@ -20,19 +32,29 @@ export const ALBUM_ART_SIZE_MAX = 300
 // visual so it stays coherent regardless of what the floating spectrum is set
 // to; the choice follows the shape of the space the graph has to fill.
 //
-//   classic  tall column behind the text      bars
-//   glass    same tall column, softer panel    curve
-//   minimal  tall column under the type        bars
-//   bar      wide, short strip                 curve
-//   wall     small palette tile                dots
+//   classic   tall column behind the text       bars
+//   glass     same tall column, softer panel    curve
+//   minimal   tall column under the type        bars
+//   type      quiet dot baseline under notes    dots
+//   bar       wide, short strip                 curve
+//   cassette  thin strip under the shell        bars
+//   polaroid  faint dotted line in the margin   dots
+//   cd        same tall column as classic       curve
+//   poster    low equalizer over the backdrop   bars
+//   ticket    barcode-like block on the stub    bars
 //
 // `vinyl` is deliberately absent: that layout is a clean record with no graph.
 const SPECTRUM_VARIANT_BY_CARD = {
   classic: 'bars',
   glass: 'curve',
   minimal: 'bars',
+  type: 'dots',
   bar: 'curve',
-  wall: 'dots',
+  cassette: 'bars',
+  polaroid: 'dots',
+  cd: 'curve',
+  poster: 'bars',
+  ticket: 'bars',
 }
 
 // Card-size bars look cramped with the full band count, so the inline spectrum
@@ -80,7 +102,9 @@ function Cover({ track, variant, labels }) {
 }
 
 // The metadata block. `compact` drops the album line so the tighter layouts
-// (bar, wall) keep a single readable line per field.
+// (bar, cassette, polaroid, poster, ticket, minimal) keep a single readable
+// line per field. `type` stays out of this list on purpose: its height is
+// content-driven, so the third italic line is part of the composition.
 function Meta({ track, compact = false }) {
   const title = track.title || track.albumTitle || ''
   const showAlbum = !compact && track.albumTitle && track.albumTitle !== track.title
@@ -125,15 +149,20 @@ function Meta({ track, compact = false }) {
  *   the inline spectrum. Without them the card still renders, minus the graph
  *   (and the `bar` layout drops the strip instead of leaving it blank).
  * @param {boolean} [props.visible=true]
- * @param {'classic'|'glass'|'vinyl'|'minimal'|'bar'|'wall'} [props.variant='classic']
+ * @param {'classic'|'glass'|'vinyl'|'minimal'|'type'|'bar'|'cassette'|'polaroid'|'cd'|'poster'|'ticket'} [props.variant='classic']
  *   Invalid values fall back to `classic`. `ALBUM_ART_VARIANTS` has the list.
+ *   `type` renders no cover at all — pure typography with a tinted rule.
+ *   The paper layouts (`cassette` label, `polaroid` note, `ticket` stub) print
+ *   their text in fixed dark ink regardless of `theme` / `color` — it is ink on
+ *   paper, not text on a wallpaper. `poster` is the mirror case: its backdrop
+ *   is always darkened, so its text is always light.
  * @param {'light'|'dark'} [props.theme='light']  Text colour, same convention as
  *   `Clock`: `light` renders light text (dark wallpaper), `dark` renders dark
  *   text and flips the surfaces the card paints itself (glass panel, bar pill,
  *   record label, sleeves) so the ink stays readable on bright artwork.
  * @param {string} [props.color]   `#rrggbb` override for the card's text colour,
  *   taking precedence over `theme`. The dim / faint tiers derive their alpha
- *   from it. The card's own tint (glass wash, wall edge) still comes from
+ *   from it. The card's own tint (glass wash, cassette tape) still comes from
  *   `track.primaryColor`; use `colorHex` to recolour the inline spectrum.
  * @param {string} [props.colorHex]   `#rrggbb` for the **inline spectrum only**;
  *   the card's own tint comes from `track.primaryColor`. Defaults to
@@ -205,7 +234,7 @@ export default function AlbumArt({
     style['--wallkit-album-art-scale'] =
       clamp(Number(size) || 100, ALBUM_ART_SIZE_MIN, ALBUM_ART_SIZE_MAX) / 100
   }
-  // The cover's dominant colour tints the glass panel and the wall's edge.
+  // The cover's dominant colour tints the glass panel and the cassette tape.
   if (track.primaryColor) style['--wallkit-album-art-tint'] = track.primaryColor
 
   // An explicit `color` wins over the theme. The text-colour variables live on
@@ -224,7 +253,12 @@ export default function AlbumArt({
     <Meta
       track={track}
       compact={
-        resolvedVariant === 'bar' || resolvedVariant === 'minimal' || resolvedVariant === 'wall'
+        resolvedVariant === 'bar' ||
+        resolvedVariant === 'minimal' ||
+        resolvedVariant === 'cassette' ||
+        resolvedVariant === 'polaroid' ||
+        resolvedVariant === 'poster' ||
+        resolvedVariant === 'ticket'
       }
     />
   )
@@ -267,6 +301,19 @@ export default function AlbumArt({
       )
       break
 
+    case 'type':
+      // Pure typography: no cover is rendered at all. The only graphics are a
+      // vertical rule tinted by the artwork's dominant colour and a quiet dot
+      // baseline under the notes — for wallpapers where even a thumbnail is
+      // one image too many.
+      body = (
+        <div className="wallkit-album-art__body wallkit-album-art__body--type">
+          <div className="wallkit-album-art__meta">{meta}</div>
+          {hasBars && <div className="wallkit-album-art__type-spectrum">{spectrum}</div>}
+        </div>
+      )
+      break
+
     case 'bar':
       // One horizontal strip: thumbnail, title, artist, then a wide spectrum.
       // The strip takes 38% of the width, so without bars the slot is dropped
@@ -280,28 +327,79 @@ export default function AlbumArt({
       )
       break
 
-    case 'wall':
-      // A shelf of covers with the current one enlarged and highlighted.
+    case 'cassette':
+      // A cassette shell: cream label with a mini cover on top, a window
+      // showing the tinted tape and two slowly turning reels below. The
+      // spectrum lives inside the window, behind the reels — it reads as the
+      // level meter printed on the tape shell.
       body = (
-        <div className="wallkit-album-art__wall">
-          <div className="wallkit-album-art__wall-card is-current">
-            <div className="wallkit-album-art__wall-art">{cover}</div>
-            <div className="wallkit-album-art__meta">{meta}</div>
-            <div className="wallkit-album-art__wall-spectrum">{spectrum}</div>
+        <div className="wallkit-album-art__body wallkit-album-art__body--cassette">
+          <div className="wallkit-album-art__cassette-shell">
+            <div className="wallkit-album-art__cassette-label">
+              <div className="wallkit-album-art__cassette-mini">
+                <Cover track={track} variant="cassette" labels={labels} />
+              </div>
+              <div className="wallkit-album-art__meta">{meta}</div>
+            </div>
+            <div className="wallkit-album-art__cassette-window">
+              {hasBars && spectrum}
+              <span className="wallkit-album-art__reel wallkit-album-art__reel--left" />
+              <span className="wallkit-album-art__reel wallkit-album-art__reel--right" />
+            </div>
           </div>
-          <div className="wallkit-album-art__wall-card" aria-hidden="true" />
-          <div className="wallkit-album-art__wall-card" aria-hidden="true" />
-          <div className="wallkit-album-art__wall-card" aria-hidden="true" />
+        </div>
+      )
+      break
+
+    case 'polaroid':
+      // An instant photo: white frame, square print, handwritten note in the
+      // bottom margin, tilted a few degrees like it was dropped on the desk.
+      body = (
+        <div className="wallkit-album-art__body wallkit-album-art__body--polaroid">
+          <div className="wallkit-album-art__polaroid-frame">
+            <div className="wallkit-album-art__polaroid-photo">{cover}</div>
+            <div className="wallkit-album-art__polaroid-note">{meta}</div>
+            {hasBars && <div className="wallkit-album-art__polaroid-strip">{spectrum}</div>}
+          </div>
+        </div>
+      )
+      break
+
+    case 'poster':
+      // A vertical gig poster: the artwork fills the sheet behind a darkened
+      // gradient, serif headline and a low equalizer sit at the foot.
+      body = (
+        <div className="wallkit-album-art__poster">
+          <div className="wallkit-album-art__poster-bg">{cover}</div>
+          <div className="wallkit-album-art__poster-body">
+            <div className="wallkit-album-art__meta">{meta}</div>
+            {spectrum}
+          </div>
+        </div>
+      )
+      break
+
+    case 'ticket':
+      // An admission ticket: cover stub on the left, perforation line, then
+      // the notes and a barcode-like spectrum block.
+      body = (
+        <div className="wallkit-album-art__body wallkit-album-art__body--ticket">
+          <div className="wallkit-album-art__thumb">{cover}</div>
+          <div className="wallkit-album-art__ticket-divider" />
+          <div className="wallkit-album-art__meta">{meta}</div>
+          {hasBars && <div className="wallkit-album-art__ticket-spectrum">{spectrum}</div>}
         </div>
       )
       break
 
     case 'classic':
     case 'glass':
+    case 'cd':
     default:
       // The chrome-less card: circular cover, metadata column, spectrum behind
-      // it. `classic` is that look untouched; `glass` keeps the arrangement and
-      // adds the frosted panel.
+      // it. `classic` is that look untouched; `glass` adds the frosted panel;
+      // `cd` keeps the arrangement and paints the disc as a silver CD-R with
+      // the artwork printed on its face.
       body = (
         <>
           <div className="wallkit-album-art__disc">{cover}</div>

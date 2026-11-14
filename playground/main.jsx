@@ -602,6 +602,13 @@ function SpectrumDemo() {
   const [bpm, setBpm] = useState(120)
   const [intensity, setIntensity] = useState(100)
   const [curve, setCurve] = useState(1)
+  // `width` / `height` override the per-variant base box (flat styles are a wide
+  // strip, radial styles force a square). 0 keeps the axis unset so the
+  // stylesheet's variant rule applies.
+  const [widthOn, setWidthOn] = useState(false)
+  const [widthVw, setWidthVw] = useState(40)
+  const [heightOn, setHeightOn] = useState(false)
+  const [heightVh, setHeightVh] = useState(40)
   // Bar count is a data-shaping choice, not a component prop: the demo folds the
   // 128 raw bars down with the core helper before handing them over.
   const [barCount, setBarCount] = useState(SPECTRUM_BARS)
@@ -622,6 +629,8 @@ function SpectrumDemo() {
     paused,
     intensity,
     curve,
+    width: widthOn ? `${widthVw}vw` : undefined,
+    height: heightOn ? `${heightVh}vh` : undefined,
   }
 
   return (
@@ -718,6 +727,31 @@ function SpectrumDemo() {
           <Slider label="节奏 BPM" value={bpm} min={40} max={200} step={2} onChange={setBpm} />
         </Row>
 
+        <Row title="覆盖尺寸">
+          <Toggle label="覆盖宽度 width" on={widthOn} onChange={setWidthOn} />
+          <Slider
+            label="宽度（vw）"
+            value={widthVw}
+            min={5}
+            max={100}
+            step={5}
+            suffix="vw"
+            disabled={!widthOn}
+            onChange={setWidthVw}
+          />
+          <Toggle label="覆盖高度 height" on={heightOn} onChange={setHeightOn} />
+          <Slider
+            label="高度（vh）"
+            value={heightVh}
+            min={5}
+            max={100}
+            step={5}
+            suffix="vh"
+            disabled={!heightOn}
+            onChange={setHeightVh}
+          />
+        </Row>
+
         <Row title="运行">
           <Toggle label="显示 visible" on={visible} onChange={setVisible} />
           <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
@@ -740,6 +774,11 @@ function SpectrumDemo() {
         <code>--wallkit-accent</code>、<code>size=100</code>（正常大小）、
         <code>offsetX=0, offsetY=0</code>（贴边）、<code>intensity=100</code>、<code>curve=1</code>、
         <code>paused=false</code>。本页初始的 4% 偏移与 80% 尺寸只为演示取景。
+        <code>intensity</code> / <code>curve</code> 在绘制入口统一整形，对九种样式行为一致；
+        盒子规则分两组——扁样式（bars / mirror / curve / pill / dots）是 <code>30vw × 15vh</code> 宽条，
+        径向样式（ring / ringwave / ripples / aurora）强制方形 <code>min(30vw, 28vh)</code> 保正圆，
+        所以同一 <code>size</code> 下环形显示范围比柱状小；显式 <code>width</code> / <code>height</code>
+        可覆盖两组规则。
         柱数不是组件 prop：本页用 core 的 <code>resampleBars(bars, count)</code> 折叠后再传入。
       </footer>
     </>
@@ -801,8 +840,13 @@ const ALBUM_VARIANT_LABELS = {
   glass: '毛玻璃',
   vinyl: '黑胶唱片',
   minimal: '极简文字',
+  type: '纯文字排版',
   bar: '横向胶囊',
-  wall: '唱片墙',
+  cassette: '磁带',
+  polaroid: '拍立得',
+  cd: 'CD 光碟',
+  poster: '竖版海报',
+  ticket: '票根',
 }
 
 // The layout list comes from the library, so a new variant shows up here without
@@ -935,6 +979,10 @@ function AlbumArtDemo() {
   const [theme, setTheme] = useState('light')
   const [colorOn, setColorOn] = useState(false)
   const [color, setColor] = useState('#ff6b6b')
+  // `colorHex` recolours only the inline spectrum; the card's own tint still
+  // comes from `track.primaryColor`, so the two pickers never fight.
+  const [specOn, setSpecOn] = useState(false)
+  const [specColor, setSpecColor] = useState('#a8c4ff')
 
   const pausedBars = useBars(!paused, 120)
   const base = DEMO_TRACKS[trackIndex]
@@ -1033,6 +1081,18 @@ function AlbumArtDemo() {
             />
           </label>
           <Toggle label="覆盖 color" on={colorOn} onChange={setColorOn} />
+          <label className={`ctl ${specOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              频谱色 colorHex <b>{specOn ? specColor : '未覆盖'}</b>
+            </span>
+            <input
+              type="color"
+              value={specColor}
+              disabled={!specOn}
+              onChange={(e) => setSpecColor(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖 colorHex" on={specOn} onChange={setSpecOn} />
         </Row>
 
         <Row title="运行">
@@ -1056,6 +1116,7 @@ function AlbumArtDemo() {
                 variant={v.id}
                 theme={theme}
                 color={colorOn ? color : undefined}
+                colorHex={specOn ? specColor : undefined}
                 size={size}
                 anchor={anchor}
                 offsetX={offsetX}
@@ -1073,9 +1134,14 @@ function AlbumArtDemo() {
       <footer className="foot">
         库的默认值：<code>variant="classic"</code>、<code>theme="light"</code>、<code>size=100</code>、
         <code>offsetX=0, offsetY=0</code>、<code>paused=false</code>、<code>bars</code> 可省略。
-        <code>theme="dark"</code> 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）一并翻成浅色，
-        并把默认 accent 压暗，否则浅底上的频谱看不见。六种布局各自绑定频谱样式：
-        classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无频谱。
+        <code>color</code> 覆盖文字色，<code>colorHex</code> 只覆盖内嵌频谱（省略时取
+        <code>--wallkit-accent</code>，卡片自身染色仍来自 <code>track.primaryColor</code>）。
+        <code>theme="dark"</code> 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）一并翻成浅色，
+        并把默认 accent 压暗，否则浅底上的频谱看不见；纸面样式（磁带标签、拍立得、票根）用固定深色墨、
+        海报用固定浅色墨，不随主题翻转。`type` 纯排版不渲染封面，唯一图形是封面主色的竖线与频谱点。
+        十一种布局各自绑定频谱样式：
+        classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、
+        cd→curve、poster→bars、ticket→bars、vinyl 无频谱。
         封面每 24s 转一圈，<code>paused</code> 或 <code>playback="paused"</code> 时停转；
         <code>prefers-reduced-motion</code> 下不转。
       </footer>

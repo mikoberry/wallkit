@@ -224,7 +224,7 @@ wallkit/
 │   │   │   └── MiniSpectrum.css
 │   │   ├── album-art/
 │   │   │   ├── index.js
-│   │   │   ├── AlbumArt.jsx          # 6 种布局，内嵌 MiniSpectrum
+│   │   │   ├── AlbumArt.jsx          # 11 种布局，内嵌 MiniSpectrum
 │   │   │   └── AlbumArt.css
 │   │   └── pointer-fx/
 │   │       ├── index.js
@@ -350,9 +350,9 @@ x, y = f(seed, t)
 **P3 的两个取舍**（原「未决事项」，现已定）：
 
 - **共享绘图层**：`MiniSpectrum` 是第二个消费者，因此 `renderers.js` 提到 `components/shared/`，并把绘制循环一并抽成 `SpectrumCanvas`。两个控件像素一致，差别只在盒子怎么来的。
-- **`AlbumArt` 的 `bars` 可选**：没有频谱时卡片仍显示封面与文字；`vinyl` 布局本来就没有图，`bar` 布局会把那条 38% 的频谱槽位一起收掉。
+- **`AlbumArt` 的 `bars` 可选**：没有频谱时卡片仍显示封面与文字；`vinyl` 布局本来就没有图，预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）会把槽位一起收掉，`poster` 的均衡器区消失。
 
-**`AlbumArt` 的 `theme`**（P3 补齐）：与 `Clock` 同一套约定——名字指**文字色**，`light` 是浅色文字（深色壁纸），`dark` 是深色文字（浅色壁纸）。`--theme-dark` 除了换 ink 变量，还会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把 `--wallkit-accent` 压暗，否则浅底上的频谱看不见。唱片本体与木架保持深色：它们是物件，不是文字底板。
+**`AlbumArt` 的 `theme`**（P3 补齐）：与 `Clock` 同一套约定——名字指**文字色**，`light` 是浅色文字（深色壁纸），`dark` 是深色文字（浅色壁纸）。`--theme-dark` 除了换 ink 变量，还会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把 `--wallkit-accent` 压暗，否则浅底上的频谱看不见。唱片、CD 与磁带壳保持深色：它们是物件，不是文字底板。纸面样式（磁带标签、拍立得、票根）用固定深色墨、海报用固定浅色墨，不随主题翻转。
 
 ### 5.4 组件不做的事
 

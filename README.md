@@ -168,6 +168,8 @@ const bars = frame ? extractSpectrumBars(frame) : null
 | `curve` | `1` | 0.2–2。响应曲线指数 |
 | `paused` | `false` | `true` 冻结画面（取消 rAF），保留控件在屏上 |
 
+**盒子规则分两组**：条状样式（`bars` / `mirror` / `curve` / `pill` / `dots`）用 `30vw × 15vh` 宽条；径向样式（`ring` / `ringwave` / `ripples` / `aurora`）强制方形 `min(30vw, 28vh)` 保正圆——所以同一 `size` 下环形显示范围比柱状小一圈，属刻意设计。`intensity` / `curve` 在绘制入口统一整形，九种样式行为一致；径向样式另有随时间的自转/涟漪/极光动画（`prefers-reduced-motion` 下冻结动画、保留电平响应）。
+
 **柱数不由组件决定**：要画更少/更多柱子，先 `resampleBars(bars, count)` 折叠再传入。`dots` 按画布宽度自动折成 6–48 列，`aurora` 固定 7 条带。
 
 `visible` 与 `paused` 的区别：前者完全不渲染，后者保留画面但冻结，两者都停止绘制循环。
@@ -203,7 +205,7 @@ import { AlbumArt } from 'wallkit/components/album-art'
 <AlbumArt
   track={track}        // { title, artist, albumTitle, thumbnail, primaryColor, playback }
   bars={bars}          // 可选，卡片内嵌频谱
-  variant="classic"    // classic | glass | vinyl | minimal | bar | wall
+  variant="classic"    // classic | glass | vinyl | minimal | type | bar | cassette | polaroid | cd | poster | ticket
   theme="light"        // light = 浅色文字（深色壁纸），dark = 深色文字（浅色壁纸）
   labels={{ aria: '正在播放' }}
 />
@@ -212,9 +214,9 @@ import { AlbumArt } from 'wallkit/components/album-art'
 | 选项 | 默认 | 说明 |
 |---|---|---|
 | `track` | — | **必选**。`null` 时不渲染 |
-| `bars` | — | 可选。没有时卡片照常显示，只是少了频谱；`bar` 布局会连频谱槽位一起收掉 |
-| `variant` | `'classic'` | 6 种布局；`vinyl` 无频谱。列表见 `ALBUM_ART_VARIANTS` |
-| `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签、纸套）翻成浅色，并把默认 accent 压暗 |
+| `bars` | — | 可选。没有时卡片照常显示，只是少了频谱；预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）会连槽位一起收掉，`poster` 的均衡器区消失 |
+| `variant` | `'classic'` | 11 种布局；`vinyl` 无频谱，`type` 不渲染封面。列表见 `ALBUM_ART_VARIANTS` |
+| `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把默认 accent 压暗。纸面样式（磁带标签 / 拍立得 / 票根）用固定深色墨、海报用固定浅色墨，不随主题翻转 |
 | `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
 | `size` | `100` | 数字：20–300（`ALBUM_ART_SIZE_MIN/MAX`），100 = 正常大小（封面直径基准 `18vh`）。字符串：封面直径的绝对长度（`'34vh'`），整张卡片都由它派生 |
 | `anchor` | `'bottom-left'` | 同 Clock / Spectrum，9 个锚点 |
@@ -226,7 +228,7 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 **两种"不渲染"**：`track == null` 不渲染；`track.playback === 'stopped'` 也不渲染。`playback === null` 表示**未知**，按正在播放处理——引擎只在切歌时推送，把未知当成停止会让封面永久消失。
 
-六种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、bar→curve、wall→dots、vinyl 无图。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
+十一种布局各自绑定频谱样式：classic→bars、glass→curve、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars、vinyl 无图。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
 
 ### PointerFx
 

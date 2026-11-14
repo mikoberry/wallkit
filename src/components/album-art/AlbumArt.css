@@ -1,6 +1,7 @@
 /* Album card. One root (`.wallkit-album-art`) handles anchoring, the size unit
    and the tint; `--variant-*` modifiers pick the layout:
-   classic (default), glass, vinyl, minimal, bar, wall.
+   classic (default), glass, vinyl, minimal, type, bar, cassette, polaroid,
+   cd, poster, ticket.
 
    Positioning follows the clock and the spectrum: the anchor sits at
    offsetX/offsetY viewport percentages measured from the bottom-left corner,
@@ -166,7 +167,8 @@
 
 /* The cover sits in a circular mask so it reads as a record. */
 .wallkit-album-art--variant-classic .wallkit-album-art__disc,
-.wallkit-album-art--variant-glass .wallkit-album-art__disc {
+.wallkit-album-art--variant-glass .wallkit-album-art__disc,
+.wallkit-album-art--variant-cd .wallkit-album-art__disc {
   flex: 0 0 auto;
   position: relative;
   display: block;
@@ -213,7 +215,8 @@
 }
 
 .wallkit-album-art--variant-classic.wallkit-album-art--paused .wallkit-album-art__disc,
-.wallkit-album-art--variant-glass.wallkit-album-art--paused .wallkit-album-art__disc {
+.wallkit-album-art--variant-glass.wallkit-album-art--paused .wallkit-album-art__disc,
+.wallkit-album-art--variant-cd.wallkit-album-art--paused .wallkit-album-art__disc {
   animation-play-state: paused;
 }
 
@@ -234,15 +237,18 @@
 @media (prefers-reduced-motion: reduce) {
   .wallkit-album-art--variant-classic .wallkit-album-art__disc,
   .wallkit-album-art--variant-glass .wallkit-album-art__disc,
+  .wallkit-album-art--variant-cd .wallkit-album-art__disc,
   .wallkit-album-art--variant-vinyl .wallkit-album-art__vinyl,
-  .wallkit-album-art--variant-vinyl .wallkit-album-art__vinyl-label {
+  .wallkit-album-art--variant-vinyl .wallkit-album-art__vinyl-label,
+  .wallkit-album-art--variant-cassette .wallkit-album-art__reel {
     animation: none;
   }
 }
 
 /* A centre hole sells the record illusion without covering the artwork. */
 .wallkit-album-art--variant-classic .wallkit-album-art__disc::after,
-.wallkit-album-art--variant-glass .wallkit-album-art__disc::after {
+.wallkit-album-art--variant-glass .wallkit-album-art__disc::after,
+.wallkit-album-art--variant-cd .wallkit-album-art__disc::after {
   content: '';
   position: absolute;
   top: 50%;
@@ -253,6 +259,37 @@
   background: rgba(6, 8, 14, 0.72);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
   transform: translate(-50%, -50%);
+}
+
+/* ==========================================================================
+   1b. CD-R disc
+   --------------------------------------------------------------------------
+   Same arrangement as classic, but the disc is silver with a pastel
+   diffraction sheen and the artwork is printed on the face inside a visible
+   metal ring. The padding shrinks the cover image so the ring shows around
+   it; the hole from above still sells the spindle.
+   ========================================================================== */
+
+.wallkit-album-art--variant-cd .wallkit-album-art__disc {
+  padding: calc(var(--wallkit-album-art-unit) * 0.085);
+  background:
+    repeating-radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.32) 0 1px,
+      rgba(150, 170, 205, 0.14) 1px 3px
+    ),
+    conic-gradient(
+      from 200deg,
+      #f6d7e0,
+      #f9ecc6,
+      #d9f2d9,
+      #d3e6fa,
+      #e6d9f6,
+      #f6d7e0
+    );
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
 /* ==========================================================================
@@ -511,129 +548,460 @@
 }
 
 /* ==========================================================================
-   5. Cover wall
+   5. Cassette
+   --------------------------------------------------------------------------
+   A cassette shell: cream printed label on top (mini cover + notes), below
+   it a window showing the tinted tape with two slowly turning reels. The
+   spectrum sits inside the window, behind the reels — the window doubles as
+   the level meter. Ink on the label is fixed dark regardless of theme — it
+   is printed on paper, not text on a wallpaper.
    ========================================================================== */
 
-/* A physical record shelf: solid dark board with a wood-like grain and a lit
-   front lip, so the covers sit on it instead of floating on glass. */
-.wallkit-album-art--variant-wall {
-  width: calc(var(--wallkit-album-art-unit) * 4.4);
-  height: calc(var(--wallkit-album-art-unit) * 1.15);
-  align-items: flex-end;
-  gap: calc(var(--wallkit-album-art-unit) * 0.06);
-  padding: calc(var(--wallkit-album-art-unit) * 0.07);
-  padding-bottom: calc(var(--wallkit-album-art-unit) * 0.1);
-  border-radius: 3px;
-  background:
-    repeating-linear-gradient(
-      92deg,
-      rgba(255, 255, 255, 0.014) 0 2px,
-      rgba(0, 0, 0, 0.05) 2px 6px
-    ),
-    linear-gradient(180deg, #171310 0%, #221a14 62%, #120f0c 100%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow:
-    0 22px 44px rgba(0, 0, 0, 0.58),
-    inset 0 1px 0 rgba(255, 220, 180, 0.1);
+.wallkit-album-art--variant-cassette {
+  flex-direction: column;
+  gap: calc(var(--wallkit-album-art-unit) * 0.05);
+  width: calc(var(--wallkit-album-art-unit) * 2.55);
+  height: calc(var(--wallkit-album-art-unit) * 1.78);
 }
 
-/* The front lip of the shelf, where the sleeves rest. */
-.wallkit-album-art--variant-wall::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: calc(var(--wallkit-album-art-unit) * 0.055);
-  border-radius: 0 0 3px 3px;
-  background: linear-gradient(180deg, #3a2c21, #241a13);
-  box-shadow: inset 0 1px 0 rgba(255, 220, 180, 0.16);
-  pointer-events: none;
-}
-
-.wallkit-album-art--variant-wall .wallkit-album-art__wall {
-  display: flex;
-  align-items: flex-end;
-  gap: calc(var(--wallkit-album-art-unit) * 0.06);
-  width: 100%;
-  height: 100%;
-}
-
-/* Inactive cards are blank cardboard sleeves standing on the shelf; the current
-   one grows, lifts and takes the cover's tint on its edge. */
-.wallkit-album-art--variant-wall .wallkit-album-art__wall-card {
-  flex: 0 0 auto;
-  width: calc(var(--wallkit-album-art-unit) * 0.62);
-  height: 42%;
-  border-radius: 1px;
-  background: linear-gradient(180deg, #2c241d, #1c1611);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.5),
-    inset 1px 0 0 rgba(255, 255, 255, 0.04);
-}
-
-.wallkit-album-art--variant-wall .wallkit-album-art__wall-card.is-current {
-  position: relative;
+.wallkit-album-art--variant-cassette .wallkit-album-art__body--cassette {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--wallkit-album-art-unit) * 0.04);
-  width: calc(var(--wallkit-album-art-unit) * 1.25);
   height: 100%;
-  padding: calc(var(--wallkit-album-art-unit) * 0.04);
-  border-radius: 2px;
-  background: #221a14;
-  border-color: color-mix(
-    in srgb,
-    var(--wallkit-album-art-tint, #8fa8ff) 55%,
-    rgba(255, 255, 255, 0.2)
-  );
+  padding-bottom: 0;
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: calc(var(--wallkit-album-art-unit) * 0.09);
+  background: linear-gradient(180deg, #22262f, #161920 70%, #101218);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.5),
-    0 0 0 1px color-mix(in srgb, var(--wallkit-album-art-tint, #8fa8ff) 35%, transparent);
+    0 14px 34px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  padding: calc(var(--wallkit-album-art-unit) * 0.06);
+}
+
+/* The printed label: cream paper, mini square cover, compact notes. */
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-label {
+  flex: 0 0 36%;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--wallkit-album-art-unit) * 0.06);
+  padding: calc(var(--wallkit-album-art-unit) * 0.04) calc(var(--wallkit-album-art-unit) * 0.07);
+  border-radius: calc(var(--wallkit-album-art-unit) * 0.045);
+  background: linear-gradient(180deg, #f6efdd, #eee6d0);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  text-shadow: none;
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-mini {
+  flex: 0 0 auto;
+  width: calc(var(--wallkit-album-art-unit) * 0.22);
+  height: calc(var(--wallkit-album-art-unit) * 0.22);
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Fixed ink: the label is paper in both themes. */
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-label .wallkit-album-art__title {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.085);
+  color: #2e313c;
+  text-shadow: none;
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-label .wallkit-album-art__artist {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.065);
+  color: rgba(46, 49, 60, 0.66);
+}
+
+/* The window: tinted tape mass with two reels. The tint comes from the
+   cover's dominant colour, mixed down so it reads as tape not paint. */
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-window {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: calc(var(--wallkit-album-art-unit) * 0.055);
+  border-radius: calc(var(--wallkit-album-art-unit) * 0.05);
+  background: color-mix(in srgb, var(--wallkit-album-art-tint, #5a82dc) 42%, #1d212b);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
-/* The spectrum sits behind the sleeve text, filling the current card. */
-.wallkit-album-art--variant-wall .wallkit-album-art__wall-spectrum {
+/* Faint tape edges above and below the reels. It also shades the spectrum
+   that renders inside the window, so the bars read as embedded in the shell
+   rather than pasted on top of the tape. */
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-window::before {
+  content: '';
   position: absolute;
   inset: 0;
-  z-index: 0;
-  opacity: 0.55;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.28),
+    transparent 30%,
+    transparent 70%,
+    rgba(0, 0, 0, 0.28)
+  );
+  pointer-events: none;
 }
 
-.wallkit-album-art--variant-wall .wallkit-album-art__wall-art,
-.wallkit-album-art--variant-wall .wallkit-album-art__meta {
-  position: relative;
+/* Stacking inside the window: tape background, then the spectrum (level
+   meter), then the edge shading, then the reels on top. */
+.wallkit-album-art--variant-cassette .wallkit-album-art__cassette-window .wallkit-mini-spectrum {
   z-index: 1;
+  opacity: 0.85;
 }
 
-.wallkit-album-art--variant-wall .wallkit-album-art__wall-art {
+.wallkit-album-art--variant-cassette .wallkit-album-art__reel {
+  position: absolute;
+  z-index: 3;
+  top: calc(50% - var(--wallkit-album-art-unit) * 0.155);
+  width: calc(var(--wallkit-album-art-unit) * 0.31);
+  height: calc(var(--wallkit-album-art-unit) * 0.31);
+  border-radius: 50%;
+  border: calc(var(--wallkit-album-art-unit) * 0.05) solid #ece9df;
+  background: transparent;
+  animation: wallkit-album-art-spin 9s linear infinite;
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__reel::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--wallkit-album-art-unit) * 0.09);
+  height: calc(var(--wallkit-album-art-unit) * 0.09);
+  border-radius: 50%;
+  background: #161920;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__reel--left {
+  left: calc(var(--wallkit-album-art-unit) * 0.13);
+}
+
+.wallkit-album-art--variant-cassette .wallkit-album-art__reel--right {
+  right: calc(var(--wallkit-album-art-unit) * 0.13);
+}
+
+.wallkit-album-art--variant-cassette.wallkit-album-art--paused .wallkit-album-art__reel {
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   6. Polaroid
+   --------------------------------------------------------------------------
+   An instant photo: white frame, square print, handwritten note in the
+   bottom margin. The whole card tilts a few degrees. Ink on the note is
+   fixed dark — the frame is paper in both themes.
+   ========================================================================== */
+
+.wallkit-album-art--variant-polaroid {
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--wallkit-album-art-unit) * 1.45);
+  height: calc(var(--wallkit-album-art-unit) * 1.92);
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__body--polaroid {
+  height: 100%;
+  padding-bottom: 0;
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-frame {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: calc(var(--wallkit-album-art-unit) * 0.085);
+  padding-bottom: calc(var(--wallkit-album-art-unit) * 0.3);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #f8f5ec, #efeadd);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  transform: rotate(-3deg);
+  text-shadow: none;
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-photo {
   flex: 0 0 auto;
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  border-radius: calc(var(--wallkit-radius-sm, 8px) - 2px);
+  background: var(--wallkit-album-art-wash, rgba(255, 255, 255, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(20, 24, 34, 0.08);
 }
 
-.wallkit-album-art--variant-wall .wallkit-album-art__meta {
+.wallkit-album-art--variant-polaroid .wallkit-album-art__cover--polaroid {
+  border-radius: 0;
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__placeholder--polaroid {
+  border-radius: 0;
+  border-style: solid;
+}
+
+/* The note is a handwriting-style line in the wide bottom margin. */
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-note {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: calc(var(--wallkit-album-art-unit) * 0.07) calc(var(--wallkit-album-art-unit) * 0.02) 0;
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-note .wallkit-album-art__title {
+  font-family:
+    "Segoe Script", "Bradley Hand", "Comic Sans MS", "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-size: calc(var(--wallkit-album-art-unit) * 0.105);
+  color: #3a362c;
+  text-shadow: none;
+  white-space: nowrap;
+}
+
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-note .wallkit-album-art__artist {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.08);
+  color: rgba(58, 54, 44, 0.6);
+}
+
+/* The spectrum reads as a faint exposure strip under the note. */
+.wallkit-album-art--variant-polaroid .wallkit-album-art__polaroid-strip {
+  position: relative;
+  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.07);
+  min-height: 8px;
+  margin-top: calc(var(--wallkit-album-art-unit) * 0.03);
+  opacity: 0.75;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   7. Poster
+   --------------------------------------------------------------------------
+   A vertical gig poster: the artwork fills the sheet behind a darkened
+   gradient, a serif headline and a low equalizer sit at the foot. The
+   backdrop is always darkened, so the text is always light ink regardless
+   of theme — the mirror case of the paper layouts.
+   ========================================================================== */
+
+.wallkit-album-art--variant-poster {
+  display: block;
+  width: calc(var(--wallkit-album-art-unit) * 1.52);
+  height: calc(var(--wallkit-album-art-unit) * 2.55);
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.55);
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__poster-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--wallkit-album-art-wash, rgba(255, 255, 255, 0.04));
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__cover--poster {
+  filter: brightness(0.52) saturate(1.18);
+}
+
+/* The darkening gradient that keeps the foot legible. */
+.wallkit-album-art--variant-poster .wallkit-album-art__poster-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(6, 8, 14, 0.08) 34%, rgba(6, 8, 14, 0.78) 100%);
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__placeholder--poster {
+  border-radius: 0;
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__poster-body {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: calc(var(--wallkit-album-art-unit) * 0.12);
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__meta {
+  position: relative;
+  z-index: 1;
+  /* Keep the notes clear of the equalizer strip. */
+  padding-bottom: calc(var(--wallkit-album-art-unit) * 0.34);
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__title {
+  font-family:
+    "Cormorant Garamond", "EB Garamond", Georgia, "Palatino Linotype", Palatino, serif;
+  font-size: calc(var(--wallkit-album-art-unit) * 0.26);
+  line-height: 1.08;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.wallkit-album-art--variant-poster .wallkit-album-art__artist {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.1);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* The equalizer sits along the foot of the poster. */
+.wallkit-album-art--variant-poster .wallkit-mini-spectrum {
+  inset: auto 0 0 0;
+  height: 30%;
+}
+
+/* ==========================================================================
+   8. Ticket
+   --------------------------------------------------------------------------
+   An admission ticket: cream stock, cover stub on the left, a perforation
+   line, then the notes and a barcode-like spectrum block. Ink is fixed dark
+   — printed on paper.
+   ========================================================================== */
+
+.wallkit-album-art--variant-ticket {
+  flex: 0 0 auto;
+  width: calc(var(--wallkit-album-art-unit) * 4.9);
+  height: calc(var(--wallkit-album-art-unit) * 0.68);
+  min-height: 64px;
+}
+
+.wallkit-album-art--variant-ticket .wallkit-album-art__body--ticket {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--wallkit-space-3, 12px);
+  height: 100%;
+  padding: 0 calc(var(--wallkit-album-art-unit) * 0.16) 0 calc(var(--wallkit-album-art-unit) * 0.09);
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f6f0e2, #ece4d1);
+  border: 1px solid rgba(20, 24, 34, 0.16);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  text-shadow: none;
+}
+
+.wallkit-album-art--variant-ticket .wallkit-album-art__thumb {
+  width: calc(var(--wallkit-album-art-unit) * 0.5);
+  height: calc(var(--wallkit-album-art-unit) * 0.5);
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* The perforation between stub and body. */
+.wallkit-album-art--variant-ticket .wallkit-album-art__ticket-divider {
+  align-self: stretch;
+  margin: calc(var(--wallkit-album-art-unit) * 0.08) 0;
+  border-left: 1.5px dashed rgba(20, 24, 34, 0.32);
+}
+
+/* Fixed ink on the paper stock, both themes. */
+.wallkit-album-art--variant-ticket .wallkit-album-art__title {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.155);
+  color: #33302a;
+  text-shadow: none;
+}
+
+.wallkit-album-art--variant-ticket .wallkit-album-art__artist {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.1);
+  color: rgba(51, 48, 42, 0.66);
+}
+
+/* The spectrum block reads as a barcode at the stub end. */
+.wallkit-album-art--variant-ticket .wallkit-album-art__ticket-spectrum {
+  position: relative;
+  flex: 0 0 20%;
+  height: 56%;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   9. Type
+   --------------------------------------------------------------------------
+   Pure typography: no cover is rendered at all. The height is content-driven
+   and the only graphics are a vertical rule tinted by the artwork's dominant
+   colour and a quiet dot baseline under the notes — a type-specimen card for
+   wallpapers where even a thumbnail is one image too many. Text follows the
+   theme ink like the other chrome-less layouts; there is no surface to flip.
+   ========================================================================== */
+
+.wallkit-album-art--variant-type {
+  flex-direction: column;
+  width: calc(var(--wallkit-album-art-unit) * 2.3);
+  height: auto;
+  align-items: stretch;
+  padding-left: calc(var(--wallkit-album-art-unit) * 0.12);
+  /* The one graphic: a vertical rule in the cover's dominant colour. Falls
+     back to the shared accent tint when the track carries no colour. */
+  border-left: calc(var(--wallkit-album-art-unit) * 0.035) solid
+    var(--wallkit-album-art-tint, #5a82dc);
+}
+
+.wallkit-album-art--variant-type .wallkit-album-art__body--type {
+  height: auto;
+  gap: calc(var(--wallkit-album-art-unit) * 0.03);
   padding-bottom: 0;
 }
 
-.wallkit-album-art--variant-wall .wallkit-album-art__title {
-  font-size: calc(var(--wallkit-album-art-unit) * 0.115);
+.wallkit-album-art--variant-type .wallkit-album-art__title {
+  font-family:
+    "Cormorant Garamond", "EB Garamond", Georgia, "Palatino Linotype", Palatino,
+    "Times New Roman", "Songti SC", "SimSun", serif;
+  font-size: calc(var(--wallkit-album-art-unit) * 0.3);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.12;
 }
 
-.wallkit-album-art--variant-wall .wallkit-album-art__artist {
+/* Letter-spaced small caps, the same voice as the artist line on minimal. */
+.wallkit-album-art--variant-type .wallkit-album-art__artist {
+  font-size: calc(var(--wallkit-album-art-unit) * 0.095);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--wallkit-album-art-fg-faint, rgba(238, 242, 252, 0.66));
+}
+
+/* The album line is part of the composition here: faint italic serif, like a
+   footnote under the specimen. */
+.wallkit-album-art--variant-type .wallkit-album-art__album {
+  font-family:
+    "Cormorant Garamond", "EB Garamond", Georgia, "Palatino Linotype", Palatino,
+    "Songti SC", "SimSun", serif;
+  font-style: italic;
   font-size: calc(var(--wallkit-album-art-unit) * 0.085);
+}
+
+/* The dots sit as a quiet baseline under the notes. */
+.wallkit-album-art--variant-type .wallkit-album-art__type-spectrum {
+  position: relative;
+  flex: 0 0 calc(var(--wallkit-album-art-unit) * 0.07);
+  min-height: 8px;
+  margin-top: calc(var(--wallkit-album-art-unit) * 0.04);
+  opacity: 0.55;
+  overflow: hidden;
 }
 
 /* ==========================================================================
    Dark ink on bright wallpaper
    --------------------------------------------------------------------------
-   Only the surfaces that carry text flip. The record itself stays black and
-   the shelf stays wood — those are objects, not plates — but everything the
-   text sits on turns light so `--theme-dark` ink stays readable.
+   Only the surfaces that carry text flip. The record, the CD and the tape
+   shell stay dark and the paper stock stays cream — those are objects, not
+   plates — but everything the text sits on as a panel turns light so
+   `--theme-dark` ink stays readable. The paper layouts (cassette label,
+   polaroid note, ticket) and the poster already use fixed ink of their own,
+   so they need no flip at all.
    ========================================================================== */
 
 .wallkit-album-art--theme-dark.wallkit-album-art--variant-glass {
@@ -664,29 +1032,6 @@
     0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
-/* Cardboard sleeves are light anyway; the dark theme just stops them being
-   dark brown. */
-.wallkit-album-art--theme-dark.wallkit-album-art--variant-wall .wallkit-album-art__wall-card {
-  background: linear-gradient(180deg, #efe7da, #ded4c3);
-  border-color: rgba(10, 16, 28, 0.1);
-  box-shadow:
-    0 8px 18px rgba(10, 16, 28, 0.22),
-    inset 1px 0 0 rgba(255, 255, 255, 0.5);
-}
-
-.wallkit-album-art--theme-dark.wallkit-album-art--variant-wall
-  .wallkit-album-art__wall-card.is-current {
-  background: #f6f0e6;
-  border-color: color-mix(
-    in srgb,
-    var(--wallkit-album-art-tint, #8fa8ff) 45%,
-    rgba(10, 16, 28, 0.24)
-  );
-  box-shadow:
-    0 16px 36px rgba(10, 16, 28, 0.28),
-    0 0 0 1px color-mix(in srgb, var(--wallkit-album-art-tint, #8fa8ff) 40%, transparent);
-}
-
 /* ==========================================================================
    Narrow screens
    ========================================================================== */
@@ -698,7 +1043,7 @@
 
   /* The horizontal layouts shrink their fixed width so they stay on screen. */
   .wallkit-album-art--variant-bar,
-  .wallkit-album-art--variant-wall {
+  .wallkit-album-art--variant-ticket {
     width: calc(100vw - var(--wallkit-album-art-safe) * 2);
   }
 }
