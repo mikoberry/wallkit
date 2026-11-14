@@ -705,22 +705,30 @@
 
 /* The filled portion overlays the notched track.
  *
- * The pseudo-element spans the FULL bar width so its percentage gradients share
- * the track's pitch exactly; the elapsed fraction is applied by clipping with
- * clip-path rather than by setting `width`. Sizing it to the fraction instead
- * would rescale the percentages and drift every cell out of phase. */
+ * The fill is a CONTINUOUS solid bar (no cell gaps): the elapsed part reads as
+ * one unbroken stroke while the track behind it keeps its notched cells, so
+ * filled vs remaining is distinguished by solid-vs-notched as well as by
+ * colour. The pseudo-element spans the FULL bar width and the elapsed fraction
+ * is applied by clipping with clip-path rather than by setting `width`.
+ *
+ * Colour resolves through three levels: a caller override
+ * (`--wallkit-clock-seg-accent`, set it on a wrapper element), then the
+ * theme-specific fill colour below, then the shared default. The fills stay
+ * strictly neutral (greys) on purpose: the track already borrows the text
+ * colour, so the elapsed fraction separates itself by LUMINANCE and opacity —
+ * the fill is a SOLID near-text grey (light theme) or deep grey (dark theme),
+ * considerably stronger than the 0.2-alpha track. NOTE: `--wallkit-clock-seg-fill`
+ * is the elapsed PERCENTAGE injected by the component, hence the -colour
+ * suffix on the theme variable. */
+.wallkit-clock__segments.wallkit-clock--theme-dark {
+  --wallkit-clock-seg-fill-colour: #3f444c;
+}
+
 .wallkit-clock__seg-bar::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--wallkit-clock-seg-accent, var(--wallkit-accent, #a8c4ff)) 0,
-    var(--wallkit-clock-seg-accent, var(--wallkit-accent, #a8c4ff))
-      calc(100% / var(--wallkit-clock-seg-count) - 3px),
-    transparent calc(100% / var(--wallkit-clock-seg-count) - 3px),
-    transparent calc(100% / var(--wallkit-clock-seg-count))
-  );
+  background: var(--wallkit-clock-seg-accent, var(--wallkit-clock-seg-fill-colour, #e9ecf1));
   clip-path: inset(0 calc(100% - var(--wallkit-clock-seg-fill)) 0 0);
   transition: clip-path 240ms linear;
 }
@@ -735,10 +743,6 @@
 .wallkit-clock__segments.wallkit-clock--theme-dark {
   color: #1a1e28;
   text-shadow: 0 1px 10px rgba(255, 255, 255, 0.75);
-}
-
-.wallkit-clock__segments.wallkit-clock--theme-dark .wallkit-clock__seg-bar::after {
-  background: #3f5fa8;
 }
 
 /* ==========================================================================

@@ -135,7 +135,10 @@ function normalizeTilt(tilt) {
  *   colour, across every layout. Takes precedence over `theme`; the dim / faint
  *   text tiers derive their alpha from the same colour. Layout accents that are
  *   a distinct hue by design (ring / segment fills, the stamp rule, cyberpunk's
- *   neon seconds) keep their own colour.
+ *   neon headline) keep their own colour — retint them from a wrapper via the
+ *   CSS custom properties (`--wallkit-clock-seg-accent`, `--wallkit-clock-ring-accent`,
+ *   `--wallkit-clock-stamp-accent`, `--wallkit-clock-cyber-accent`), which
+ *   inherit into the component.
  * @param {boolean} [props.use24Hour=true]      24-hour or 12-hour clock.
  * @param {number} [props.size=100]             Size percentage.
  * @param {'top-left'|'top-center'|'top-right'|'center-left'|'center'|'center-right'|'bottom-left'|'bottom-center'|'bottom-right'} [props.anchor='bottom-left']
@@ -387,7 +390,12 @@ export default function Clock({
       '--wallkit-clock-fg-dim': hexToRgba(c, 0.82),
       '--wallkit-clock-fg-faint': hexToRgba(c, 0.62),
       // The neon card's headline follows the override while its seconds /
-      // meridiem keep their own accent hues.
+      // meridiem keep their own accent hues. The segment fill / ring stroke /
+      // stamp rule deliberately do NOT follow: with a saturated `color` the
+      // track (0.2 alpha of the text colour) plus a same-hue fill read as one
+      // flat block — the fill needs a colour independent of the text to keep
+      // the elapsed fraction legible. Override per-accent via the CSS custom
+      // properties documented on `color`.
       '--wallkit-clock-cyber-accent': c,
     }
   }

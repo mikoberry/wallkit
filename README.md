@@ -107,6 +107,7 @@ function Controls() {
 | `visible` | `true` | `false` 时不渲染 DOM（倾斜的 rAF 也停止） |
 | `placement` | `'card'` | 10 种布局之一，非法值回退 `card` |
 | `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
+| `color` | — | `#rrggbb`，覆盖主文字色（优先于 `theme`），暗 / 淡两级文字从同一色派生。**布局强调色不受它影响**（`ring` / `segments` 的进度填充、`stamp` 刻线、`cyberpunk` 霓虹标题是刻意独立的另一色相）——要用文字同色或换强调色，在包裹层写 CSS 变量（`--wallkit-clock-seg-accent` / `--wallkit-clock-ring-accent` / `--wallkit-clock-stamp-accent` / `--wallkit-clock-cyber-accent`），变量继承进组件即生效 |
 | `use24Hour` | `true` | 12 / 24 小时制 |
 | `size` | `100` | 尺寸百分比，40–200 |
 | `anchor` | `'bottom-left'` | 贴哪个锚点：四角 + 四边中点 + 居中，共 9 个，见下方「锚点与偏移」 |
