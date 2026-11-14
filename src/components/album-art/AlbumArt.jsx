@@ -72,14 +72,26 @@ const CARD_SPECTRUM_CURVE = 0.7
 // bleed past the record's box by this fraction of the diameter on every side —
 // that band is where the bars travel. The bleed is symmetric, so the record
 // still lands exactly on the anchor point; what grows is the painted extent,
-// not the layout box. 0.22 lets a full-level bar reach a fifth of the diameter
-// past the rim, which at a 300px record is ~66px of headroom.
+// not the layout box. 0.22 gives the bars a band a fifth of the diameter wide
+// to travel in, which at a 300px record is ~66px of headroom.
 const VINYL_RING_BLEED = 0.22
 
-// The renderer measures the empty centre as a fraction of the *canvas* radius,
-// so the base that lands exactly on the rim is discRadius / canvasRadius —
-// derived rather than hand-tuned, or the two numbers would drift apart.
-const VINYL_RING_BASE = 0.5 / (0.5 + VINYL_RING_BLEED)
+// Breathing room between the rim and the foot of the bars, as a fraction of the
+// disc diameter. With the base welded to the rim the bars read as grooves cut
+// into the record instead of a separate ring. 0.03 is ~9px on a 300px record
+// (and ~6px at the default 18vh card) — enough to separate the two shapes
+// without detaching the ring from the disc. It is paid for out of the bleed, so
+// the canvas, the anchor and the outer extent stay exactly where they were;
+// only the bars' maximum travel shortens, from 0.22D to 0.19D.
+const VINYL_RING_GAP = 0.03
+
+// The renderer measures the empty centre as a fraction of the *canvas* radius:
+// canvasRadius = (0.5 + bleed) × diameter, and the foot of the bars sits at
+// (0.5 + gap) × diameter. Deriving the ratio from both numbers keeps the gap
+// tied to the bleed — hand-tuning a magic 0.736 would drift the moment either
+// one changed. (The renderer reserves 1px at the outer edge, which shaves well
+// under a pixel off the gap.)
+const VINYL_RING_BASE = (0.5 + VINYL_RING_GAP) / (0.5 + VINYL_RING_BLEED)
 
 // Column count for the record's ring. The card default (32, `MINI_SPECTRUM_BARS`)
 // is tuned for a straight strip, where every column owns a slice of a short
@@ -182,9 +194,10 @@ function Meta({ track, compact = false }) {
  *   Invalid values fall back to `classic`. `ALBUM_ART_VARIANTS` has the list.
  *   `type` renders no cover at all — pure typography with a tinted rule.
  *   `vinyl` is a bare record; with `spectrum` on it also draws a ring of bars
- *   that grows outward from the rim, so it then paints past `size` by ~22%
- *   of the diameter on each side (the record and the anchor point are
- *   unchanged; only the painted extent grows).
+ *   starting a little outside the rim (a ~3% diameter air gap keeps the ring
+ *   from reading as grooves in the disc), growing outward to ~22% of the
+ *   diameter past the rim on each side. The record and the anchor point are
+ *   unchanged; only the painted extent grows.
  *   The paper layouts (`cassette` label, `polaroid` note, `ticket` stub) print
  *   their text in fixed dark ink regardless of `theme` / `color` — it is ink on
  *   paper, not text on a wallpaper. `poster` is the mirror case: its backdrop
@@ -318,8 +331,9 @@ export default function AlbumArt({
     case 'vinyl': {
       // One big record. The sleeve notes sit on the centre label, the whole
       // widget turns as a single piece, and — only when `spectrum` is on (off
-      // by default here) — a ring of bars rises out past the rim. The ring is a
-      // child of the disc so it inherits that rotation (and its pause) — hence
+      // by default here) — a ring of bars rises outward from just beyond the
+      // rim, leaving a small air gap. The ring is a child of the disc so it
+      // inherits that rotation (and its pause) — hence
       // `ringSpin={false}`: the renderer must not drift on its own, or the two
       // rotations would fight and the bars would read as wobbling. Its wrapper
       // bleeds outward by `VINYL_RING_BLEED` on every side, which is what puts

@@ -195,7 +195,7 @@ import { MiniSpectrum } from 'wallkit/components/mini-spectrum'
 | `colorHex` | — | 同 `Spectrum` |
 | `barCount` | `32` | 折叠到几根柱子。小尺寸下 128 根会变成一条条线；传 `bars.length` 可关闭折叠 |
 | `intensity` / `curve` | `100` / `1` | 同 `Spectrum` |
-| `ringBase` | — | 仅 `ring` / `ringwave`：中心空白占半径的比例（0.05–0.98）。调大把柱子推到边缘——专辑卡的唱片环就是这么贴到碟缘的。省略用渲染器默认 `0.46` |
+| `ringBase` | — | 仅 `ring` / `ringwave`：中心空白占半径的比例（0.05–0.98）。调大把柱子推到边缘——专辑卡的唱片环就是这么落到碟缘外侧、留出一圈空隙的。省略用渲染器默认 `0.46` |
 | `ringSpin` | `true` | 仅 `ring` / `ringwave`：环是否自转。父容器自己已经在转时传 `false`，否则两个转速会互相打架 |
 | `visible` / `paused` | `true` / `false` | 同 `Spectrum` |
 
@@ -233,7 +233,7 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 **两种"不渲染"**：`track == null` 不渲染；`track.playback === 'stopped'` 也不渲染。`playback === null` 表示**未知**，按正在播放处理——引擎只在切歌时推送，把未知当成停止会让封面永久消失。
 
-十一种布局各自绑定频谱样式：classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars。**`vinyl` 是唯一默认不画频谱的布局**（省略 `spectrum` 就是一张干净唱片），要那条环就显式传 `spectrum`；反过来对所有布局传 `spectrum={false}` 也能一键静音。`vinyl` 的 `ring` 是一圈**贴着碟缘向外长的柱子**：基准圆落在唱片边缘上，柱子从碟缘往外伸缩，安静时几乎贴着碟缘、最大探出 `0.22 ×` 直径；柱数固定 128（`VINYL_RING_BARS`）——取满整个频段，同样 32 根在直条上是正常密度、摊到整个圆周就成了稀疏栅栏（画布还是唱片的 1.44 倍），128 根在这条半径上刚好是几像素一根的连续电平表。为此覆盖层四周各向外出血 22%，所以开了频谱时这个布局的**视觉范围比 `size` 大一圈**——唱片本身和锚点都没变，只是光画到了盒子外面；贴边锚点（`offsetX/Y = 0`）会被视口裁掉柱尖。环是唱片元素的子节点，跟着 24s 一起转、一起暂停，因此对渲染器关了自转（`ringSpin={false}`），两者不会互相追。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
+十一种布局各自绑定频谱样式：classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars。**`vinyl` 是唯一默认不画频谱的布局**（省略 `spectrum` 就是一张干净唱片），要那条环就显式传 `spectrum`；反过来对所有布局传 `spectrum={false}` 也能一键静音。`vinyl` 的 `ring` 是一圈**从碟缘外侧向外长的柱子**：柱基与碟缘之间留 `0.03 ×` 直径的空隙（300px 唱片约 9px，安静时也保持），柱尖最大探出 `0.22 ×` 直径，所以柱子自身最长行程约 `0.19 ×` 直径；柱数固定 128（`VINYL_RING_BARS`）——取满整个频段，同样 32 根在直条上是正常密度、摊到整个圆周就成了稀疏栅栏（画布还是唱片的 1.44 倍），128 根在这条半径上刚好是几像素一根的连续电平表。为此覆盖层四周各向外出血 22%，所以开了频谱时这个布局的**视觉范围比 `size` 大一圈**——唱片本身和锚点都没变，只是光画到了盒子外面；贴边锚点（`offsetX/Y = 0`）会被视口裁掉柱尖。环是唱片元素的子节点，跟着 24s 一起转、一起暂停，因此对渲染器关了自转（`ringSpin={false}`），两者不会互相追。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
 
 ### PointerFx
 

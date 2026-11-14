@@ -31,9 +31,10 @@ export const MINI_SPECTRUM_BARS = 32
  * @param {number} [props.curve=1]              Response curve exponent (0.2..2).
  * @param {number} [props.ringBase]             `ring` / `ringwave` only: how much
  *   of the radius the empty centre takes (0.05..0.98). Omit for the renderer
- *   default (`0.46`). The album card raises it so the ring starts exactly on the
- *   record's rim — it makes the ring *bigger within its box*, it does not move
- *   the box; to paint outside the parent, size the parent larger.
+ *   default (`0.46`). The album card raises it so the ring starts just outside
+ *   the record's rim, leaving a small air gap — it makes the ring *bigger within
+ *   its box*, it does not move the box; to paint outside the parent, size the
+ *   parent larger.
  * @param {boolean} [props.ringSpin=true]       `ring` / `ringwave` only: let the
  *   pattern drift around the circle. Set `false` when the parent already spins,
  *   otherwise the two rotations fight.

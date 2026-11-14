@@ -1170,7 +1170,7 @@ function AlbumArtDemo() {
         十一种布局各自绑定频谱样式：
         classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、
         polaroid→dots、cd→curve、poster→bars、ticket→bars。
-        vinyl 的环形柱状图从碟缘往外长（基准圆落在唱片边缘，柱数 128），随唱片一起转、一起暂停；
+        vinyl 的环形柱状图从碟缘外侧约 3% 直径处往外长（与唱片之间留一圈空隙，柱数 128），随唱片一起转、一起暂停；
         它默认不画（传 <code>spectrum</code> 才出现），
         覆盖层四周出血 22%，所以它的视觉范围比 size 大一圈，贴边锚点会裁掉柱尖。
         封面每 24s 转一圈，<code>paused</code> 或 <code>playback="paused"</code> 时停转；

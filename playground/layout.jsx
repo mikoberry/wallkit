@@ -104,8 +104,10 @@ function LayoutProof() {
         labels={{ locale: 'zh-CN', aria: '当前时间' }}
       />
 
-      {/* 3 · record with its own outer ring: 34vh across, and the ring bleeds
-          ~22% of the diameter past the rim on every side. There used to be a
+      {/* 3 · record with its own outer ring: 34vh across, and the ring's canvas
+          bleeds ~22% of the diameter past the rim on every side (the bars start
+          ~3% of the diameter out from the rim, so their travel is the remaining
+          19%). There used to be a
           separate 46vh Spectrum pinned to the same centre, but that ring now
           lands in the same band as the record's own bleed — one of them has to
           go, and the built-in one is what real wallpapers ship. `spectrum` is

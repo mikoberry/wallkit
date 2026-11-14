@@ -416,9 +416,10 @@
   pointer-events: none;
 }
 
-/* The bar ring radiates outward from the rim, so its box bleeds past the disc
-   by `VINYL_RING_BLEED` on every side — that inset comes inline from the JSX,
-   because the renderer's base ratio is derived from the same number and two
+/* The bar ring starts just outside the rim and radiates outward, so its box
+   bleeds past the disc by `VINYL_RING_BLEED` on every side — that inset comes
+   inline from the JSX, because the renderer's base ratio is derived from the
+   same number (plus `VINYL_RING_GAP`, the air gap before the first bar) and two
    copies would drift. It is a child of the disc on purpose: it inherits the
    record's rotation and its pause for free, so no second animation can fall out
    of step with the grooves. The z-index lifts it above the rim shading painted
