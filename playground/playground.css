@@ -483,3 +483,13 @@ body {
   background: rgba(255, 255, 255, 0.08);
   font-family: ui-monospace, monospace;
 }
+
+/* The spotlight needs a big stage: at 420px the light is most of a small cell,
+ * and the point is to see how far the darkness reaches. */
+.grid--spotlight {
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
+}
+
+.grid--spotlight .stage {
+  height: 340px;
+}

@@ -1,0 +1,68 @@
+/* Spotlight — a lit circle that follows the pointer, everything else darkened.
+ *
+ * Like PointerFx this overlay fills its positioning context instead of using
+ * the anchor triple: a full-bleed effect has no box of its own to place. The
+ * parent must be `position: relative` with a definite size.
+ *
+ * The whole effect is two radial gradients whose origin is the
+ * `--wallkit-spotlight-x` / `-y` pair the component writes on the root. Keep
+ * those on the root so both layers share one origin — writing them on a child
+ * would let the mask and the halo drift apart.
+ *
+ * pointer-events: none is essential: a full-screen dark layer must never
+ * swallow a click meant for the wallpaper.
+ *
+ * z-index 6 puts this layer above every other layer (ambient 1 → spectrum 3 →
+ * pointer effects 4 → clock / album 5), which is the point: the effect is
+ * supposed to darken the controls too. A wallpaper that wants its controls
+ * always lit can lower this value in its own stylesheet.
+ *
+ * The z-index deliberately sits on the two children, NOT on the root: a
+ * positioned element with a z-index creates a stacking context, and a stacking
+ * context isolates its descendants from the page backdrop — which would stop
+ * the glow layer's `mix-blend-mode: screen` from reaching the wallpaper and
+ * turn it into a flat white veil. Keep the root free of z-index / isolation /
+ * opacity / filter, or the light stops brightening and starts covering. */
+
+.wallkit-spotlight {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wallkit-spotlight__mask,
+.wallkit-spotlight__glow {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background-repeat: no-repeat;
+}
+
+/* Nothing is shown until the first pointer event: a wallpaper whose host
+   delivers no mouse input must not end up covered in black. */
+.wallkit-spotlight__mask {
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+
+.wallkit-spotlight__glow {
+  opacity: 0;
+  /* `screen` only ever brightens what is underneath, so the halo reads as light
+     on the wallpaper rather than as a translucent white disc over it. */
+  mix-blend-mode: screen;
+  transition: opacity 220ms ease-out;
+}
+
+.wallkit-spotlight[data-active='true'] .wallkit-spotlight__mask,
+.wallkit-spotlight[data-active='true'] .wallkit-spotlight__glow {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallkit-spotlight__mask,
+  .wallkit-spotlight__glow {
+    transition: none;
+  }
+}

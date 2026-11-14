@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有三个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
+当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有四个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层）、`Spotlight`（跟随指针的聚光遮罩，同样需 WE 鼠标交互），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
 
 ## Execution rules
 
@@ -71,6 +71,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/album-art` | `src/components/album-art/index.js` | AlbumArt 组件 |
 | `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
 | `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡氛围层） |
+| `./components/spotlight` | `src/components/spotlight/index.js` | Spotlight 组件（跟随指针的聚光 / 关灯遮罩） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `./styles` | `src/styles/index.css` | 主题变量 |
@@ -90,6 +91,7 @@ src/
 │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、bass、渐变色）
 │   ├── pointer.js        # 指针特效纯函数（环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期映射）
 │   ├── ambient.js        # 氛围粒子纯函数（预设表、参数填充、位置/旋转/透明度）
+│   ├── spotlight.js      # 聚光灯纯函数（渐变字符串构造、跟随缓动）
 │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
 │   ├── length.js         # toLength
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
@@ -119,12 +121,16 @@ src/
 │   │   ├── PointerFx.jsx     # 全容器覆盖层、事件映射、按需 rAF
 │   │   ├── renderers.js      # 4 种绘制函数（内部模块）
 │   │   └── PointerFx.css
-│   └── ambient-fx/
+│   ├── ambient-fx/
+│   │   ├── index.js
+│   │   ├── AmbientFx.jsx     # 全容器覆盖层、纯函数驱动、常驻 rAF
+│   │   ├── renderers.js      # 3 种绘制函数（内部模块）
+│   │   ├── sprites.js        # 离屏精灵预渲染（内部模块）
+│   │   └── AmbientFx.css
+│   └── spotlight/
 │       ├── index.js
-│       ├── AmbientFx.jsx     # 全容器覆盖层、纯函数驱动、常驻 rAF
-│       ├── renderers.js      # 3 种绘制函数（内部模块）
-│       ├── sprites.js        # 离屏精灵预渲染（内部模块）
-│       └── AmbientFx.css
+│       ├── Spotlight.jsx     # 全容器覆盖层、两层 CSS 渐变、指针只改两个变量
+│       └── Spotlight.css
 ├── styles/index.css      # --wallkit-* 变量
 └── we/                   # 可选外壳层（控件层不依赖）
     ├── index.js          # hooks 统一 re-export
@@ -285,10 +291,38 @@ src/
 - **`rain` / `fog` / `leaves` 的分工**：rain 走通用路径，但雨丝按风向整体倾斜（`atan2(drift * width, span)`，`travel` 在比值里约掉）；fog 在 `ambientOffset` 有横向漂移专用分支（X 槽复用为纵向锚点、phase 兼作横向起点，一半向左一半向右，`bankLife()` 双端淡入淡出藏 wrap），绘制时不旋转、横向拉伸；leaves 与樱花共用同一个绘制循环（`drawTumbling`），但走双频摆动分支得到之字翻滚，自转幅度也大得多。
 - `prefers-reduced-motion` 下**只画一帧**静止构图（保留构图、去掉运动）；`paused` 连这一帧都不重画，最后一帧留在屏上。
 - 粒子尺寸按视口缩放（`sqrt(min(w/1920, h/1080))` 钳到 0.7–2），否则 4K 壁纸会是 1080p 大小的雪。数量有 `AMBIENT_COUNT_MAX = 240` 的硬上限，预设另有更低的 `max`。
-- **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），所以雪从时钟背后穿过、文字不被压住。
+- **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6），所以雪从时钟背后穿过、文字不被压住。
 - **背景里已有粒子时不要叠这一层**：WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看。该不该显示是应用层判断，`visible={false}` 既不渲染 DOM 也不留 canvas。
 - **WE 环境**：桌面壁纸默认不投递鼠标事件，收不到事件时画布保持空白，**不生成假轨迹**。要实机看到需在 WE 里开启鼠标交互；浏览器 / 预览窗口可直接看。因此 **`wallpaper.html` 不挂 PointerFx**（那页按 8 秒自动轮换，本来也没鼠标）。
 - `POINTER_TRAIL_VARIANTS` / `POINTER_CLICK_VARIANTS` 与尺寸 / 强度边界从 `components/pointer-fx` 和 `core` 导出；`renderers.js` 是内部模块，不进 `exports`。
+
+### Spotlight 组件
+
+跟随指针的聚光灯：一个亮圈跟着鼠标走，圈外压暗。**整层是两层 CSS 径向渐变，没有 canvas、没有绘制循环。**
+
+```jsx
+<Spotlight
+  size={420}                 // 光圈直径 px，80-3000
+  feather={0.45}             // 边缘软硬，0-1 的比例（0 = 硬边）
+  dim={0.72}                 // 圈外遮罩浓度 0-1
+  glow={0.22}                // 圈内高光 0-1（0 时高光层根本不挂）
+  darkColor="#000000"        // 暗部颜色
+  lightColor="#ffffff"       // 高光颜色
+  smoothing={0.05}           // 跟随延迟，时间常数（秒）；0 = 逐事件直贴
+  visible paused
+/>
+```
+
+- **只有两个 CSS 变量在动**：指针事件里只写 `--wallkit-spotlight-x` / `-y`（百分比，不是 px——窗口缩放后光圈仍停在原处）。渐变字符串由 `core/spotlight.js` 的 `spotlightMaskGradient()` / `spotlightGlowGradient()` 构造，用 `useMemo` 只在 props 变化时重建，**绝不进事件处理函数**。
+- **代价是一次重绘，不是一次合成位移**：改渐变原点会让这一层重新光栅化（全屏径向渐变）。1080p 下远低于一帧的预算，所以没有为它引入「小方块 + `box-shadow` 铺满 + `translate3d`」那套合成层写法——那套还要额外处理边缘接缝与高光的层叠上下文，复杂度不值。真在 4K 上觉得掉帧，优先调大 `smoothing` 让事件合并，而不是改成位移方案。
+- **`smoothing = 0` 时连 rAF 都没有**：事件里直接写变量。`smoothing > 0` 才起一个 rAF 做指数追上（`spotlightApproach()`，`tau` 秒数常量），追到亚像素就停——不会常驻空转。`prefers-reduced-motion` 强制 `tau = 0`（只去掉缓动，不停效果）。
+- **渐变用 smoothstep 采样 6 段**：线性 ramp 在接近纯黑的背景上会看到 mach band；`feather = 0` 时留 0.5px 的阶梯，否则部分渲染器会画成硬锯齿。
+- **高光层是 `mix-blend-mode: screen`**：只能提亮、不能覆盖，所以是「打光」而不是「蒙一层白」。它就是「亮圈」的来源——只压暗不增亮的版本在深色壁纸上看起来只是一个洞。
+- **`z-index` 必须写在两个子层上，不能写在根节点**：带 `z-index` 的定位元素会创建层叠上下文，而层叠上下文会把后代的混合背板限制在自身内部——写错位置时 `screen` 够不到壁纸，高光退化成一层平白蒙版。同理，根节点上不要加 `isolation` / `opacity` / `filter` / `transform`。
+- **没有收到任何指针事件前遮罩保持全透明**（`data-active` 属性触发 220ms 淡入）。WE 桌面壁纸默认不投递给网页鼠标事件，若首帧就压黑，整张壁纸会直接黑屏。
+- **`z-index: 6`，是唯一压在控件之上的层**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6）。效果本来就要压住时钟和专辑卡；想让某个控件始终亮着，在自己的样式表里降低该实例的层级。
+- 与 `PointerFx` 同一套输入约定：监听 `window` 的 `pointermove` / `pointerdown`，坐标映射进自身盒子，盒子外的事件忽略，一页可挂多个实例；同样**不使用 `anchor` 三元组**。
+- `paused` 停止监听并冻结当前画面；`visible={false}` 不渲染 DOM。
 
 ## Conventions
 
@@ -303,6 +337,7 @@ src/
 - `MiniSpectrum` **不参与**：它填满父容器，位置由父容器决定。
 - `PointerFx` **也不参与**：它是铺满定位上下文的特效层，没有自己的盒子可放（见上方组件说明）。
 - `AmbientFx` **同理**：氛围粒子层同样铺满定位上下文，`z-index: 1` 压在控件之下。
+- `Spotlight` 是反向的例外：它铺满定位上下文，但 `z-index: 6` **压在控件之上**——遮罩的意义就是把下面的一切压暗。
 - 新增控件时复用这套三元组，并把 `anchor` 加进 `ANCHORS`（`core` 导出，顺序为阅读顺序，正好对应 2x2 选择器）。
 
 ### 样式

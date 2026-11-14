@@ -22,6 +22,16 @@ import {
   AMBIENT_SPEED_MAX,
   AMBIENT_SPEED_DEFAULT,
 } from '../src/components/ambient-fx/index.js'
+import {
+  Spotlight,
+  SPOTLIGHT_SIZE_MIN,
+  SPOTLIGHT_SIZE_MAX,
+  SPOTLIGHT_FEATHER_DEFAULT,
+  SPOTLIGHT_DIM_DEFAULT,
+  SPOTLIGHT_GLOW_DEFAULT,
+  SPOTLIGHT_SMOOTHING_MAX,
+  SPOTLIGHT_SMOOTHING_DEFAULT,
+} from '../src/components/spotlight/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -62,6 +72,7 @@ const COMPONENTS = [
   { id: 'album', label: 'AlbumArt', hint: '专辑卡片控件' },
   { id: 'pointer', label: 'PointerFx', hint: '鼠标拖尾与点击特效' },
   { id: 'ambient', label: 'AmbientFx', hint: '全屏氛围粒子层' },
+  { id: 'spotlight', label: 'Spotlight', hint: '跟随鼠标的聚光灯' },
 ]
 
 // Every trail / click combination gets its own cell. The lists come from the
@@ -1475,6 +1486,143 @@ function AmbientFxDemo() {
   )
 }
 
+// Three backdrops, one set of props: the spotlight has to be judged against the
+// wallpaper it will actually sit on, so the cells differ only in the artwork
+// behind them while every slider still drives all three at once.
+const SPOTLIGHT_STAGES = [
+  { stage: 'stage--dark', caption: 'spotlight · 深色壁纸' },
+  { stage: 'stage--light', caption: 'spotlight · 亮色壁纸（遮罩同样压得住）' },
+  { stage: 'stage--photo', caption: 'spotlight · 彩色壁纸（高光最容易看出来）' },
+]
+
+function SpotlightDemo() {
+  // Real pointer input, no synthetic cursor: move the mouse into a cell.
+  const [visible, setVisible] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [size, setSize] = useState(420)
+  const [feather, setFeather] = useState(SPOTLIGHT_FEATHER_DEFAULT)
+  const [dim, setDim] = useState(SPOTLIGHT_DIM_DEFAULT)
+  const [glow, setGlow] = useState(SPOTLIGHT_GLOW_DEFAULT)
+  const [smoothing, setSmoothing] = useState(SPOTLIGHT_SMOOTHING_DEFAULT)
+  const [warm, setWarm] = useState(false)
+
+  const shared = {
+    visible,
+    paused,
+    size,
+    feather,
+    dim,
+    glow,
+    smoothing,
+    ...(warm ? { darkColor: '#1a1030', lightColor: '#ffd9a0' } : {}),
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>Spotlight</h1>
+        <p className="hint">
+          把鼠标<b>移进下方格子</b>：一个亮圈跟着指针走，圈外被压暗，像关灯后打一盏手电。
+          整层是两层 CSS 径向渐变（暗罩 + <code>mix-blend-mode: screen</code> 的高光），
+          <b>没有 canvas、没有绘制循环</b>——鼠标每次移动只改写两个 CSS 变量，
+          零 React 重渲染；<code>smoothing=0</code> 时连 rAF 都不开。
+          <code>size</code> 是光圈直径，<code>feather</code> 是边缘软硬（0 为硬边），
+          <code>dim</code> 是圈外遮罩浓度，<code>glow</code> 是圈内高光强度（0 则整层不挂）。
+          <code>paused</code> 冻结画面并停止监听；没有收到任何指针事件前遮罩<b>保持全透明</b>，
+          不会把壁纸糊成黑屏——WE 桌面壁纸默认不投递鼠标事件，实机需开启鼠标交互。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="几何">
+          <Slider
+            label="直径 size"
+            value={size}
+            min={SPOTLIGHT_SIZE_MIN}
+            max={1200}
+            step={20}
+            suffix="px"
+            onChange={setSize}
+          />
+          <Slider
+            label="边缘 feather"
+            value={feather}
+            min={0}
+            max={1}
+            step={0.05}
+            suffix=""
+            onChange={setFeather}
+          />
+          <Slider
+            label="遮罩浓度 dim"
+            value={dim}
+            min={0}
+            max={1}
+            step={0.02}
+            suffix=""
+            onChange={setDim}
+          />
+        </Row>
+
+        <Row title="光">
+          <Slider
+            label="高光 glow"
+            value={glow}
+            min={0}
+            max={1}
+            step={0.02}
+            suffix=""
+            onChange={setGlow}
+          />
+          <Slider
+            label="跟随延迟 smoothing"
+            value={smoothing}
+            min={0}
+            max={SPOTLIGHT_SMOOTHING_MAX}
+            step={0.01}
+            suffix="s"
+            onChange={setSmoothing}
+          />
+          <Toggle label="暖色光" on={warm} onChange={setWarm} />
+        </Row>
+
+        <Row title="运行">
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+          <span className="ctl ctl--note">
+            上限 <code>{SPOTLIGHT_SIZE_MAX}</code>px；<code>dim</code> / <code>glow</code> /
+            <code>feather</code> 都是 0–1 的比例，不是百分比
+          </span>
+        </Row>
+      </section>
+
+      <section className="grid grid--spotlight">
+        {SPOTLIGHT_STAGES.map((entry) => (
+          <figure className="cell" key={entry.stage}>
+            <div className={`stage ${entry.stage}`}>
+              <Spotlight {...shared} />
+            </div>
+            <figcaption>{entry.caption}</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>size=420</code>、<code>feather=0.45</code>、<code>dim=0.72</code>、
+        <code>glow=0.22</code>、<code>darkColor="#000000"</code>、<code>lightColor="#ffffff"</code>、
+        <code>smoothing=0.05</code>、<code>visible=true</code>、<code>paused=false</code>。
+        覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），
+        <b>不使用 <code>anchor</code> 三元组</b>；<code>z-index: 6</code> 在所有控件之上
+        （ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），因为效果本来就要压住控件，
+        想让某个控件始终亮着可在自己的样式表里降低层级。
+        和 <code>PointerFx</code> 一样，组件自己监听 <code>window</code> 的指针事件并把坐标映射进自身盒子，
+        盒子外的事件忽略，一页可挂多个实例。
+        <code>prefers-reduced-motion</code> 下去掉跟随延迟（只停缓动，不停效果）。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -1513,6 +1661,7 @@ function App() {
         {active === 'album' && <AlbumArtDemo />}
         {active === 'pointer' && <PointerFxDemo />}
         {active === 'ambient' && <AmbientFxDemo />}
+        {active === 'spotlight' && <SpotlightDemo />}
       </main>
     </div>
   )

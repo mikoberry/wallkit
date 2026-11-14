@@ -22,7 +22,7 @@ Wallpaper Engine 网页壁纸的**控件浮层库**。
 - Spine / Live2D / WebGL 背景渲染
 - 音频与媒体数据采集
 - 设置抽屉、国际化
-- 普通浏览器支持（浏览器读不到系统音频与媒体信息；`PointerFx` 只依赖指针事件，浏览器里可直接用，但库仍不为其它控件做浏览器降级）
+- 普通浏览器支持（浏览器读不到系统音频与媒体信息；`PointerFx` / `Spotlight` 只依赖指针事件，浏览器里可直接用，但库仍不为其它控件做浏览器降级）
 - npm 发布
 
 ---
@@ -332,7 +332,39 @@ import { AmbientFx } from 'wallkit/components/ambient-fx'
 
 `prefers-reduced-motion` 下只画一帧静止构图，不动。
 
-`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
+`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
+
+### Spotlight
+
+跟随指针的聚光灯 / 关灯效果：一个亮圈跟着鼠标走，圈外被压暗。和 `PointerFx` / `AmbientFx` 一样铺满定位容器，**没有** `anchor` / `offsetX` / `offsetY`。
+
+```jsx
+import { Spotlight } from 'wallkit/components/spotlight'
+
+<Spotlight />                                      {/* 默认：直径 420、软边、圈外压暗 72% */}
+<Spotlight size={240} feather={0.1} />             {/* 小光斑 + 接近硬边 */}
+<Spotlight dim={0.92} glow={0.35} />               {/* 几乎全黑，只有光圈那点亮 */}
+<Spotlight darkColor="#0b1020" lightColor="#ffd9a0" />  {/* 夜色遮罩 + 暖光 */}
+<Spotlight smoothing={0} />                        {/* 逐事件直贴，连 rAF 都不开 */}
+```
+
+| prop | 默认 | 说明 |
+|---|---|---|
+| `size` | `420` | 光圈直径，px，80–3000 |
+| `feather` | `0.45` | 边缘软硬，占半径的比例 0–1；`0` 是硬边，`1` 的过渡区和一个光圈一样宽 |
+| `dim` | `0.72` | 圈外遮罩浓度 0–1 |
+| `glow` | `0.22` | 圈内高光强度 0–1；`screen` 混合，只提亮不遮盖，`0` 时不渲染高光层 |
+| `darkColor` | `'#000000'` | 暗部颜色（`#rrggbb`） |
+| `lightColor` | `'#ffffff'` | 高光颜色（`#rrggbb`） |
+| `smoothing` | `0.05` | 跟随延迟，时间常数（秒）0–0.5；`0` 逐事件直贴 |
+| `visible` | `true` | `false` 不渲染 DOM |
+| `paused` | `false` | 冻结画面并停止监听指针 |
+
+**整层是两层 CSS 径向渐变，没有 canvas、没有绘制循环。** 鼠标移动只改写 `--wallkit-spotlight-x` / `-y` 两个 CSS 变量（百分比，窗口缩放后光圈不跑），零 React 重渲染；`smoothing: 0` 时连 rAF 都不开。
+
+**收到第一个指针事件前遮罩保持全透明**：WE 桌面壁纸默认不投递鼠标事件，若首帧就压黑，整张壁纸会黑屏。没有合成光标来「模拟」这件事——和 `PointerFx` 同一条原则。要在实机看到效果必须在 WE 里为该壁纸开启鼠标交互，浏览器 / 预览窗口可直接看。
+
+`z-index: 6`，**压在全部控件之上**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6）：遮罩的意义就是把下面的一切压暗。想让时钟始终亮着，在自己的样式表里调低这个值。
 
 ### WE 集成（可选）
 
@@ -384,6 +416,7 @@ const props = useWallpaperProperties() // project.json 里声明的用户属性�
 | `wallkit/components/album-art` | 专辑卡片控件 |
 | `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
 | `wallkit/components/ambient-fx` | 全屏氛围粒子层（飘雪 / 樱花 / 气泡） |
+| `wallkit/components/spotlight` | 跟随指针的聚光遮罩（亮圈 + 圈外压暗） |
 | `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/styles` | 主题变量 |
@@ -461,7 +494,7 @@ WE_PROJECT_DIR="D:\path\to\your\we\project" npm run deploy:wallpaper
 
 P0–P4 已完成，并全部在 Wallpaper Engine 中对接验证正常。P4 验的是插件注入 + hooks 这条新接线，控件 API 未变；P5 起未开始。
 
-P4 之后追加了 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`）：静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认能改画面颜色，其余属性的渲染映射与 `PointerFx` / `AmbientFx` 两个增量组件见各自设计文档。
+P4 之后追加了 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`）：静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认能改画面颜色，其余属性的渲染映射与 `PointerFx` / `AmbientFx` / `Spotlight` 三个增量组件见各自设计文档。
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|

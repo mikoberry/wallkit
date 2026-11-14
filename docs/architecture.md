@@ -312,6 +312,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
 | `PointerFx` | `wallkit/components/pointer-fx` | 拖尾 4 种（glow / ribbon / bubble / firework）+ 点击 4 种（ripple / sparks / bubble / firework），气泡与烟花两通道通用，共 16 种组合 | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
+| `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -330,6 +331,12 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 **有位移的粒子仍不存状态**：`createPointerTrail` / `pushTrailPoint` 为每个采样点写 `seeds`，`pointerBubble()`、`pointerFireworkSpark()` 从 `(seed, index)` 每帧重算出完全相同的偏移、半径、角度、重力与闪烁相位，缓冲始终是固定大小、绘制循环里不调随机数也不分配粒子对象。`pointerTint()` 接受一个 scratch 数组原地改写；烟花只在 `ctx.save()` / `restore()` 之间切到 `globalCompositeOperation = 'lighter'`，不会污染同一块 canvas 上的拖尾。`pointerLife(channel, variant, reduced)` 集中给出 4 类粒子时长 + 2 类扁平时长，`drawTrail` / `drawBursts` 用同一个返回值驱动动画与 `alive`，最后一个粒子消亡才停 rAF。reduced motion 下四种点击形态统一降级成短寿命静态圆环。
 
 **WE 环境的限制要写进验收前提**：桌面壁纸默认不向网页投递鼠标事件（`AGENTS.md` 亦记有「WE 里没有鼠标和键盘焦点」）。收不到事件时画布保持空白，**不用合成轨迹兜底**——这与 §5.1 第 3 条是同一条原则。要在实机看到效果必须在 WE 里开启该壁纸的鼠标交互，浏览器 / 预览窗口则可直接看到。因此 `wallpaper.html` 自动轮换测试页不挂此组件。
+
+**`Spotlight` 属于同一族但更极端：它连像素管线都没有。** 效果就是两层 CSS 径向渐变——一层把圈外压暗，一层 `mix-blend-mode: screen` 在圈内打光——所以没有 canvas、没有绘制循环、没有精灵。指针事件里只做一件事：把 `--wallkit-spotlight-x` / `-y` 两个自定义属性改写成**百分比**（缩放窗口后光圈留在原处）。渐变字符串由 `core/spotlight.js` 的两个纯函数构造，用 `useMemo` 挂在 props 上，永远不进事件处理函数。
+
+`smoothing` 是**时间常数（秒）**而不是百分比：`0` 意味着事件里直接写变量、连 rAF 都不开；大于 `0` 才起一个 rAF 让光圈指数追上指针（`spotlightApproach()`），追到亚像素就停。`prefers-reduced-motion` 把它强制归零——减弱动效要去掉的是缓动，不是效果本身。
+
+三个必须守住的细节：**首帧不能压黑**（收到第一个指针事件前遮罩 `opacity: 0`，用 `data-active` 属性触发淡入，否则没有鼠标的 WE 桌面会直接黑屏）；**高光是独立一层**（只压暗不增亮，深色壁纸上看起来只是个洞，谈不上「亮圈」）；**层级是反向的**——`z-index: 6`，比 clock / album 的 5 还高，因为遮罩的意义就是压住下面的一切，想让某个控件始终亮着由应用层降低层级；这个 `z-index` 挂在两个子层而不是根节点上，因为带 `z-index` 的定位元素会创建层叠上下文，从而把 `mix-blend-mode: screen` 的背板锁在内部，高光就退化成一层平白蒙版。
 
 **`AmbientFx` 比 `PointerFx` 更干净：它连输入都没有。** 装饰粒子是自走时的，位置完全由 `(参数, 时间)` 决定：
 
@@ -362,7 +369,7 @@ x, y = f(seed, t)
 - 不内置任何语言文案（文案通过 props 传入）
 - 不引入除 React 外的运行时依赖
 - **不内置定时器**：时间等随时间变化的数据由使用方驱动传入
-- **唯一例外**：`Clock.tilt` 与 `PointerFx` 会监听 `window` 的指针事件。二者消费的都是「指针位置」这类渲染参数，不是音频 / 媒体 / 业务数据；`PointerFx` 的边界与理由见 §5.3。除此以外组件不自行采集数据。
+- **唯一例外**：`Clock.tilt`、`PointerFx` 与 `Spotlight` 会监听 `window` 的指针事件。三者消费的都是「指针位置」这类渲染参数，不是音频 / 媒体 / 业务数据；`PointerFx` 与 `Spotlight` 的边界与理由见 §5.3。除此以外组件不自行采集数据。
 
 ### 5.5 已确定的设计决策
 

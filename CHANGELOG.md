@@ -9,6 +9,20 @@
 
 ## 2026-11-14
 
+### Added
+
+- **新增 `Spotlight` 控件（`wallkit/components/spotlight`）**：跟随指针的聚光灯 / 关灯
+  效果——一个亮圈跟着鼠标，圈外压暗。`size`（直径 80–3000px）、`feather`（边缘软硬
+  0–1，0 为硬边）、`dim`（遮罩浓度）、`glow`（圈内高光，`screen` 混合只提亮）、
+  `darkColor` / `lightColor`、`smoothing`（跟随延迟，时间常数秒，0 为逐事件直贴）、
+  `visible` / `paused`。整层是两层 CSS 径向渐变，**没有 canvas、没有绘制循环**：
+  指针移动只改写 `--wallkit-spotlight-x` / `-y` 两个变量，零 React 重渲染，
+  `smoothing=0` 时连 rAF 都不开。收到第一个指针事件前遮罩**保持全透明**，
+  不会把没有鼠标输入的 WE 桌面压成黑屏。`z-index: 6`，压在全部控件之上
+  （遮罩本来就要压住时钟与专辑卡，想让某个控件始终亮着可在自己的样式表里降级）。
+  层级链更新为 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6。
+  与 `PointerFx` 同一条 WE 限制：桌面壁纸默认不投递鼠标事件，实机需开启鼠标交互。
+
 ### Changed
 
 - **Spectrum `ripples` 改为「一鼓一波」的随机水波**：发射改为**瞬态检测**（低频相对
