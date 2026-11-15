@@ -397,9 +397,9 @@ src/
   anchor="top-left"          // 九个锚点之一：把**光源中心**放上去，也是光束方向的来源
   offsetX={0}                // 从锚点出发的偏移 %，朝盒内为正（可负 → 光源出画）
   offsetY={0}                // 同上，纵向
-  intensity={100}            // 预设 alpha 的倍率，0–200
+  intensity={100}            // 整盏灯的亮度倍率，0–200（光池 + 热点 + 光束同一个 gain）
   size={undefined}           // 光池半径 px，省略 = 跟随预设
-  rays={1}                   // 预设光束强度的倍率，0–1
+  rays={1}                   // 光束占比，0–1（形态，不是亮度）
   follow={0.45}              // 朝指针偏移多远，0–1
   smoothing={0.12}           // 跟随延迟（时间常数，秒）
   colorHex={undefined}       // 覆盖光色
@@ -407,6 +407,7 @@ src/
 />
 ```
 
+- **`intensity` 是整盏灯唯一的亮度旋钮，`rays` 不是亮度。** 三层的 alpha 全部由 `lightLayers(preset, { gain, rays })` 一次算出：`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`。所以拉低 `intensity` 时「光池 + 热点 + 光束」一起暗，不会剩下一个亮光池配一束淡光束。`rays` 管的是**分配**——这盏灯里多少比例走成光束（0 = 一片平光），跟亮不亮无关。**新增变体只往 `LIGHT_PRESETS` 里加数，不要回到组件里各乘各的**，否则「同一个 gain 覆盖全部」就不再是代码保证，只是习惯。
 - **它和 `Spotlight` 有一处刻意相反：第一帧就在。** 聚光灯没有指针时必须藏起来（否则整屏黑），光不能藏——没有鼠标的壁纸照样有天气。默认位置由 `anchor` 决定（`lightAnchorOrigin()`，默认 `top-left`），跟随只是加分项。
 - **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**锚点本身不受这条限制**——那条只管指针，`anchor="bottom-*"` 刻意从低处打光是合法需求。
 - **定位只有一套词汇：`anchor` + `offsetX`/`offsetY`。** 曾经有过 `from`（两个上角）和 `originX`/`originY`（盒子百分比）两档，都被删掉了——同一件事有三种说法时，作者要花时间挑，而表达力一点没多。`anchor` 的默认值是 **`top-left` 而不是 `ANCHOR_DEFAULT`（左下）**：对光来说左下就是脚底打光，`normalizeLightAnchor()` 因此是 light 自己的归一化。

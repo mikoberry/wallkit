@@ -56,6 +56,7 @@ import {
   LIGHT_FOLLOW_DEFAULT,
   LIGHT_INTENSITY_DEFAULT,
   LIGHT_INTENSITY_MAX,
+  LIGHT_INTENSITY_MIN,
   LIGHT_SIZE_MIN,
   LIGHT_SIZE_MAX,
   LIGHT_SMOOTHING_DEFAULT,
@@ -2026,14 +2027,18 @@ function LightFxDemo() {
             </select>
           </label>
           <Slider
-            label="强度 intensity"
+            label="整体强度 intensity"
             value={intensity}
-            min={0}
+            min={LIGHT_INTENSITY_MIN}
             max={LIGHT_INTENSITY_MAX}
             step={5}
             suffix="%"
             onChange={setIntensity}
           />
+          <span className="ctl ctl--note">
+            <code>intensity</code> 是<b>整盏灯</b>的亮度：光池、热点、光束乘同一个系数，
+            拉低时三者一起暗下去，不会留下一圈亮光池配一束淡光束
+          </span>
         </Row>
 
         <Row title="光源位置">
@@ -2090,7 +2095,7 @@ function LightFxDemo() {
           />
           <Toggle label="覆盖 size" on={sizeOn} onChange={setSizeOn} />
           <Slider
-            label="光束 rays"
+            label="光束占比 rays"
             value={rays}
             min={0}
             max={1}
@@ -2101,7 +2106,8 @@ function LightFxDemo() {
           <span className="ctl ctl--note">
             <code>size</code> 省略时跟随变体（
             {LIGHT_VARIANTS.map((id) => `${id} ${LIGHT_PRESETS[id].size}`).join(' / ')}px）；
-            <code>rays</code> 是预设光束强度的倍率，<code>overcast</code> 本来就没有光束可乘
+            <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
+            1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用
           </span>
         </Row>
 

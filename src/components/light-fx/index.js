@@ -28,6 +28,7 @@ export {
   lightAnchorOrigin,
   lightOffsetFraction,
   lightFollowOrigin,
+  lightLayers,
   lightWashGradient,
   lightBeamGradient,
   lightBeamMask,

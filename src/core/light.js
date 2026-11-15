@@ -286,6 +286,43 @@ export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) 
 }
 
 /**
+ * The three alphas of a preset, already scaled.
+ *
+ * The whole point is that `intensity` is a **single knob over the entire
+ * light**: the wide wash, the hotspot and the shafts are all multiplied by the
+ * same gain, so turning it down dims the picture's light as one thing instead
+ * of leaving a bright pool around a faded sun. `rays` is a different axis — it
+ * decides how much of that light is shafts versus flat pool, not how bright the
+ * light is.
+ *
+ * Centralised so a future variant cannot scale one layer and forget another;
+ * the invariant is testable here rather than being a habit in the component.
+ *
+ * @param {Object} preset  One entry of `LIGHT_PRESETS`.
+ * @param {Object} [scale]
+ * @param {number} [scale.gain=1]  Intensity as a multiplier (0..2).
+ * @param {number} [scale.rays=1]  Share of the light that is shafts (0..1).
+ * @returns {{ washAlpha: number, coreAlpha: number, rayAlpha: number }}
+ */
+export function lightLayers(preset, { gain = 1, rays = 1 } = {}) {
+  const source = preset || LIGHT_PRESETS[LIGHT_VARIANT_DEFAULT]
+  const g = clamp(
+    finite(gain, LIGHT_INTENSITY_DEFAULT / 100),
+    LIGHT_INTENSITY_MIN / 100,
+    LIGHT_INTENSITY_MAX / 100,
+  )
+  const share = clamp(finite(rays, 1), LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
+
+  return {
+    washAlpha: clamp(finite(source.washAlpha, 0) * g, 0, 1),
+    coreAlpha: clamp(finite(source.coreAlpha, 0) * g, 0, 1),
+    // Only the third one takes `rays`: the shafts are the part whose strength
+    // is a *ratio*, everything else is the source itself.
+    rayAlpha: clamp(finite(source.rayAlpha, 0) * g * share, 0, 1),
+  }
+}
+
+/**
  * The wide wash plus the hotspot, as one `background-image` stack (hotspot
  * first, so it paints on top).
  *

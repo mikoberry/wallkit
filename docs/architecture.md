@@ -396,7 +396,7 @@ x, y = f(seed, t)
 
 **光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。光束方向 `lightBeamAngle()` 每次渲染只算一次，**不跟着指针转**——太阳移动是平移光束，不是旋转它。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
 
-`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是预设各 alpha 的倍率（0–200%），超过 100% 会向不透明白饱和。`rays` 是光束强度的倍率，`overcast` 本身就是 0，乘什么都没用。
+`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是**整盏灯唯一的亮度旋钮**（0–200%）：三层的 alpha 由 `lightLayers(preset, { gain, rays })` 一次算出——`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`——所以调低它是「光池 + 热点 + 光束一起暗」，而不是只把光束抹掉、留一个亮光池。超过 100% 时 alpha 向不透明白饱和，热点先到顶，画面读作过曝而不是变白。`rays`（0–1）**不是亮度，是分配**：这盏灯里多少比例走成光束，0 就是一片平光；`overcast` 本身没有光束，乘什么都没用。这条不变式写在 `lightLayers()` 里而不是组件里各乘各的，新增变体只要往 `LIGHT_PRESETS` 加数，就自动被同一个 gain 覆盖。
 
 `z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、**不用 `anchorStyle()` 定位自己**（`anchor` 只用来放光源中心），`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
 

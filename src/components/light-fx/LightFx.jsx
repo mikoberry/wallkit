@@ -6,6 +6,7 @@ import {
   LIGHT_FOLLOW_DEFAULT,
   LIGHT_INTENSITY_DEFAULT,
   LIGHT_INTENSITY_MAX,
+  LIGHT_INTENSITY_MIN,
   LIGHT_PRESETS,
   LIGHT_RAYS_MAX,
   LIGHT_RAYS_MIN,
@@ -19,6 +20,7 @@ import {
   lightBeamGradient,
   lightBeamMask,
   lightFollowOrigin,
+  lightLayers,
   lightNumber,
   lightWashGradient,
   normalizeLightAnchor,
@@ -80,12 +82,16 @@ function clamp(value, min, max) {
  *   works too). Negative pushes the source outside the frame, which is a legal
  *   look — a window just out of shot.
  * @param {number|string} [props.offsetY=0] Same, vertically.
- * @param {number} [props.intensity=100]  Percentage of the preset's own
- *   alphas (0..200). Above 100 the wash climbs towards opaque.
+ * @param {number} [props.intensity=100]  Brightness of the whole light, as a
+ *   percentage of the preset's own alphas (0..200). One gain over all three
+ *   layers — wide wash, hotspot and shafts — so dimming it thins the light as
+ *   one thing instead of leaving a bright pool around a faded sun. Above 100
+ *   the alphas climb towards opaque and the hotspot blows out first.
  * @param {number} [props.size]  Radius of the wide wash in px (200..4000).
  *   Omitted, the variant picks one.
- * @param {number} [props.rays=1]  Multiplier on the preset's shaft strength
- *   (0..1). 0 gives flat light; `overcast` has none to scale.
+ * @param {number} [props.rays=1]  How much of the light is shafts rather than
+ *   flat pool (0..1) — a ratio, not a brightness. 0 gives flat light;
+ *   `overcast` has none to scale. Use `intensity` to make the light dimmer.
  * @param {number} [props.follow=0.45]  How far the light travels towards the
  *   pointer (0..1). 0 pins it to the anchor.
  * @param {number} [props.smoothing=0.12]  Follow lag as a time constant in
@@ -139,11 +145,18 @@ export default function LightFx({
 
   const gain = clamp(
     Number.isFinite(Number(intensity)) ? Number(intensity) : LIGHT_INTENSITY_DEFAULT,
-    0,
+    LIGHT_INTENSITY_MIN,
     LIGHT_INTENSITY_MAX,
   ) / 100
   const resolvedSize = lightNumber(size, preset.size, LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
   const rayStrength = lightNumber(rays, 1, LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
+
+  // One gain over the whole light: wash, hotspot and shafts come out of the
+  // same call, so `intensity` can never dim one layer and leave another.
+  const layers = useMemo(
+    () => lightLayers(preset, { gain, rays: rayStrength }),
+    [preset, gain, rayStrength],
+  )
 
   const color = colorHex
 
@@ -158,21 +171,21 @@ export default function LightFx({
         size: resolvedSize,
         color: color ?? preset.color,
         coreColor: preset.coreColor,
-        washAlpha: preset.washAlpha * gain,
-        coreAlpha: preset.coreAlpha * gain,
+        washAlpha: layers.washAlpha,
+        coreAlpha: layers.coreAlpha,
       }),
-    [resolvedSize, preset, gain, color],
+    [resolvedSize, preset, layers, color],
   )
 
   const beamImage = useMemo(
     () =>
       lightBeamGradient({
         color: color ?? preset.color,
-        rayAlpha: preset.rayAlpha * rayStrength * gain,
+        rayAlpha: layers.rayAlpha,
         wedge: preset.wedge,
         period: preset.period,
       }),
-    [preset, rayStrength, gain, color],
+    [preset, layers, color],
   )
 
   const beamMask = useMemo(
