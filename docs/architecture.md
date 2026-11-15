@@ -390,7 +390,7 @@ x, y = f(seed, t)
 
 差别只在**基准点**：时钟放的是盒子角，这里放的是**光源中心**，因为这一层没有自己的盒子（根节点 `inset: 0`）。它只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 共用同一张 `POINTS`，两者不会各自漂移），不借 inset 那套。偏移沿用时钟的符号规则：**数字永远朝盒子内部为正**，`top-right` 下正数往左、`bottom-*` 下正数往上，所以同一个数在每个角都表示「再往里一点」，换角不用翻符号。
 
-**负偏移可以把光源推出画面**（`top-left` 配 `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±100%）——越界的光源正是这种定位方式最常见的用法；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。偏移只接受数字（= 盒子百分比）和 `'18%'` 这类百分比字符串；`px` / `vh` 需要量盒子，明确不支持，`lightOffsetFraction()` 对它们返回 0，不给一个半对的单位。
+**负偏移可以把光源推出画面**（`top-left` 配 `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±300%）——越界的光源正是这种定位方式最常见的用法；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。偏移只接受数字（= 盒子百分比）和 `'18%'` 这类百分比字符串；`px` / `vh` 需要量盒子，明确不支持，`lightOffsetFraction()` 对它们返回 0，不给一个半对的单位。
 
 `anchor` 的默认值是 **`top-left`，不是 `ANCHOR_DEFAULT`（左下）**：对光来说左下就是脚底打光，所以 light 有自己的 `normalizeLightAnchor()`，认不出的值回落到左上而不是共用那套归一化。
 
@@ -402,7 +402,11 @@ x, y = f(seed, t)
 
 **光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
 
-`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是**整盏灯唯一的亮度旋钮**（0–200%）：三层的 alpha 由 `lightLayers(preset, { gain, rays })` 一次算出——`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`——所以调低它是「光池 + 热点 + 光束 + 光圈一起暗」，而不是只把光束抹掉、留一个亮光池。超过 100% 时 alpha 向不透明白饱和，热点先到顶，画面读作过曝而不是变白。`rays`（0–1）**不是亮度，是分配**：这盏灯里多少比例走成光束，0 就是一片平光；`overcast` 本身没有光束，乘什么都没用。这条不变式写在 `lightLayers()` 里而不是组件里各乘各的，新增变体只要往 `LIGHT_PRESETS` 加数，就自动被同一个 gain 覆盖。
+`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightRadius()` 把 `undefined` 解释成「用预设」。`intensity` 是**整盏灯唯一的亮度旋钮**：三层的 alpha 由 `lightLayers(preset, { gain, rays })` 一次算出——`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`——所以调低它是「光池 + 热点 + 光束 + 光圈一起暗」，而不是只把光束抹掉、留一个亮光池。超过 100% 时 alpha 向不透明白饱和，热点先到顶，画面读作过曝而不是变白。`rays`（0–1）**不是亮度，是分配**：这盏灯里多少比例走成光束，0 就是一片平光；`overcast` 本身没有光束，乘什么都没用。这条不变式写在 `lightLayers()` 里而不是组件里各乘各的，新增变体只要往 `LIGHT_PRESETS` 加数，就自动被同一个 gain 覆盖。
+
+**数值参数分两类：定义域夹、口味不夹。** `rays` / `flare` / `follow` 收 0–1，因为「占多少比例」不可能超过全部——夹它是为了让 `rgba()` 的静默截断不要伪装成「参数生效了」。其余一律不设上限：`intensity` 可以超过 200%（更早过曝，负值等于灯灭）、`smoothing` 没有上限（两秒的拖尾是合法观感，负值已被 `tau <= 0` 当成「不延迟」）、`sway` 带符号且无上限（负数是反向偏，极大值趋近「正对中心」）、`size` 上不封顶、`offsetX/offsetY` 到 ±300%（`LIGHT_ORIGIN_EXTENT`）。**`LIGHT_*_MIN/MAX` 是画廊滑块的推荐区间，不是组件的接受范围**——要不要限制是接入方的决定。
+
+**但「无效值」必须回落，这条优先于「不做限制」。** `radial-gradient(circle -5px …)` 是无效声明，浏览器会丢掉整条 `background-image`：光不是变小，而是**整层消失**，控制台还安静。所以 `size` 必须有限且 `> 0`（`lightRadius()` 否则回落预设），`undefined` / `null` / `''` 一律当「用预设」（`lightNumber()` / `numberOr()`），否则会算成 NaN 再走到同一个静默结局。权衡点很实际：被夹住是可观察的，静默失效不可观察。
 
 `z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、**不用 `anchorStyle()` 定位自己**（`anchor` 只用来放光源中心），`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
 

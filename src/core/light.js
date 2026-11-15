@@ -24,55 +24,80 @@ export const LIGHT_VARIANT_DEFAULT = 'sun'
 // `ANCHOR_DEFAULT` (bottom-left), which would light the picture from below.
 export const LIGHT_ANCHOR_DEFAULT = 'top-left'
 
-// Strength as a percentage of the preset's own alphas. Above 100 the alphas
-// climb towards opaque; the range stops at 200 because by then the wide wash is
-// already saturated and further steps do nothing.
+// Strength as a percentage of the preset's own alphas. There is **no ceiling**:
+// above 100% the alphas climb towards opaque and the hotspot saturates on its
+// own, so a clamp here would only decide on the caller's behalf. These two
+// numbers are the *recommended slider range* (what the gallery offers), not the
+// accepted domain — `-50` is equivalent to 0 because an alpha cannot be
+// negative, and `400` is simply a fully blown-out light.
 export const LIGHT_INTENSITY_MIN = 0
 export const LIGHT_INTENSITY_MAX = 200
 export const LIGHT_INTENSITY_DEFAULT = 100
 
-// Radius of the wide wash, in px. Omitted, the preset picks one.
+// Wash radius in px. `LIGHT_SIZE_MIN` / `MAX` are again a recommended slider
+// range, not a clamp: any positive radius is legal, and a 4K/8K wallpaper may
+// well want more than `MAX`.
+//
+// The one hard rule is that the radius must be finite and greater than zero.
+// `radial-gradient(circle -5px …)` is an *invalid declaration*, so the browser
+// drops the whole `background-image` and the light disappears entirely instead
+// of getting smaller — a silent failure with nothing in the console. A bad
+// radius therefore falls back to the preset, which is why this one is a
+// contract rather than a limit. See `lightRadius()`.
 export const LIGHT_SIZE_MIN = 200
 export const LIGHT_SIZE_MAX = 4000
 export const LIGHT_SIZE_FALLBACK = 1400
 
-// Shaft strength, 0..1. Omitted, the preset picks one; `0` is legitimate and
-// means "flat light" (that is what overcast is).
+// Shaft strength, 0..1. This is a **definition**, not a guard: 1 means "all of
+// the light is shafts", so 2 has no meaning to give. It is still clamped
+// because `rgba()` would silently clamp it anyway and the caller would believe
+// a value of 2 did something.
 export const LIGHT_RAYS_MIN = 0
 export const LIGHT_RAYS_MAX = 1
 
 // Lens flare strength, 0..1. A multiplier on the preset's own value, like
-// `rays`: `0` removes the ghost chain even on a variant that has one.
+// `rays`: `0` removes the ghost chain even on a variant that has one. Same
+// definition-not-guard note as `rays`.
 export const LIGHT_FLARE_MIN = 0
 export const LIGHT_FLARE_MAX = 1
 export const LIGHT_FLARE_DEFAULT = 1
 
 // How far the light travels towards the pointer, 0..1. 0 pins it to the
 // configured corner, 1 puts it on the pointer (still clamped above the horizon).
+// A definition rather than a guard: "the share of the way" cannot exceed the
+// whole way. Negative would mean travelling *away* from the pointer — a
+// different effect, not a stronger one.
 export const LIGHT_FOLLOW_MIN = 0
 export const LIGHT_FOLLOW_MAX = 1
 export const LIGHT_FOLLOW_DEFAULT = 0.45
 
 // Follow lag, as a time constant in seconds — same unit and meaning as
 // `Spotlight.smoothing`, a touch slower because a sun is heavier than a torch.
+// No ceiling: 2s of drag is a legitimate look for a setting sun, and a negative
+// value already means "no lag" further down (`spotlightApproach()` returns the
+// target for `tau <= 0`), so there is nothing here to protect.
 export const LIGHT_SMOOTHING_MIN = 0
 export const LIGHT_SMOOTHING_MAX = 0.5
 export const LIGHT_SMOOTHING_DEFAULT = 0.12
 
 // How far the shaft fan may lean away from its at-rest direction, in degrees.
 // Pure translation reads stiff — a source that changes place while its shafts
-// keep pointing the same way is a decal, not a light. `0` switches the lean off
-// and leaves the fan exactly where `lightBeamAngle()` put it.
-export const LIGHT_SWAY_MIN = 0
+// keep pointing the same way is a decal, not a light.
+//
+// `0` switches the lean off; a **negative** value leans the fan the other way,
+// away from the frame centre, which is a legal look; a large value approaches
+// "point straight at the middle" and saturates. `MIN` / `MAX` are the
+// recommended slider range, not the accepted one.
+export const LIGHT_SWAY_MIN = -60
 export const LIGHT_SWAY_MAX = 60
 export const LIGHT_SWAY_DEFAULT = 16
 
-// How far *outside* the box the light may sit, in percent of the box. Reachable
-// through a negative offset: a streetlamp or a window just off camera is a
-// legitimate source, and gradients accept origins outside 0–100%, so there is
-// no reason to stop at the edge. Bounded only to keep a typo (offset -4000)
-// from parking the light in another postcode.
-export const LIGHT_ORIGIN_EXTENT = 100
+// How far *outside* the box the light may sit, in percent of the box. A
+// streetlamp or a window just off camera is a legitimate source, and gradients
+// accept an origin anywhere (250% is valid CSS), so this is a typo fence rather
+// than a semantic limit — `offsetX={-4000}` would otherwise park the light in
+// another postcode.
+export const LIGHT_ORIGIN_EXTENT = 300
 
 // The *pointer* never drags the light below this fraction of the box height:
 // a sun that chased the cursor into the bottom half would light the picture
@@ -243,6 +268,10 @@ export function normalizeLightAnchor(value) {
  * garbage mean "use the preset", which is how a variant can own a size without
  * the component hard-coding one per variant.
  *
+ * `min` / `max` are applied, but they are only ever passed a **definition**
+ * (`rays` and `flare` are shares of a whole, 0..1), never a taste range. See
+ * `lightRadius()` for the one value where the bound is a real contract.
+ *
  * @param {*} value
  * @param {number} fallback
  * @param {number} min
@@ -252,6 +281,28 @@ export function normalizeLightAnchor(value) {
 export function lightNumber(value, fallback, min, max) {
   if (value == null || value === '') return fallback
   return clamp(finite(value, fallback), min, max)
+}
+
+/**
+ * A wash radius, in px: the caller's number when it is usable, the preset's
+ * otherwise.
+ *
+ * There is no upper bound — a 4K or 8K wallpaper may want a bigger pool than any
+ * default. There *is* a hard floor, and it is not a taste decision: a
+ * non-finite or non-positive radius produces `radial-gradient(circle -5px …)`,
+ * which is an **invalid declaration**. The browser then drops the whole
+ * `background-image` value, so the light does not get smaller — it disappears,
+ * with nothing in the console. Falling back to the preset turns that into
+ * "the variant's own size" instead of a blank layer.
+ *
+ * @param {*} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+export function lightRadius(value, fallback) {
+  if (value == null || value === '') return fallback
+  const number = finite(value, NaN)
+  return Number.isFinite(number) && number > 0 ? number : fallback
 }
 
 // The anchor is a *point*, so it has to be expressed as a fraction even when it
@@ -361,20 +412,21 @@ export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) 
  * Centralised so a future variant cannot scale one layer and forget another;
  * the invariant is testable here rather than being a habit in the component.
  *
+ * `gain` has **no ceiling** (dimming is the caller's business: past 100% the
+ * alphas saturate on their own, and a negative gain simply means "no light").
+ * The final `clamp(…, 0, 1)` per layer is not a limit either — an alpha outside
+ * 0..1 has no meaning, and `rgba()` would clamp it silently anyway.
+ *
  * @param {Object} preset  One entry of `LIGHT_PRESETS`.
  * @param {Object} [scale]
- * @param {number} [scale.gain=1]  Intensity as a multiplier (0..2).
+ * @param {number} [scale.gain=1]  Intensity as a multiplier; any positive value.
  * @param {number} [scale.rays=1]  Share of the light that is shafts (0..1).
  * @param {number} [scale.flare=1] Share of the flare the preset keeps (0..1).
  * @returns {{ washAlpha: number, coreAlpha: number, rayAlpha: number, flareAlpha: number }}
  */
 export function lightLayers(preset, { gain = 1, rays = 1, flare = 1 } = {}) {
   const source = preset || LIGHT_PRESETS[LIGHT_VARIANT_DEFAULT]
-  const g = clamp(
-    finite(gain, LIGHT_INTENSITY_DEFAULT / 100),
-    LIGHT_INTENSITY_MIN / 100,
-    LIGHT_INTENSITY_MAX / 100,
-  )
+  const g = Math.max(0, finite(gain, LIGHT_INTENSITY_DEFAULT / 100))
   const share = clamp(finite(rays, 1), LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
   const flareShare = clamp(finite(flare, 1), LIGHT_FLARE_MIN, LIGHT_FLARE_MAX)
 
@@ -408,7 +460,7 @@ export function lightLayers(preset, { gain = 1, rays = 1, flare = 1 } = {}) {
  * @returns {string}
  */
 export function lightWashGradient({ size, color, coreColor, washAlpha, coreAlpha, disc } = {}) {
-  const radius = clamp(finite(size, LIGHT_SIZE_FALLBACK), LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
+  const radius = lightRadius(size, LIGHT_SIZE_FALLBACK)
   const washRgb = rgb(color, LIGHT_PRESETS.sun.color)
   const coreRgb = rgb(coreColor, color)
   const wash = clamp(finite(washAlpha, LIGHT_PRESETS.sun.washAlpha), 0, 1)
@@ -511,7 +563,7 @@ export function lightBeamGradient({ color, rayAlpha, wedge, period } = {}) {
  * @returns {string}
  */
 export function lightBeamMask({ size, maskInner, maskOuter } = {}) {
-  const radius = Math.max(24, clamp(finite(size, LIGHT_SIZE_FALLBACK), LIGHT_SIZE_MIN, LIGHT_SIZE_MAX) * 1.15)
+  const radius = Math.max(24, lightRadius(size, LIGHT_SIZE_FALLBACK) * 1.15)
   const inner = clamp(finite(maskInner, 0.16), 0, 0.9)
   const outer = Math.max(inner + 0.1, clamp(finite(maskOuter, 0.94), 0.1, 1.4))
 
@@ -595,7 +647,7 @@ export function lightFlareGradient({ color, flareAlpha, spread, size } = {}) {
   const alpha = clamp(finite(flareAlpha, 0), 0, 1)
   if (alpha <= 0) return ''
 
-  const radius = clamp(finite(size, LIGHT_SIZE_FALLBACK), LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
+  const radius = lightRadius(size, LIGHT_SIZE_FALLBACK)
   const baseRgb = rgb(color, LIGHT_PRESETS.sun.color)
   const reach = clamp(finite(spread, 1), 0.2, 2)
   const layers = []
@@ -684,18 +736,24 @@ function normalizeDegrees(degrees) {
  * `angleOffset` left out: a variant's own offset (dusk rakes 20° to the side)
  * is a style decision and must survive the sway untouched.
  *
+ * A **negative** `sway` leans the fan the other way — away from the frame
+ * centre — and `0` leaves the fan exactly where the anchor put it. There is no
+ * upper bound: `tanh` saturates, so a very large value simply means "aim
+ * straight at the middle of the frame".
+ *
  * @param {Object} [options]
  * @param {string} [options.anchor]        One of `ANCHORS`.
  * @param {number} [options.angleOffset=0] The variant's own direction nudge.
  * @param {{ x: number, y: number }} [options.origin] Where the light is, in
  *   percent of the box (the pointer-blended value, not the anchor).
- * @param {number} [options.sway=LIGHT_SWAY_DEFAULT] Max lean, degrees.
+ * @param {number} [options.sway=LIGHT_SWAY_DEFAULT] Max lean, degrees; the sign
+ *   picks which way the fan leans.
  * @returns {number} Degrees.
  */
 export function lightBeamSway({ anchor, angleOffset = 0, origin, sway = LIGHT_SWAY_DEFAULT } = {}) {
   const rest = lightBeamAngle(anchor, angleOffset)
-  const limit = clamp(finite(sway, LIGHT_SWAY_DEFAULT), LIGHT_SWAY_MIN, LIGHT_SWAY_MAX)
-  if (limit <= 0) return rest
+  const value = finite(sway, LIGHT_SWAY_DEFAULT)
+  if (value === 0) return rest
 
   const x = finite(origin && origin.x, 50)
   const y = finite(origin && origin.y, 50)
@@ -708,5 +766,9 @@ export function lightBeamSway({ anchor, angleOffset = 0, origin, sway = LIGHT_SW
   const aim = (Math.atan2(dx, -dy) * 180) / Math.PI
   // Wrapped to [-180, 180] so a fan crossing 0°/360° turns the short way.
   const delta = normalizeDegrees(aim - lightBeamAngle(anchor, 0) + 180) - 180
-  return normalizeDegrees(rest + limit * Math.tanh(delta / limit))
+  const magnitude = Math.abs(value)
+  // `Math.tanh` is odd, so the sign of `sway` has to be applied by hand —
+  // otherwise -16° would lean the same way as +16°.
+  const lean = magnitude * Math.tanh(delta / magnitude)
+  return normalizeDegrees(rest + (value < 0 ? -lean : lean))
 }

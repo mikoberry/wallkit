@@ -1988,12 +1988,12 @@ const LIGHT_FIT_ROWS = [
   },
   {
     prop: 'size',
-    detail: '光池半径 px，省略取预设；beach 下太阳盘与光圈跟着一起缩放',
+    detail: '光池半径 px，省略取预设；beach 下太阳盘与光圈跟着一起缩放。只要求 > 0——负数会让整条渐变失效、光整层消失，所以无效值回落预设；上不封顶',
     cell: (preset) => preset.size,
   },
   {
     prop: 'intensity',
-    detail: '整盏灯的亮度倍率（0–200%），光池 / 热点 / 光束 / 光圈同一个 gain；0 = 全灭，超过 100% 热点先饱和',
+    detail: '整盏灯的亮度倍率，光池 / 热点 / 光束 / 光圈同一个 gain；0 = 全灭，>100% 继续走向过曝。滑块只给 0–200（推荐区间），组件不夹',
     universal: true,
   },
   {
@@ -2003,12 +2003,12 @@ const LIGHT_FIT_ROWS = [
   },
   {
     prop: 'follow / smoothing',
-    detail: '跟随距离与延迟；paused 时停止跟随（画面保留），reduced-motion 下延迟归零；指针的 y 被夹在上半区',
+    detail: '跟随距离与延迟；paused 时停止跟随（画面保留），reduced-motion 下延迟归零；指针的 y 被夹在上半区。smoothing 无上限，负值 = 不延迟',
     universal: true,
   },
   {
     prop: 'sway',
-    detail: '移动时扇面的额外偏转上限（度，0–60），偏转量由「光当前位置 → 画面中心」推导；overcast 没有光束，转了看不见',
+    detail: '移动时扇面的额外偏转角度（度，可为负 = 朝远离中心的方向偏），滑块给 ±60 但组件不夹；偏转量由「光当前位置 → 画面中心」推导；overcast 没有光束，转了看不见',
     universal: true,
   },
   {
@@ -2179,7 +2179,8 @@ function LightFxDemo() {
           />
           <span className="ctl ctl--note">
             <code>intensity</code> 是<b>整盏灯</b>的亮度：光池、热点、光束乘同一个系数，
-            拉低时三者一起暗下去，不会留下一圈亮光池配一束淡光束
+            拉低时三者一起暗下去，不会留下一圈亮光池配一束淡光束。滑块只给 0–200%
+            是<b>推荐区间</b>而不是限额——超过 200% 只是更早过曝（alpha 自己会饱和），组件不夹
           </span>
         </Row>
 
@@ -2219,7 +2220,7 @@ function LightFxDemo() {
             沿用时钟那套符号：数字永远<b>朝盒子内部为正</b>——<code>top-right</code> 下正数往左、
             <code>bottom-*</code> 下正数往上，所以同一个数在每个角都表示「再往里一点」。
             负值把光源推出画面（<code>top-left</code> + <code>-40</code> 就是一盏画外的路灯），
-            最远到 <code>LIGHT_ORIGIN_EXTENT</code>（±100%）。光束方向跟着光源走——
+            最远到 <code>LIGHT_ORIGIN_EXTENT</code>（±300%，滑块只给到 −50..100 是推荐区间）。光束方向跟着光源走——
             <code>anchor</code> 决定静止方向，移动时 <code>sway</code> 再让它朝画面中心偏一点，
             <b>没有可以直接指定方向的角度 prop</b>
           </span>
@@ -2260,6 +2261,9 @@ function LightFxDemo() {
           <span className="ctl ctl--note">
             <code>size</code> 省略时跟随变体（
             {LIGHT_VARIANTS.map((id) => `${id} ${LIGHT_PRESETS[id].size}`).join(' / ')}px）；
+            滑块的两端是<b>推荐区间</b>，组件并不夹——只要 > 0，4K/8K 想放大就放大。
+            唯一的硬规矩是<b>不能 ≤ 0 或非数字</b>：那会让 <code>radial-gradient</code> 整条声明失效、
+            光<b>整层消失</b>（不是变小），所以这种值直接回落预设。
             <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
             1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用。
             <code>flare</code> 是同一类倍率，乘在<b>镜头光圈</b>上——只有 <code>beach</code> 预设带这层
@@ -2300,9 +2304,10 @@ function LightFxDemo() {
             onChange={setSmoothing}
           />
           <span className="ctl ctl--note">
-            <code>sway</code> 是<b>移动时</b>扇面额外偏转的上限（度），不是另一个方向参数：
+            <code>sway</code> 是<b>移动时</b>扇面额外偏转的角度，不是另一个方向参数：
             它只决定「光源走开后，光束朝画面中心转过去多少」，<code>0</code> 就是纯平移（旧行为），
-            越大越「活」。偏转量由光源<b>当前所在的位置</b>推出来，所以永远指向画面中心，
+            <b>负数则朝远离中心的方向偏</b>（滑块给了 ±60，组件本身不夹，再大就趋近「正对中心」）。
+            偏转量由光源<b>当前所在的位置</b>推出来，所以永远指向画面中心，
             不会出现「光在左上、光束却朝左下」这种自相矛盾。接近上限时是<b>软饱和</b>
             （<code>tanh</code>），快速划过不会突然撞墙。<code>overcast</code> 没有光束，转了也看不见 → 置灰。
           </span>

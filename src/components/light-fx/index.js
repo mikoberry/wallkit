@@ -31,6 +31,7 @@ export {
   normalizeLightVariant,
   normalizeLightAnchor,
   lightNumber,
+  lightRadius,
   lightAnchorOrigin,
   lightOffsetFraction,
   lightFlareGradient,

@@ -8,18 +8,11 @@ import {
   LIGHT_FLARE_MIN,
   LIGHT_FOLLOW_DEFAULT,
   LIGHT_INTENSITY_DEFAULT,
-  LIGHT_INTENSITY_MAX,
-  LIGHT_INTENSITY_MIN,
   LIGHT_PRESETS,
   LIGHT_RAYS_MAX,
   LIGHT_RAYS_MIN,
-  LIGHT_SIZE_MAX,
-  LIGHT_SIZE_MIN,
   LIGHT_SMOOTHING_DEFAULT,
-  LIGHT_SMOOTHING_MAX,
   LIGHT_SWAY_DEFAULT,
-  LIGHT_SWAY_MAX,
-  LIGHT_SWAY_MIN,
   LIGHT_VARIANT_DEFAULT,
   lightAnchorOrigin,
   lightBeamAngle,
@@ -30,6 +23,7 @@ import {
   lightFollowOrigin,
   lightLayers,
   lightNumber,
+  lightRadius,
   lightWashGradient,
   normalizeLightAnchor,
   normalizeLightVariant,
@@ -38,6 +32,16 @@ import './LightFx.css'
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
+}
+
+// A number, or the fallback for anything that is not one. `null` / `''` mean
+// "not provided" rather than "zero" — a prop left out of JSX arrives as
+// `undefined`, but a value from a config file often arrives as `null`, and
+// reading that as 0 would turn the light off.
+function numberOr(value, fallback) {
+  if (value == null || value === '') return fallback
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
 }
 
 // The three custom properties the gradient strings already read. Written at
@@ -109,12 +113,17 @@ function writeLight(host, origin, { anchor, angleOffset, sway }) {
  *   look — a window just out of shot.
  * @param {number|string} [props.offsetY=0] Same, vertically.
  * @param {number} [props.intensity=100]  Brightness of the whole light, as a
- *   percentage of the preset's own alphas (0..200). One gain over all three
- *   layers — wide wash, hotspot and shafts — so dimming it thins the light as
- *   one thing instead of leaving a bright pool around a faded sun. Above 100
- *   the alphas climb towards opaque and the hotspot blows out first.
- * @param {number} [props.size]  Radius of the wide wash in px (200..4000).
- *   Omitted, the variant picks one.
+ *   percentage of the preset's own alphas (100 = the preset's strength). One
+ *   gain over all three layers — wide wash, hotspot and shafts — so dimming it
+ *   thins the light as one thing instead of leaving a bright pool around a
+ *   faded sun. **No upper bound**: the alphas saturate towards opaque on their
+ *   own, so 300 simply blows out earlier. A negative value means no light.
+ * @param {number} [props.size]  Radius of the wide wash in px. Omitted, the
+ *   variant picks one; any positive radius is accepted (a 4K wallpaper may want
+ *   more than the recommended 200..4000). A value that is not a positive number
+ *   falls back to the preset rather than being clamped — an invalid radius makes
+ *   the browser drop the whole `background-image`, so the light would vanish
+ *   instead of shrinking.
  * @param {number} [props.rays=1]  How much of the light is shafts rather than
  *   flat pool (0..1) — a ratio, not a brightness. 0 gives flat light;
  *   `overcast` has none to scale. Use `intensity` to make the light dimmer.
@@ -125,14 +134,16 @@ function writeLight(host, origin, { anchor, angleOffset, sway }) {
  * @param {number} [props.follow=0.45]  How far the light travels towards the
  *   pointer (0..1). 0 pins it to the anchor.
  * @param {number} [props.smoothing=0.12]  Follow lag as a time constant in
- *   seconds (0..0.5). 0 snaps to the pointer. Ignored under
- *   `prefers-reduced-motion`, which removes the easing, not the effect.
+ *   seconds. 0 snaps to the pointer; there is no upper bound (a two-second drag
+ *   is a legitimate look) and a negative value also means "no lag". Ignored
+ *   under `prefers-reduced-motion`, which removes the easing, not the effect.
  * @param {number} [props.sway=16]  How far the shaft fan may lean away from its
- *   at-rest direction while the light moves, in degrees (0..60). 0 keeps the
- *   shafts rigidly parallel to the anchor-derived direction and only slides
- *   them, which reads stiff; the lean is derived from where the light actually
- *   is, so it can never contradict the source. Variants without shafts
- *   (`overcast`) ignore it.
+ *   at-rest direction while the light moves, in degrees. 0 keeps the shafts
+ *   rigidly parallel to the anchor-derived direction and only slides them,
+ *   which reads stiff; a **negative** value leans them the other way, away from
+ *   the frame centre; a large one approaches "aim straight at the middle". The
+ *   lean is derived from where the light actually is, so it can never contradict
+ *   the source. Variants without shafts (`overcast`) ignore it.
  * @param {string} [props.colorHex]  `#rrggbb` override of the light colour.
  *   The hotspot stays a pale version of it.
  * @param {boolean} [props.paused=false]  Keep the current frame, stop
@@ -184,12 +195,15 @@ export default function LightFx({
   )
   const preset = LIGHT_PRESETS[resolvedVariant]
 
-  const gain = clamp(
-    Number.isFinite(Number(intensity)) ? Number(intensity) : LIGHT_INTENSITY_DEFAULT,
-    LIGHT_INTENSITY_MIN,
-    LIGHT_INTENSITY_MAX,
-  ) / 100
-  const resolvedSize = lightNumber(size, preset.size, LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
+  // No ceiling on the gain: past 100% the alphas saturate by themselves, and a
+  // negative value means "no light" because an alpha cannot go below 0. The
+  // bounds in `core/light.js` are the *recommended slider range*, so clamping
+  // here would only refuse a value the caller deliberately asked for.
+  const gain = numberOr(intensity, LIGHT_INTENSITY_DEFAULT) / 100
+  // A radius, not a preference: a non-positive one makes the whole
+  // `radial-gradient` declaration invalid and the light would vanish, so a bad
+  // value falls back to the variant's own size instead of being clamped.
+  const resolvedSize = lightRadius(size, preset.size)
   const rayStrength = lightNumber(rays, 1, LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
   const flareStrength = lightNumber(flare, LIGHT_FLARE_DEFAULT, LIGHT_FLARE_MIN, LIGHT_FLARE_MAX)
 
@@ -248,7 +262,9 @@ export default function LightFx({
   )
 
   const angleOffset = preset.angleOffset
-  const resolvedSway = lightNumber(sway, LIGHT_SWAY_DEFAULT, LIGHT_SWAY_MIN, LIGHT_SWAY_MAX)
+  // Signed and unbounded: a negative `sway` leans the fan away from the frame
+  // centre, and a very large one means "aim straight at the middle".
+  const resolvedSway = numberOr(sway, LIGHT_SWAY_DEFAULT)
   // The at-rest direction: what the first paint gets, and what `paused` keeps.
   // Everything after a pointer event goes through `lightBeamSway()` instead.
   const restAngle = lightBeamAngle(resolvedAnchor, angleOffset)
@@ -268,10 +284,11 @@ export default function LightFx({
   }, [resolvedAnchor, angleOffset, resolvedSway])
 
   // Reduced motion removes the trailing, not the effect: the light still
-  // follows, it just stops easing behind the pointer.
+  // follows, it just stops easing behind the pointer. No upper bound — two
+  // seconds of drag is a legitimate look for a setting sun — and a negative
+  // value is already handled as "no lag" by the handler's `tau <= 0` branch.
   useEffect(() => {
-    const value = Number.isFinite(Number(smoothing)) ? Number(smoothing) : LIGHT_SMOOTHING_DEFAULT
-    tauRef.current = prefersReducedMotion() ? 0 : clamp(value, 0, LIGHT_SMOOTHING_MAX)
+    tauRef.current = prefersReducedMotion() ? 0 : numberOr(smoothing, LIGHT_SMOOTHING_DEFAULT)
   }, [smoothing])
 
   // Seed the resting position. Runs even when paused, which is what makes

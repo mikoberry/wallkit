@@ -417,13 +417,18 @@ src/
 - **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**锚点本身不受这条限制**——那条只管指针，`anchor="bottom-*"` 刻意从低处打光是合法需求。
 - **定位只有一套词汇：`anchor` + `offsetX`/`offsetY`。** 曾经有过 `from`（两个上角）和 `originX`/`originY`（盒子百分比）两档，都被删掉了——同一件事有三种说法时，作者要花时间挑，而表达力一点没多。`anchor` 的默认值是 **`top-left` 而不是 `ANCHOR_DEFAULT`（左下）**：对光来说左下就是脚底打光，`normalizeLightAnchor()` 因此是 light 自己的归一化。
 - **`anchor` 在这里的语义比时钟窄：它放的是「光源中心」这个点，不是盒子角。** 这一层没有自己的盒子，`anchorStyle()` 那套 inset 对它没有意义，所以只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 同一张 `POINTS`，不会各自漂移）。偏移沿用时钟的符号规则：**数字永远朝盒内为正**——`top-right` 下正数往左、`bottom-*` 下正数往上，同一个数在每个角都表示「再往里一点」。
-- **负偏移可以把光源推到画面外**（`top-left` + `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±100%）；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。`offsetX/offsetY` 收数字（= 盒子百分比）和 `'18%'` 字符串；`px` / `vh` 需要量盒子，**明确不支持**（`lightOffsetFraction()` 返回 0），不给半对的单位。
+- **负偏移可以把光源推到画面外**（`top-left` + `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±300%）；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。`offsetX/offsetY` 收数字（= 盒子百分比）和 `'18%'` 字符串；`px` / `vh` 需要量盒子，**明确不支持**（`lightOffsetFraction()` 返回 0），不给半对的单位。
 - `baseOrigin` 被 `useMemo` 缓存并作为 effect 依赖，所以改光源位置会重置当前位置，而无关的重渲染不会拆掉监听。
 - **光束方向由锚点推出来，不是另一个 prop**：`lightBeamAngle()` 取「从锚点指向盒子中心」的方向（`atan2`，`center` 特例朝下），所以光永远朝背向光源的一侧打，不可能出现「光源在右下、光束却往下」的自相矛盾。变体的 `angleOffset` 再叠上去（黄昏 -20° 让光束横扫）。这条规则替代了原来的 `from`。
 - **光束必须遮罩**：`repeating-conic-gradient` 在原点收成一点，不遮就是星芒镜。`lightBeamMask()` 藏掉顶点、中段最亮、边缘消失；没有 `mask-image` 的引擎整层 `display: none`（CSS `@supports not`），不画半对的东西。
 - **移动时扇面会「转」一点，而且这个转角也是推导出来的**（`lightBeamSway()`）：静止方向仍由锚点给出（`lightBeamAngle()`），光源一旦离开锚点，扇面就朝「光当前位置 → 画面中心」那条线偏——偏转量 = `sway`（度，软饱和 `tanh`）乘方位差，写进第三个自定义属性 `--wallkit-light-angle`。**只有平移看起来像一张贴纸在画面上滑**，所以这不是可选装饰，默认 16° 开着。三条约束别丢：① 偏转量对「去掉 `angleOffset` 的几何方向」取差，否则黄昏的 -20° 横扫会被 sway 抵掉一半；② 用 `tanh` 软饱和而不是硬夹，快划不会撞到上限就卡住；③ 光源正落在画面中心时没有方向可指，直接返回静止角，不要除零或让扇面抽一下。`sway=0` 恢复纯平移。
 - **所有预设数值都在 `core/light.js` 的 `LIGHT_PRESETS`**，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 也由 core 转成渐变字符串。加变体是加一条预设，不改 CSS。
-- **`size` 省略 = 用预设**（`lightNumber()` 把 `undefined` 当「用预设」），这是「每个变体自己拥有尺寸」的写法；`intensity` 是各 alpha 的倍率，超过 100% 会向不透明白饱和。
+- **数值参数分两类：定义域（夹）与口味（不夹）。** 这是定过的一条边界，别再把两者混成一套 `MIN/MAX`。
+  - **定义域**：`rays` / `flare` / `follow` 收 0–1——「占多少比例」不可能超过全部，2 没有意义可给。夹它不是为了保守，而是为了让 `rgba()` 的静默截断不要伪装成「参数生效了」。
+  - **口味**：`intensity`（无上限，alpha 自己会饱和；负值等于灯灭）、`smoothing`（无上限，负值已被 `tau <= 0` 当成「不延迟」）、`sway`（带符号、无上限：负数是反向偏，极大值趋近「正对中心」）、`size`（上不封顶）、`offsetX/offsetY`（±300%）。这些一律不做 clamp。
+  - `LIGHT_*_MIN/MAX` 常量因此是**画廊滑块的推荐区间**，不是组件的接受范围；`playground` 文案必须这么写，否则滑块会误导成「超过就无效」。
+- **唯一必须守的一条是「无效值回落」，不是「越界夹取」**：`lightRadius()` 要求 `size` 有限且 `> 0`，否则回落到预设。原因是 `radial-gradient(circle -5px …)` 是**无效声明**，浏览器会把整条 `background-image` 丢掉——光不是变小，而是整层消失，控制台还没有任何提示。同理 `undefined` / `null` / `''` 一律当「用预设」（`lightNumber()` / `numberOr()`），否则会算成 NaN 再变成整层消失。**静默失效比被夹住难查得多**，这条优先于「不做限制」。
+- **`size` 省略 = 用预设**（`lightRadius()` 把 `undefined` 当「用预设」），这是「每个变体自己拥有尺寸」的写法；`intensity` 是各 alpha 的倍率，超过 100% 会向不透明白饱和。
 - **`z-index: 2`：氛围粒子之上、控件之下**（ambient 1 → 光照 2 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7）。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高。`z-index` 挂在两个子层而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光退化为平蒙版。
 - 与 `Spotlight` 同一套输入约定（监听 `window`、坐标映射进自身盒子、盒外忽略、`paused` 停止监听、`prefers-reduced-motion` 只去掉跟随延迟）。**仍然不用 `anchorStyle()` 给自己定位**（根节点铺满 `inset: 0`），`anchor` 只用于放光源中心。
 - 画廊在 `playground/main.jsx` 的 `LightFx` 页：hero 全宽舞台 + 四变体格。
