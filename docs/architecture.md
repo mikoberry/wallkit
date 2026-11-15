@@ -323,6 +323,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 | `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `Frame` | `wallkit/components/frame` | 画面级取景框：4 种边线（括号 / 整框 / 翼型 / 胶片齿孔）+ 可选三分网格、刻度尺、录制点、四角读数与时间码；纯 CSS，无 canvas、无定时器 | P4 后增量 | ✅ 已实现（待 WE 实机逐项验收） |
+| `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，从某个上角斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -360,7 +361,7 @@ x, y = f(seed, t)
 
 **软边不进绘制循环**：`shadowBlur` 与每帧新建渐变的开销在 60fps × 十小时下不可接受，所以每种形态只在离屏 canvas 画一张 64px 精灵（`sprites.js`），循环里只做 `drawImage`；樱花用 `setTransform` 而不是每片 `save` / `rotate` / `restore`。
 
-`z-index: 1`，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5），雪从时钟背后穿过、文字始终可读。它与 `PointerFx` 一样**不使用 `anchor` 三元组**：特效层没有自己的盒子要放。
+`z-index: 1`，在全部控件之下（ambient 1 → 光照 2 → spectrum 3 → 指针特效 4 → clock / album 5），雪从时钟背后穿过、文字始终可读。它与 `PointerFx` 一样**不使用 `anchor` 三元组**：特效层没有自己的盒子要放。
 
 **背景里已经有粒子时不要叠这一层**：WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看。是否显示属于应用层判断，`visible={false}` 即不渲染 DOM 也不留 canvas——这也是 §12.3「默认留游戏仓库」在这里的落点：组件是通用的，开关是应用层的。
 
@@ -375,6 +376,18 @@ x, y = f(seed, t)
 
 时间码是它唯一看起来有状态的东西，而它同样纯 props：`timecode` 收**已格式化**的字符串，组件不持定时器（§5.4），`core/frame.js` 的 `formatTimecode(seconds, fps)` 只是把秒数写成 `HH:MM:SS:FF`。REC 文字也不内置——`rec={true}` 只画红点，要文字写 `rec="REC"`。细节见 [frame-design.md](./frame-design.md)。
 
+**`LightFx` 是 `Spotlight` 的兄弟，但有一处刻意相反：它第一帧就在。** 效果同样是纯 CSS 渐变——一层宽阔光池 + 一个热点（径向渐变）+ 一束被遮罩的锥形光束（`repeating-conic-gradient`）——指针事件只改写 `--wallkit-light-x` / `-y` 两个自定义属性，`useMemo` 之外没有任何字符串拼接。四个预设（`sun` / `moon` / `dusk` / `overcast`）的全部数值集中在 `core/light.js` 的 `LIGHT_PRESETS` 里，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 之类的几何也由 `core` 转成渐变字符串。
+
+和 `Spotlight` 相反的地方是**没有指针输入时的表现**：聚光灯必须藏起来，否则整屏黑；太阳不能藏，否则「没有鼠标的壁纸就没有天气」。所以光默认停在 `from` 指定的那个角（`lightBaseOrigin()`），跟随只是加分项，`data-active` 那套「首帧透明」在这里不存在。
+
+**光不会掉到地平线以下**：指针的 y 在混合前就被夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 与角落位置插值。不夹的话把鼠标拖到屏幕底部就变成从脚底打光，整个场景立刻像舞台脚灯。
+
+**光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。光束方向 `lightBeamAngle()` 每次渲染只算一次，**不跟着指针转**——太阳移动是平移光束，不是旋转它。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
+
+`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是预设各 alpha 的倍率（0–200%），超过 100% 会向不透明白饱和。`rays` 是光束强度的倍率，`overcast` 本身就是 0，乘什么都没用。
+
+`z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、不用 `anchor`，`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
+
 ### 5.4 组件不做的事
 
 - 不读写 `localStorage`（如需要，由使用方持有状态）
@@ -383,7 +396,7 @@ x, y = f(seed, t)
 - 不内置任何语言文案（文案通过 props 传入）
 - 不引入除 React 外的运行时依赖
 - **不内置定时器**：时间等随时间变化的数据由使用方驱动传入
-- **唯一例外**：`Clock.tilt`、`PointerFx` 与 `Spotlight` 会监听 `window` 的指针事件。三者消费的都是「指针位置」这类渲染参数，不是音频 / 媒体 / 业务数据；`PointerFx` 与 `Spotlight` 的边界与理由见 §5.3。除此以外组件不自行采集数据。
+- **唯一例外**：`Clock.tilt`、`PointerFx`、`Spotlight` 与 `LightFx` 会监听 `window` 的指针事件。四者消费的都是「指针位置」这类渲染参数，不是音频 / 媒体 / 业务数据；`PointerFx`、`Spotlight` 与 `LightFx` 的边界与理由见 §5.3。除此以外组件不自行采集数据。
 
 ### 5.5 已确定的设计决策
 
@@ -555,7 +568,7 @@ useEffect(() => {
 组件之间的固定序列只有一条，用来保证「全屏装饰层」叠放顺序可预期：
 
 ```
-ambient 1 → spectrum 3 → pointer 4 → clock / album 5 → spotlight 6 → frame 7
+ambient 1 → 光照 2 → spectrum 3 → pointer 4 → clock / album 5 → spotlight 6 → frame 7
 ```
 
 `Frame` 排在 `Spotlight` 之上是语义而非美观：取景线与曝光读数是叠加在画面上的仪表，真实摄影机里它们不会跟着曝光压暗一起消失。想让聚光灯连框一起压暗的应用层，在自己样式表里降低该值即可。两者都不使用 `anchor`，父容器需要是定位上下文（见 [frame-design.md](./frame-design.md) §2）。

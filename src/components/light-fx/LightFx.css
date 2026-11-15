@@ -1,0 +1,62 @@
+/* LightFx — a directional light over the whole picture.
+ *
+ * Like Spotlight this overlay fills its positioning context instead of using
+ * the anchor triple: a full-bleed light has no box of its own to place. The
+ * parent must be `position: relative` with a definite size.
+ *
+ * Two children, two jobs:
+ *   __wash   the wide pool of light plus its hotspot (plain radial gradients)
+ *   __beams  the shaft fan (conic gradients) — masked, see below
+ *
+ * Both read their origin from `--wallkit-light-x` / `-y` on the root. Keep
+ * those on the root so the wash, the hotspot and the shaft mask share one
+ * origin; writing them on a child would let the fan drift away from the pool.
+ *
+ * pointer-events: none is essential: a full-screen light layer must never
+ * swallow a click meant for the wallpaper.
+ *
+ * z-index 2 sits above the ambient particles (1) and below the controls
+ * (spectrum 3 → pointer 4 → clock / album 5): the picture is lit, the text
+ * stays crisp. A wallpaper that wants sunlight falling across its clock can
+ * raise this in its own stylesheet.
+ *
+ * The z-index deliberately sits on the two children, NOT on the root — a
+ * positioned element with a z-index creates a stacking context, which isolates
+ * its descendants from the page backdrop and would stop `mix-blend-mode:
+ * screen` from reaching the wallpaper, turning the light into a flat veil. Keep
+ * the root free of z-index / isolation / opacity / filter. */
+
+.wallkit-light {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wallkit-light__wash,
+.wallkit-light__beams {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-repeat: no-repeat;
+  /* `screen` only ever brightens what is underneath, so this reads as light
+     falling on the picture rather than a translucent sheet over it. */
+  mix-blend-mode: screen;
+}
+
+/* The shaft fan is the one layer that needs a mask: a conic gradient converges
+   on its centre, and an unmasked fan looks like a star filter instead of
+   daylight. The mask hides the apex, peaks a little further out and is gone by
+   the edge of the pool — its geometry lives in `core/light.js` and arrives as
+   an inline `mask-image`. Where the engine does not support masks the fan would
+   be a starburst, so the layer is dropped outright rather than drawn
+   half-right. */
+@supports not ((mask-image: radial-gradient(#000, transparent)) or (-webkit-mask-image: radial-gradient(#000, transparent))) {
+  .wallkit-light__beams {
+    display: none;
+  }
+}
+
+/* Nothing to disable for reduced motion: the component already sets its
+   smoothing to 0 in that mode, which is the only motion this layer has. */

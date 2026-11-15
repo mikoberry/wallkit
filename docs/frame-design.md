@@ -100,7 +100,7 @@ backlog §2 曾把「它是不是布局容器」留成 A（独立装饰层）/ B
 `z-index: 7`，**比 `Spotlight` 的 6 还高**：
 
 ```
-ambient 1 → spectrum 3 → pointer 4 → clock / album 5 → spotlight 6 → frame 7
+ambient 1 → 光照 2 → spectrum 3 → pointer 4 → clock / album 5 → spotlight 6 → frame 7
 ```
 
 理由是语义而非美观：取景线与曝光读数是**叠加在画面上的仪表**，真实摄影机里它们不会跟着曝光压暗一起消失。应用层若想让聚光灯连框一起压暗，降低这个值即可。

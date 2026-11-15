@@ -523,3 +523,41 @@ body {
 .ctl input[type='text']:disabled {
   cursor: not-allowed;
 }
+
+/* The light is judged at wallpaper scale and it answers the pointer, so the
+ * hero is full width: a 260px cell cannot show a 1400px wash, let alone how far
+ * the shafts reach. Backgrounds here carry no light source of their own — the
+ * point is that the only light in the frame comes from the component. */
+.light-hero-cell {
+  margin-bottom: 20px;
+}
+
+.light-hero {
+  height: 460px;
+  background:
+    radial-gradient(circle at 50% 120%, rgba(96, 116, 168, 0.28), transparent 60%),
+    linear-gradient(165deg, #0d1424 0%, #161d31 55%, #0a0f1b 100%);
+}
+
+/* Stand-in for the control layer, which sits at z-index 5 in a real wallpaper.
+ * It exists to show the wash does not flatten the text: the light is below the
+ * controls on purpose. */
+.light-probe {
+  position: absolute;
+  left: 24px;
+  bottom: 22px;
+  z-index: 5;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #dce4f6;
+  pointer-events: none;
+}
+
+.grid--light {
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+}
+
+.grid--light .stage {
+  height: 300px;
+}

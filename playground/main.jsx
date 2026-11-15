@@ -48,6 +48,19 @@ import {
   FRAME_SIZE_MAX,
   formatTimecode,
 } from '../src/components/frame/index.js'
+import {
+  LightFx,
+  LIGHT_VARIANTS,
+  LIGHT_FROMS,
+  LIGHT_PRESETS,
+  LIGHT_FOLLOW_DEFAULT,
+  LIGHT_INTENSITY_DEFAULT,
+  LIGHT_INTENSITY_MAX,
+  LIGHT_SIZE_MIN,
+  LIGHT_SIZE_MAX,
+  LIGHT_SMOOTHING_DEFAULT,
+  LIGHT_SMOOTHING_MAX,
+} from '../src/components/light-fx/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -90,6 +103,7 @@ const COMPONENTS = [
   { id: 'ambient', label: 'AmbientFx', hint: '全屏氛围粒子层' },
   { id: 'spotlight', label: 'Spotlight', hint: '跟随鼠标的聚光灯' },
   { id: 'frame', label: 'Frame', hint: 'REC 取景框' },
+  { id: 'light', label: 'LightFx', hint: '天气光照层' },
 ]
 
 // Every trail / click combination gets its own cell. The lists come from the
@@ -1920,6 +1934,225 @@ function FrameDemo() {
   )
 }
 
+// Light gallery.
+//
+// A light is judged at wallpaper scale and it answers the pointer, so the hero
+// is a full-width stage: run the mouse across it and the sun leans towards the
+// cursor. The cells below compare the four variants, plus the same sun on the
+// other side; their `size` is scaled down because a cell is a third of a
+// wallpaper — at 1400px the wash would fill the whole card and the shaft fan
+// would not be visible at all.
+const LIGHT_STAGES = [
+  { variant: 'sun', from: 'top-left', className: 'stage stage--light', caption: 'sun — 晴天正午，左上角' },
+  { variant: 'sun', from: 'top-right', className: 'stage stage--dark', caption: 'sun — 同一个太阳换到右上角' },
+  { variant: 'moon', from: 'top-right', className: 'stage stage--dark', caption: 'moon — 月光：冷、暗、几乎没有光束' },
+  { variant: 'dusk', from: 'top-left', className: 'stage stage--photo', caption: 'dusk — 黄昏低角度，光束被拉长' },
+  { variant: 'overcast', from: 'top-left', className: 'stage stage--light', caption: 'overcast — 阴天：没有光束，只有一片平光' },
+]
+
+// A cell is roughly a third of a 1080p frame, so the preset radius is scaled to
+// match. The light does not "auto fit" — `size` is px, exactly like Spotlight's
+// diameter, and picking the number for the target screen is the caller's job.
+const LIGHT_CELL_SCALE = 0.35
+
+function LightFxDemo() {
+  const [variant, setVariant] = useState('sun')
+  const [from, setFrom] = useState('top-left')
+  const [intensity, setIntensity] = useState(LIGHT_INTENSITY_DEFAULT)
+  const [size, setSize] = useState(LIGHT_PRESETS.sun.size)
+  // Off = the prop is omitted, so the variant's own radius is used. Worth a
+  // switch of its own: "every variant owns a size" is part of the contract.
+  const [sizeOn, setSizeOn] = useState(false)
+  const [rays, setRays] = useState(1)
+  const [follow, setFollow] = useState(LIGHT_FOLLOW_DEFAULT)
+  const [smoothing, setSmoothing] = useState(LIGHT_SMOOTHING_DEFAULT)
+  const [colorOn, setColorOn] = useState(false)
+  const [color, setColor] = useState('#ffd9a0')
+  const [visible, setVisible] = useState(true)
+  const [paused, setPaused] = useState(false)
+
+  const shared = {
+    variant,
+    from,
+    intensity,
+    size: sizeOn ? size : undefined,
+    rays,
+    follow,
+    smoothing,
+    visible,
+    paused,
+    colorHex: colorOn ? color : undefined,
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>LightFx</h1>
+        <p className="hint">
+          一层<b>天气光照</b>：晴天正午的暖光从某个上角斜射下来，夜里换成又冷又柔的月光，
+          另有黄昏的低角度长光束与阴天的一片平光。<b>把鼠标移到下面的大画面里</b>，
+          光会朝指针偏一点（<code>follow</code> 控制偏移多远，<code>smoothing</code> 控制跟得多重）。
+          它和 <code>Spotlight</code> 一样是<b>纯 CSS 渐变</b>：一层宽阔的光池 + 一个热点 + 一束被遮罩的
+          锥形光束，指针每次移动只改写 <code>--wallkit-light-x</code> / <code>-y</code> 两个变量，
+          <b>没有 canvas、没有绘制循环</b>。
+          和 <code>Spotlight</code> 相反的一点：<b>它第一帧就在</b>——没有指针输入的壁纸照样有天气，
+          光就停在 <code>from</code> 指定的那个角；跟随只是加分项，不是效果本身。
+          光<b>不会掉到地平线以下</b>（指针的 y 先被夹在上半区再混合），否则会变成从脚底打光。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="天气">
+          <label className="ctl">
+            <span className="ctl__label">
+              变体 variant <b>{variant}</b>
+            </span>
+            <select value={variant} onChange={(e) => setVariant(e.target.value)}>
+              {LIGHT_VARIANTS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="ctl">
+            <span className="ctl__label">
+              来向 from <b>{from}</b>
+            </span>
+            <select value={from} onChange={(e) => setFrom(e.target.value)}>
+              {LIGHT_FROMS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Slider
+            label="强度 intensity"
+            value={intensity}
+            min={0}
+            max={LIGHT_INTENSITY_MAX}
+            step={5}
+            suffix="%"
+            onChange={setIntensity}
+          />
+        </Row>
+
+        <Row title="光线">
+          <Slider
+            label="光池半径 size"
+            value={sizeOn ? size : LIGHT_PRESETS[variant].size}
+            min={LIGHT_SIZE_MIN}
+            max={LIGHT_SIZE_MAX}
+            step={50}
+            suffix="px"
+            disabled={!sizeOn}
+            onChange={setSize}
+          />
+          <Toggle label="覆盖 size" on={sizeOn} onChange={setSizeOn} />
+          <Slider
+            label="光束 rays"
+            value={rays}
+            min={0}
+            max={1}
+            step={0.05}
+            suffix="×"
+            onChange={setRays}
+          />
+          <span className="ctl ctl--note">
+            <code>size</code> 省略时跟随变体（
+            {LIGHT_VARIANTS.map((id) => `${id} ${LIGHT_PRESETS[id].size}`).join(' / ')}px）；
+            <code>rays</code> 是预设光束强度的倍率，<code>overcast</code> 本来就没有光束可乘
+          </span>
+        </Row>
+
+        <Row title="跟随">
+          <Slider
+            label="跟随 follow"
+            value={follow}
+            min={0}
+            max={1}
+            step={0.05}
+            suffix="×"
+            onChange={setFollow}
+          />
+          <Slider
+            label="延迟 smoothing"
+            value={smoothing}
+            min={0}
+            max={LIGHT_SMOOTHING_MAX}
+            step={0.01}
+            suffix="s"
+            onChange={setSmoothing}
+          />
+        </Row>
+
+        <Row title="光色与运行">
+          <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              光色 colorHex <b>{colorOn ? color : '未覆盖'}</b>
+            </span>
+            <input
+              type="color"
+              value={color}
+              disabled={!colorOn}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖光色" on={colorOn} onChange={setColorOn} />
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+        </Row>
+      </section>
+
+      <figure className="cell light-hero-cell">
+        <div className="stage light-hero">
+          <LightFx {...shared} />
+          {/* A stand-in for the control layer (the real clock / album art sits at
+              z-index 5). It is here to show the light does not wash the text
+              out: the wash is below the controls on purpose. */}
+          <p className="light-probe">控件层的文字留在这里检查可读性 · z-index 5</p>
+        </div>
+        <figcaption>hero：上面所有开关都在这一格里生效；鼠标划过时注意光池与光束一起偏移</figcaption>
+      </figure>
+
+      <section className="grid grid--light">
+        {LIGHT_STAGES.map((entry) => (
+          <figure className="cell" key={`${entry.variant}-${entry.from}`}>
+            <div className={entry.className}>
+              <LightFx
+                variant={entry.variant}
+                from={entry.from}
+                intensity={entry.intensity ?? intensity}
+                rays={entry.rays ?? rays}
+                follow={follow}
+                smoothing={smoothing}
+                size={Math.round(LIGHT_PRESETS[entry.variant].size * LIGHT_CELL_SCALE)}
+              />
+            </div>
+            <figcaption>{entry.caption}</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        默认值：<code>variant="sun"</code>、<code>from="top-left"</code>、<code>intensity=100</code>、
+        <code>size</code>（省略 → 跟随变体）、<code>rays=1</code>、<code>follow=0.45</code>、
+        <code>smoothing=0.12</code>、<code>visible=true</code>、<code>paused=false</code>。
+        覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），<b>不使用 <code>anchor</code></b>；
+        层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →
+        clock / album 5）之下——画面被打亮，文字仍然压得住；想让阳光也扫过时钟，在自己的样式表里抬高这个值。
+        两层都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；光束是
+        <code>repeating-conic-gradient</code>，靠一层径向 <code>mask-image</code> 藏掉锥形顶点——
+        不遮的话它就是个星芒镜而不是日光。没有 <code>mask-image</code> 的引擎里光束整层不画。
+        和 <code>PointerFx</code> / <code>Spotlight</code> 一样自己监听 <code>window</code> 指针事件并把坐标
+        映射进自身盒子，盒子外的事件忽略；WE 桌面壁纸默认不投递鼠标事件，实机要看到跟随需开启鼠标交互，
+        <b>但光本身不依赖指针</b>。<code>prefers-reduced-motion</code> 下只去掉跟随延迟。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -1960,6 +2193,7 @@ function App() {
         {active === 'ambient' && <AmbientFxDemo />}
         {active === 'spotlight' && <SpotlightDemo />}
         {active === 'frame' && <FrameDemo />}
+        {active === 'light' && <LightFxDemo />}
       </main>
     </div>
   )
