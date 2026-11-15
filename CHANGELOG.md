@@ -11,6 +11,16 @@
 
 ### Added
 
+- **新增 `stars` 星尘形态**（`a8bb61b`，`wallkit/components/ambient-fx`）：满天星点，**位置固定、只闪不落**。
+  ```jsx
+  <AmbientFx variant="stars" />                                   // 默认 200 颗，深色背景上最好看
+  <AmbientFx variant="stars" density={160} intensity={130} speed={40} />   // 更密、更亮、慢闪
+  ```
+  这是氛围层里唯一没有位移的形态——会下落的天空就是雪。所以 `ambientOffset` 的 stars 分支把整个运动预算给亮度：两路不可通约的正弦叠加后再取平方，星点大部分时间偏暗、偶尔短暂一闪；`speed` 只缩放闪烁频率，不再改变任何位置。亮度与星点尺寸绑定，避免满屏「大而发灰的糊点」。
+- **星点用加色叠加（`'lighter'`）画**：只给画面加光，不会压暗底下的壁纸，相邻光晕叠起来更亮；`drawAmbient` 末尾统一复位混合模式，不污染后续帧。星点精灵仍是 64px 离屏预渲染的「白热小核 + 紧光晕 + 十字衍射芒」，绘制循环只做 `drawImage`，芒只在放大到 hero 星时才显形。
+- **星尘自带固有色 `#e8efff`**，默认 200 颗、`density` 最高 300% 也封在全局上限 240；`colorHex` 照旧可覆盖。`paused` / `visible` / `prefers-reduced-motion` 的行为与其余七种形态完全一致。
+- **playground 的 AmbientFx 页多出 `stars` 一格**（配最深的背景），标签、数量封顶与固有色说明同步更新；`AMBIENT_VARIANTS` 现为 8 项。
+
 - **新增 `sway` prop：光在移动时扇面会跟着转一点**（`306154e`，`wallkit/components/light-fx`）。
   以前光源只做平移——光束方向固定，画面看起来像一张贴纸在滑动。现在光源一旦离开锚点，
   `lightBeamSway()` 就按「光当前位置 → 画面中心」重算扇面角度，偏转量由 `sway`（度，默认 **16**，
