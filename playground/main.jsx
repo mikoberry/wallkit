@@ -58,6 +58,8 @@ import {
   LIGHT_INTENSITY_MAX,
   LIGHT_SIZE_MIN,
   LIGHT_SIZE_MAX,
+  LIGHT_ORIGIN_MIN,
+  LIGHT_ORIGIN_MAX,
   LIGHT_SMOOTHING_DEFAULT,
   LIGHT_SMOOTHING_MAX,
 } from '../src/components/light-fx/index.js'
@@ -1959,6 +1961,12 @@ function LightFxDemo() {
   const [variant, setVariant] = useState('sun')
   const [from, setFrom] = useState('top-left')
   const [intensity, setIntensity] = useState(LIGHT_INTENSITY_DEFAULT)
+  // Off = the two corners `from` knows about; on = an arbitrary point. Nothing
+  // else in the component changes between the two, which is the point of
+  // exposing an origin instead of a second positioning system.
+  const [originOn, setOriginOn] = useState(false)
+  const [originX, setOriginX] = useState(30)
+  const [originY, setOriginY] = useState(14)
   const [size, setSize] = useState(LIGHT_PRESETS.sun.size)
   // Off = the prop is omitted, so the variant's own radius is used. Worth a
   // switch of its own: "every variant owns a size" is part of the contract.
@@ -1974,6 +1982,8 @@ function LightFxDemo() {
   const shared = {
     variant,
     from,
+    originX: originOn ? originX : undefined,
+    originY: originOn ? originY : undefined,
     intensity,
     size: sizeOn ? size : undefined,
     rays,
@@ -2036,6 +2046,36 @@ function LightFxDemo() {
             suffix="%"
             onChange={setIntensity}
           />
+        </Row>
+
+        <Row title="光源位置">
+          <Toggle label="任意光源 origin" on={originOn} onChange={setOriginOn} />
+          <Slider
+            label="横向 originX"
+            value={originX}
+            min={LIGHT_ORIGIN_MIN}
+            max={LIGHT_ORIGIN_MAX}
+            step={1}
+            suffix="%"
+            disabled={!originOn}
+            onChange={setOriginX}
+          />
+          <Slider
+            label="纵向 originY"
+            value={originY}
+            min={LIGHT_ORIGIN_MIN}
+            max={LIGHT_ORIGIN_MAX}
+            step={1}
+            suffix="%"
+            disabled={!originOn}
+            onChange={setOriginY}
+          />
+          <span className="ctl ctl--note">
+            省略时由 <code>from</code> 决定（左上 14% / 6%、右上 86% / 6%）；
+            两轴各自独立覆盖，只给 <code>originX</code> 就只横移。
+            <code>originY</code> <b>不受地平线限制</b>——刻意从低处打光是合法需求，
+            被夹的只是指针跟随
+          </span>
         </Row>
 
         <Row title="光线">
@@ -2137,7 +2177,8 @@ function LightFxDemo() {
 
       <footer className="foot">
         默认值：<code>variant="sun"</code>、<code>from="top-left"</code>、<code>intensity=100</code>、
-        <code>size</code>（省略 → 跟随变体）、<code>rays=1</code>、<code>follow=0.45</code>、
+        <code>size</code>（省略 → 跟随变体）、<code>originX</code> / <code>originY</code>（省略 → 跟随
+        <code>from</code>）、<code>rays=1</code>、<code>follow=0.45</code>、
         <code>smoothing=0.12</code>、<code>visible=true</code>、<code>paused=false</code>。
         覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），<b>不使用 <code>anchor</code></b>；
         层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →

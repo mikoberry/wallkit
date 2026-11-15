@@ -68,7 +68,15 @@ function clamp(value, min, max) {
  *   much softer; `dusk` is a low orange sun raking across the frame; `overcast`
  *   has no shafts at all, just a huge flat cool wash.
  * @param {'top-left'|'top-right'} [props.from='top-left'] Corner the light
- *   comes from. It also sets the phase of the shaft fan.
+ *   comes from. It also sets the phase of the shaft fan. A shorthand: the two
+ *   corners are the only places a sun can plausibly sit, and `originX` /
+ *   `originY` are the general form.
+ * @param {number} [props.originX] Light origin as a percentage of the box
+ *   width (0..100). Overrides `from` on that axis, so `originX={30}` alone
+ *   slides the light sideways and keeps the corner's height.
+ * @param {number} [props.originY] Light origin as a percentage of the box
+ *   height (0..100). Unlike pointer following this is NOT clamped above the
+ *   horizon: a deliberately low light source is a valid look.
  * @param {number} [props.intensity=100]  Percentage of the preset's own
  *   alphas (0..200). Above 100 the wash climbs towards opaque.
  * @param {number} [props.size]  Radius of the wide wash in px (200..4000).
@@ -89,6 +97,8 @@ export default function LightFx({
   visible = true,
   variant = LIGHT_VARIANT_DEFAULT,
   from = LIGHT_FROM_DEFAULT,
+  originX,
+  originY,
   intensity = LIGHT_INTENSITY_DEFAULT,
   size,
   rays = 1,
@@ -112,6 +122,13 @@ export default function LightFx({
 
   const resolvedVariant = normalizeLightVariant(variant)
   const resolvedFrom = normalizeLightFrom(from)
+  // Resolved once per geometry change. Memoised rather than rebuilt every
+  // render: it is an effect dependency, and a fresh object each time would
+  // tear the pointer listener down and put it back on every unrelated render.
+  const baseOrigin = useMemo(
+    () => lightBaseOrigin(resolvedFrom, originX, originY),
+    [resolvedFrom, originX, originY],
+  )
   const preset = LIGHT_PRESETS[resolvedVariant]
 
   const gain = clamp(
@@ -175,23 +192,27 @@ export default function LightFx({
   }, [smoothing])
 
   // Seed the resting position. Runs even when paused, which is what makes
-  // `paused` at mount show light at the configured corner rather than at the
-  // stylesheet's fallback point.
+  // `paused` at mount show light at the configured origin rather than at the
+  // stylesheet's fallback point. The deps only change when the geometry really
+  // does, so a new `from` / `originX` / `originY` also wins over wherever the
+  // pointer had dragged the light, while an unrelated re-render leaves it put.
   useEffect(() => {
     const host = rootRef.current
-    if (!host || movedRef.current) return
-    const rest = lightFollowOrigin(lightBaseOrigin(resolvedFrom), null)
+    if (!host) return
+    movedRef.current = false
+    targetRef.current = null
+    const rest = lightFollowOrigin(baseOrigin, null)
     currentRef.current = rest
     host.style.setProperty('--wallkit-light-x', `${rest.x.toFixed(2)}%`)
     host.style.setProperty('--wallkit-light-y', `${rest.y.toFixed(2)}%`)
-  }, [resolvedFrom, visible])
+  }, [baseOrigin, visible])
 
   useEffect(() => {
     if (!visible || paused) return undefined
     const host = rootRef.current
     if (!host) return undefined
 
-    const base = lightBaseOrigin(resolvedFrom)
+    const base = baseOrigin
 
     const write = (x, y) => {
       host.style.setProperty('--wallkit-light-x', `${x.toFixed(2)}%`)
@@ -264,7 +285,7 @@ export default function LightFx({
         frameRef.current = 0
       }
     }
-  }, [visible, paused, resolvedFrom])
+  }, [visible, paused, baseOrigin])
 
   if (!visible) return null
 

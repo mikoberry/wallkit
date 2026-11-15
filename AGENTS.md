@@ -394,7 +394,9 @@ src/
 ```jsx
 <LightFx
   variant="sun"              // sun | moon | dusk | overcast
-  from="top-left"            // top-left | top-right
+  from="top-left"            // top-left | top-right（两个上角的简写）
+  originX={undefined}        // 光源横向位置 %（0–100），覆盖 from 的 x
+  originY={undefined}        // 光源纵向位置 %（0–100），不受地平线夹取
   intensity={100}            // 预设 alpha 的倍率，0–200
   size={undefined}           // 光池半径 px，省略 = 跟随预设
   rays={1}                   // 预设光束强度的倍率，0–1
@@ -406,7 +408,8 @@ src/
 ```
 
 - **它和 `Spotlight` 有一处刻意相反：第一帧就在。** 聚光灯没有指针时必须藏起来（否则整屏黑），光不能藏——没有鼠标的壁纸照样有天气。默认位置由 `from` 决定（`lightBaseOrigin()`），跟随只是加分项。
-- **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。
+- **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**显式的 `originY` 不受这条限制**——那条只管指针，刻意从低处打光是合法需求。
+- **`from` 只是两个上角的简写**，`originX` / `originY`（盒子宽高百分比，两轴各自覆盖）才是通用形式；`baseOrigin` 被 `useMemo` 缓存并作为 effect 依赖，所以改光源位置会重置当前位置，而无关的重渲染不会拆掉监听。
 - **光束必须遮罩**：`repeating-conic-gradient` 在原点收成一点，不遮就是星芒镜。`lightBeamMask()` 藏掉顶点、中段最亮、边缘消失；没有 `mask-image` 的引擎整层 `display: none`（CSS `@supports not`），不画半对的东西。光束方向每次渲染只算一次，**不跟指针转**——太阳移动是平移光束。
 - **所有预设数值都在 `core/light.js` 的 `LIGHT_PRESETS`**，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 也由 core 转成渐变字符串。加变体是加一条预设，不改 CSS。
 - **`size` 省略 = 用预设**（`lightNumber()` 把 `undefined` 当「用预设」），这是「每个变体自己拥有尺寸」的写法；`intensity` 是各 alpha 的倍率，超过 100% 会向不透明白饱和。

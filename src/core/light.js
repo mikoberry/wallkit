@@ -51,8 +51,17 @@ export const LIGHT_SMOOTHING_MIN = 0
 export const LIGHT_SMOOTHING_MAX = 0.5
 export const LIGHT_SMOOTHING_DEFAULT = 0.12
 
-// The light never drops below this fraction of the box height. A sun that
-// chases the pointer into the bottom half would light the picture from below.
+// An explicit origin is a percentage of the box on each axis. 0 and 100 are
+// legal: a light living exactly on the edge is a common look (a window just out
+// of frame), and the wash is soft enough that half of it being outside the
+// frame is not a problem.
+export const LIGHT_ORIGIN_MIN = 0
+export const LIGHT_ORIGIN_MAX = 100
+
+// The *pointer* never drags the light below this fraction of the box height:
+// a sun that chased the cursor into the bottom half would light the picture
+// from below. An explicit `originY` is not clamped — that is a deliberate
+// choice by the caller, not a side effect of moving the mouse.
 export const LIGHT_ORIGIN_MAX_Y = 0.6
 
 // Corner the light starts from, as fractions of the box. Not 0: a light centre
@@ -191,11 +200,23 @@ export function lightNumber(value, fallback, min, max) {
  * The light's resting position, as fractions of the box (not percentages — the
  * component converts once when it writes the CSS variables).
  *
+ * `from` is only a shorthand for the two corners a sun can plausibly sit in.
+ * `originX` / `originY` are the general form: percentages of the box, each
+ * overriding its own axis, so `originX={30}` alone moves the light sideways
+ * while the height stays the corner's. They are NOT clamped above the horizon —
+ * that clamp exists to stop the *pointer* dragging the light down to the
+ * floor, not to forbid an author from deliberately lighting from a low angle.
+ *
  * @param {string} from
- * @returns {{ x: number, y: number }}
+ * @param {number} [originX] Percentage of the box width (0..100).
+ * @param {number} [originY] Percentage of the box height (0..100).
+ * @returns {{ x: number, y: number }} Fractions of the box.
  */
-export function lightBaseOrigin(from) {
-  return { ...BASE_ORIGINS[normalizeLightFrom(from)] }
+export function lightBaseOrigin(from, originX, originY) {
+  const corner = BASE_ORIGINS[normalizeLightFrom(from)]
+  const x = lightNumber(originX, corner.x * 100, LIGHT_ORIGIN_MIN, LIGHT_ORIGIN_MAX)
+  const y = lightNumber(originY, corner.y * 100, LIGHT_ORIGIN_MIN, LIGHT_ORIGIN_MAX)
+  return { x: x / 100, y: y / 100 }
 }
 
 /**
@@ -205,7 +226,8 @@ export function lightBaseOrigin(from) {
  * returns the base position unchanged. The pointer's y is clamped above the
  * horizon *before* blending, so dragging to the bottom of the screen slides the
  * light to the horizon and no further instead of flipping the scene into a
- * floor-lit one.
+ * floor-lit one. The base position is left alone: an explicit `originY` may sit
+ * wherever the caller wants it.
  *
  * The result is in percentages (0..100), ready to be written into the CSS
  * custom properties.
@@ -217,7 +239,7 @@ export function lightBaseOrigin(from) {
  */
 export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) {
   const bx = clamp(finite(base && base.x, BASE_ORIGINS['top-left'].x), 0, 1)
-  const by = clamp(finite(base && base.y, BASE_ORIGINS['top-left'].y), 0, LIGHT_ORIGIN_MAX_Y)
+  const by = clamp(finite(base && base.y, BASE_ORIGINS['top-left'].y), 0, 1)
 
   if (!pointer) return { x: bx * 100, y: by * 100 }
 
