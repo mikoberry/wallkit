@@ -11,7 +11,7 @@
 
 ### Added
 
-- **新增 `beach` 变体：海边正午的大太阳**（`wallkit/components/light-fx`）。和前面四种「一片光池 + 一束光束」
+- **新增 `beach` 变体：海边正午的大太阳**（`d873095`，`wallkit/components/light-fx`）。和前面四种「一片光池 + 一束光束」
   不同，它的光源本身是一块**硬白盘**，并且因为这么亮，光在镜头里散成一串**光斑 + 光圈环**横穿画面。
   ```jsx
   <LightFx variant="beach" anchor="top-left" />
