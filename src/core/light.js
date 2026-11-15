@@ -11,17 +11,18 @@
 //
 // Everything here is pure: no DOM, no React, no timers.
 
-import { anchorPoint } from './anchor.js'
+import { ANCHORS, anchorPoint } from './anchor.js'
 import { isHexColor } from './audio.js'
 
 export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast']
 export const LIGHT_VARIANT_DEFAULT = 'sun'
 
-// Which corner the light comes from. The two top corners are the whole
-// vocabulary on purpose: sunlight from below reads as a floor lamp, and
-// "straight down" is just the two corners with a wide wash.
-export const LIGHT_FROMS = ['top-left', 'top-right']
-export const LIGHT_FROM_DEFAULT = 'top-left'
+// Where the light centre sits. It is an anchor point — the same nine the
+// floating widgets use — plus offsets, because a light has no box of its own
+// and "the sun is at the top-left" is all an author wants to say. Sunlight has
+// to come from somewhere, so the default is the top-left corner rather than
+// `ANCHOR_DEFAULT` (bottom-left), which would light the picture from below.
+export const LIGHT_ANCHOR_DEFAULT = 'top-left'
 
 // Strength as a percentage of the preset's own alphas. Above 100 the alphas
 // climb towards opaque; the range stops at 200 because by then the wide wash is
@@ -52,32 +53,18 @@ export const LIGHT_SMOOTHING_MIN = 0
 export const LIGHT_SMOOTHING_MAX = 0.5
 export const LIGHT_SMOOTHING_DEFAULT = 0.12
 
-// An explicit origin is a percentage of the box on each axis. 0 and 100 are
-// legal: a light living exactly on the edge is a common look (a window just out
-// of frame), and the wash is soft enough that half of it being outside the
-// frame is not a problem.
-export const LIGHT_ORIGIN_MIN = 0
-export const LIGHT_ORIGIN_MAX = 100
-
-// How far *outside* the box an anchored light may sit, in percent of the box.
-// Only reachable through `anchor` + a negative offset: a streetlamp or a window
-// just off camera is a legitimate source, and gradients accept origins outside
-// 0–100%, so there is no reason to stop at the edge. Bounded only to keep a
-// typo (offset -4000) from parking the light in another postcode.
+// How far *outside* the box the light may sit, in percent of the box. Reachable
+// through a negative offset: a streetlamp or a window just off camera is a
+// legitimate source, and gradients accept origins outside 0–100%, so there is
+// no reason to stop at the edge. Bounded only to keep a typo (offset -4000)
+// from parking the light in another postcode.
 export const LIGHT_ORIGIN_EXTENT = 100
 
 // The *pointer* never drags the light below this fraction of the box height:
 // a sun that chased the cursor into the bottom half would light the picture
-// from below. An explicit `originY` is not clamped — that is a deliberate
-// choice by the caller, not a side effect of moving the mouse.
+// from below. The anchor itself is not clamped — that is a deliberate choice by
+// the caller, not a side effect of moving the mouse.
 export const LIGHT_ORIGIN_MAX_Y = 0.6
-
-// Corner the light starts from, as fractions of the box. Not 0: a light centre
-// exactly on the corner puts half of an already soft wash outside the frame.
-const BASE_ORIGINS = {
-  'top-left': { x: 0.14, y: 0.06 },
-  'top-right': { x: 0.86, y: 0.06 },
-}
 
 // Per-variant look. Every number the stylesheet would otherwise have to know
 // lives here, so a new variant is one entry and no CSS.
@@ -182,10 +169,10 @@ export function normalizeLightVariant(value) {
 
 /**
  * @param {*} value
- * @returns {string} One of `LIGHT_FROMS`.
+ * @returns {string} One of `ANCHORS`.
  */
-export function normalizeLightFrom(value) {
-  return LIGHT_FROMS.includes(value) ? value : LIGHT_FROM_DEFAULT
+export function normalizeLightAnchor(value) {
+  return ANCHORS.includes(value) ? value : LIGHT_ANCHOR_DEFAULT
 }
 
 /**
@@ -202,29 +189,6 @@ export function normalizeLightFrom(value) {
 export function lightNumber(value, fallback, min, max) {
   if (value == null || value === '') return fallback
   return clamp(finite(value, fallback), min, max)
-}
-
-/**
- * The light's resting position, as fractions of the box (not percentages — the
- * component converts once when it writes the CSS variables).
- *
- * `from` is only a shorthand for the two corners a sun can plausibly sit in.
- * `originX` / `originY` are the general form: percentages of the box, each
- * overriding its own axis, so `originX={30}` alone moves the light sideways
- * while the height stays the corner's. They are NOT clamped above the horizon —
- * that clamp exists to stop the *pointer* dragging the light down to the
- * floor, not to forbid an author from deliberately lighting from a low angle.
- *
- * @param {string} from
- * @param {number} [originX] Percentage of the box width (0..100).
- * @param {number} [originY] Percentage of the box height (0..100).
- * @returns {{ x: number, y: number }} Fractions of the box.
- */
-export function lightBaseOrigin(from, originX, originY) {
-  const corner = BASE_ORIGINS[normalizeLightFrom(from)]
-  const x = lightNumber(originX, corner.x * 100, LIGHT_ORIGIN_MIN, LIGHT_ORIGIN_MAX)
-  const y = lightNumber(originY, corner.y * 100, LIGHT_ORIGIN_MIN, LIGHT_ORIGIN_MAX)
-  return { x: x / 100, y: y / 100 }
 }
 
 // The anchor is a *point*, so it has to be expressed as a fraction even when it
@@ -263,14 +227,14 @@ export function lightOffsetFraction(value) {
  * the nine anchor points, plus offsets measured from it.
  *
  * The point that coincides is the **light centre**, not a box corner — this
- * layer has no box of its own, and "the sun is at 30% × 18%" is the thing an
+ * layer has no box of its own, and "the sun is at the top-left" is the thing an
  * author wants to say. Offsets keep the `anchorStyle` sign rule: a number always
  * grows *inward*, so on `top-right` a positive `offsetX` moves the light left,
  * and on `bottom-*` a positive `offsetY` moves it up. That way one number means
  * "further in" on every corner instead of flipping between left and right.
  *
- * Unlike `originX` / `originY` these may leave the box: a negative offset pushes
- * the source out of frame, up to `LIGHT_ORIGIN_EXTENT` beyond the edge.
+ * The light may leave the box: a negative offset pushes the source out of
+ * frame, up to `LIGHT_ORIGIN_EXTENT` beyond the edge.
  *
  * @param {string} anchor One of `ANCHORS` (see `core/anchor.js`).
  * @param {number|string} [offsetX=0] Percentage of the box width, growing inward.
@@ -278,7 +242,7 @@ export function lightOffsetFraction(value) {
  * @returns {{ x: number, y: number }} Fractions of the box; may be negative.
  */
 export function lightAnchorOrigin(anchor, offsetX = 0, offsetY = 0) {
-  const point = anchorPoint(anchor)
+  const point = anchorPoint(normalizeLightAnchor(anchor))
   // A right/bottom anchor is measured from that edge, so "inward" is negative.
   const dx = lightOffsetFraction(offsetX) * (point.x === 1 ? -1 : 1)
   const dy = lightOffsetFraction(offsetY) * (point.y === 1 ? -1 : 1)
@@ -306,8 +270,8 @@ export function lightAnchorOrigin(anchor, offsetX = 0, offsetY = 0) {
 export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) {
   // `clampOrigin`, not 0..1: an anchored light may legitimately sit outside the
   // box, and pinning it to the edge here would undo that on the first event.
-  const bx = clampOrigin(finite(base && base.x, BASE_ORIGINS['top-left'].x))
-  const by = clampOrigin(finite(base && base.y, BASE_ORIGINS['top-left'].y))
+  const bx = clampOrigin(finite(base && base.x, 0))
+  const by = clampOrigin(finite(base && base.y, 0))
 
   if (!pointer) return { x: bx * 100, y: by * 100 }
 
@@ -455,18 +419,29 @@ export function lightBeamMask({ size, maskInner, maskOuter } = {}) {
 /**
  * Phase of the shaft fan, in CSS degrees (0 = up, 90 = right).
  *
- * A corner sets the base phase — `top-left` puts a shaft along the down-right
- * diagonal, `top-right` along the down-left one — and the variant nudges it, so
- * a low dusk sun rakes across the frame instead of pointing at the corner
- * opposite. The angle is fixed per render rather than following the pointer:
- * moving the sun slides the shafts, it does not spin them.
+ * Derived from the anchor rather than configured: shafts always travel *away*
+ * from the source, so a light in `top-left` throws them down-right (135°) and
+ * one in `bottom-right` up-left (315°). Deriving it means the two can never be
+ * set to contradict each other — an anchor that placed the sun at the bottom
+ * while the shafts rained downward would light the picture from a floor lamp
+ * and read as a bug.
  *
- * @param {string} from
+ * The variant nudges the base angle (`angleOffset`), which is what makes a low
+ * dusk sun rake across the frame instead of pointing at the opposite corner.
+ * The angle is fixed per render rather than following the pointer: moving the
+ * sun slides the shafts, it does not spin them.
+ *
+ * @param {string} anchor
  * @param {number} [angleOffset=0]
  * @returns {number}
  */
-export function lightBeamAngle(from, angleOffset = 0) {
-  const base = normalizeLightFrom(from) === 'top-right' ? 225 : 135
+export function lightBeamAngle(anchor, angleOffset = 0) {
+  const point = anchorPoint(normalizeLightAnchor(anchor))
+  // Direction towards the middle of the box. A centred light has no such
+  // direction, so it throws the shafts straight down.
+  const dx = 0.5 - point.x
+  const dy = 0.5 - point.y
+  const base = dx === 0 && dy === 0 ? 180 : (Math.atan2(dx, -dy) * 180) / Math.PI
   const offset = clamp(finite(angleOffset, 0), -90, 90)
-  return (base + offset + 360) % 360
+  return (((base + offset) % 360) + 360) % 360
 }

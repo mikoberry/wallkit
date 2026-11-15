@@ -323,7 +323,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 | `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `Frame` | `wallkit/components/frame` | 画面级取景框：4 种边线（括号 / 整框 / 翼型 / 胶片齿孔）+ 可选三分网格、刻度尺、录制点、四角读数与时间码；纯 CSS，无 canvas、无定时器 | P4 后增量 | ✅ 已实现（待 WE 实机逐项验收） |
-| `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，从某个上角斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
+| `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，从画面某一点斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -378,19 +378,21 @@ x, y = f(seed, t)
 
 **`LightFx` 是 `Spotlight` 的兄弟，但有一处刻意相反：它第一帧就在。** 效果同样是纯 CSS 渐变——一层宽阔光池 + 一个热点（径向渐变）+ 一束被遮罩的锥形光束（`repeating-conic-gradient`）——指针事件只改写 `--wallkit-light-x` / `-y` 两个自定义属性，`useMemo` 之外没有任何字符串拼接。四个预设（`sun` / `moon` / `dusk` / `overcast`）的全部数值集中在 `core/light.js` 的 `LIGHT_PRESETS` 里，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 之类的几何也由 `core` 转成渐变字符串。
 
-和 `Spotlight` 相反的地方是**没有指针输入时的表现**：聚光灯必须藏起来，否则整屏黑；太阳不能藏，否则「没有鼠标的壁纸就没有天气」。所以光默认停在 `from` 指定的那个角（`lightBaseOrigin()`），跟随只是加分项，`data-active` 那套「首帧透明」在这里不存在。
+和 `Spotlight` 相反的地方是**没有指针输入时的表现**：聚光灯必须藏起来，否则整屏黑；太阳不能藏，否则「没有鼠标的壁纸就没有天气」。所以光默认停在 `anchor` 指定的那个点（`lightAnchorOrigin()`，默认左上角），跟随只是加分项，`data-active` 那套「首帧透明」在这里不存在。
 
 **光不会掉到地平线以下**：指针的 y 在混合前就被夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 与光源位置插值。不夹的话把鼠标拖到屏幕底部就变成从脚底打光，整个场景立刻像舞台脚灯。
 
-**位置有三档说法，精度递增：`from` < `originX`/`originY` < `anchor` + 偏移。** 解析优先级就是倒过来：给了 `anchor` 就用它，否则看 `originX`/`originY`，再否则用 `from` 的角落。`from` 永远保留**方向**的职责（`lightBeamAngle()` 按它算光束相位），所以位置交给别人之后它仍然有用，不是死参数。
+**位置只有一套词汇：`anchor` + `offsetX` / `offsetY`**，和浮动控件完全同一套——九个锚点之一，加上从它出发的偏移。早先这里还有 `from`（两个上角）和 `originX` / `originY`（盒子宽高百分比）两档，现在都删了：同一件事有三种说法时，作者要花时间挑，表达力却一点没多。
 
-- `from`：两个上角的简写，落在 14% / 6% 或 86% / 6%。
-- `originX` / `originY`：盒子宽高的百分比（0–100），两轴各自独立覆盖，所以 `originX={30}` 单独给就只横移、纵向仍留在那个角的高度。这两个值**不受地平线夹取**——被夹的只是「指针能拖到哪儿」，刻意从低角度打光是合法需求。
-- `anchor` + `offsetX` / `offsetY`：和浮动控件同一套词汇——九个锚点之一，加上偏移。差别只在**基准点**：时钟放的是盒子角，这里放的是**光源中心**，因为这一层没有自己的盒子（根节点 `inset: 0`）。它只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 共用同一张 `POINTS`，两者不会各自漂移），不借 inset 那套。
+差别只在**基准点**：时钟放的是盒子角，这里放的是**光源中心**，因为这一层没有自己的盒子（根节点 `inset: 0`）。它只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 共用同一张 `POINTS`，两者不会各自漂移），不借 inset 那套。偏移沿用时钟的符号规则：**数字永远朝盒子内部为正**，`top-right` 下正数往左、`bottom-*` 下正数往上，所以同一个数在每个角都表示「再往里一点」，换角不用翻符号。
 
-偏移沿用时钟的符号规则：**数字永远朝盒子内部为正**，`top-right` 下正数往左、`bottom-*` 下正数往上，所以同一个数在每个角都表示「再往里一点」，换角不用翻符号。**也只有这条路径能把光源推到画面外**：`originX` / `originY` 夹在 0–100，而 `lightAnchorOrigin()` 允许越界到 `LIGHT_ORIGIN_EXTENT`（±100%）——一盏画外的路灯只需要 `anchor="top-left"` 配负偏移。因此 `lightFollowOrigin()` 对 base 的夹取也从 0–1 放宽到了同一范围，否则指针一动就把画外的光源拽回边缘。偏移只接受数字（= 盒子百分比）和 `'18%'` 这类百分比字符串；`px` / `vh` 需要量盒子，明确不支持，`lightOffsetFraction()` 对它们返回 0，不给一个半对的单位。
+**负偏移可以把光源推出画面**（`top-left` 配 `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±100%）——越界的光源正是这种定位方式最常见的用法；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。偏移只接受数字（= 盒子百分比）和 `'18%'` 这类百分比字符串；`px` / `vh` 需要量盒子，明确不支持，`lightOffsetFraction()` 对它们返回 0，不给一个半对的单位。
 
-`anchor` 认不出时**不回落 `ANCHOR_DEFAULT`（左下）**——对光来说那是完全另一幅画面。组件用 `ANCHORS.includes()` 先判断，认不出就走 `from` / `origin` 那条路；`lightAnchorOrigin()` 内部的 normalize 是给直接调用者的防御。光源位置变化会重置当前位置（`baseOrigin` 是 effect 依赖），指针拖过之后改也能立刻生效。
+`anchor` 的默认值是 **`top-left`，不是 `ANCHOR_DEFAULT`（左下）**：对光来说左下就是脚底打光，所以 light 有自己的 `normalizeLightAnchor()`，认不出的值回落到左上而不是共用那套归一化。
+
+**光束方向由锚点推出来，没有第二个 prop。** `lightBeamAngle()` 取「从锚点指向盒子中心」的方向（`atan2`，`center` 特例朝下）：`top-left` → 135°、`top-right` → 225°、`bottom-left` → 45°，光永远朝背向光源的一侧打。这样「光源在右下、光束却往下」这种自相矛盾在参数上就不存在了——原来的 `from` 正是靠人记得两边要一致才不出错。变体的 `angleOffset` 再叠上去（黄昏 -20°，让低角度的光横扫画面），方向每次渲染只算一次、**不跟指针转**：太阳移动是平移光束，不是旋转它。
+
+光源位置变化会重置当前位置（`baseOrigin` 是 effect 依赖），指针拖过之后改 `anchor` 也能立刻生效。
 
 **光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。光束方向 `lightBeamAngle()` 每次渲染只算一次，**不跟着指针转**——太阳移动是平移光束，不是旋转它。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
 

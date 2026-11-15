@@ -389,17 +389,14 @@ src/
 
 ### LightFx 组件
 
-天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，光从某个上角斜射下来，并朝指针偏移一点。**两层 CSS 渐变，没有 canvas、没有绘制循环。**
+天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，光从画面某一点斜射下来，并朝指针偏移一点。**两层 CSS 渐变，没有 canvas、没有绘制循环。**
 
 ```jsx
 <LightFx
   variant="sun"              // sun | moon | dusk | overcast
-  from="top-left"            // top-left | top-right：方向 + 位置兜底
-  anchor={undefined}         // 九个锚点之一，把**光源中心**放上去（优先于 originX）
+  anchor="top-left"          // 九个锚点之一：把**光源中心**放上去，也是光束方向的来源
   offsetX={0}                // 从锚点出发的偏移 %，朝盒内为正（可负 → 光源出画）
   offsetY={0}                // 同上，纵向
-  originX={undefined}        // 光源横向位置 %（0–100），覆盖 from 的 x
-  originY={undefined}        // 光源纵向位置 %（0–100），不受地平线夹取
   intensity={100}            // 预设 alpha 的倍率，0–200
   size={undefined}           // 光池半径 px，省略 = 跟随预设
   rays={1}                   // 预设光束强度的倍率，0–1
@@ -410,12 +407,13 @@ src/
 />
 ```
 
-- **它和 `Spotlight` 有一处刻意相反：第一帧就在。** 聚光灯没有指针时必须藏起来（否则整屏黑），光不能藏——没有鼠标的壁纸照样有天气。默认位置由 `from` 决定（`lightBaseOrigin()`），跟随只是加分项。
-- **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**显式的 `originY` 不受这条限制**——那条只管指针，刻意从低处打光是合法需求。
-- **定位有三档，精度递增：`from` < `originX`/`originY` < `anchor` + `offsetX`/`offsetY`。** 解析优先级是 `anchor` > `originX`/`originY` > `from`；`from` 永远保留「方向」的职责（光束相位由它算，见 `lightBeamAngle()`），所以位置交给 `anchor` 之后它仍然有用。`anchor` 非法值**不当成 `ANCHOR_DEFAULT`（左下）**——那会换一幅完全不同的画面，所以组件用 `ANCHORS.includes()` 判断，认不出就退回 `from`/`origin` 那条路（`lightAnchorOrigin()` 内部仍会 normalize，那是给直接调用者的防御）。
+- **它和 `Spotlight` 有一处刻意相反：第一帧就在。** 聚光灯没有指针时必须藏起来（否则整屏黑），光不能藏——没有鼠标的壁纸照样有天气。默认位置由 `anchor` 决定（`lightAnchorOrigin()`，默认 `top-left`），跟随只是加分项。
+- **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**锚点本身不受这条限制**——那条只管指针，`anchor="bottom-*"` 刻意从低处打光是合法需求。
+- **定位只有一套词汇：`anchor` + `offsetX`/`offsetY`。** 曾经有过 `from`（两个上角）和 `originX`/`originY`（盒子百分比）两档，都被删掉了——同一件事有三种说法时，作者要花时间挑，而表达力一点没多。`anchor` 的默认值是 **`top-left` 而不是 `ANCHOR_DEFAULT`（左下）**：对光来说左下就是脚底打光，`normalizeLightAnchor()` 因此是 light 自己的归一化。
 - **`anchor` 在这里的语义比时钟窄：它放的是「光源中心」这个点，不是盒子角。** 这一层没有自己的盒子，`anchorStyle()` 那套 inset 对它没有意义，所以只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 同一张 `POINTS`，不会各自漂移）。偏移沿用时钟的符号规则：**数字永远朝盒内为正**——`top-right` 下正数往左、`bottom-*` 下正数往上，同一个数在每个角都表示「再往里一点」。
-- **只有 `anchor` + 负偏移能把光源推到画面外**（`top-left` + `-40` 就是一盏画外的路灯）：`lightBaseOrigin()` 把 `originX/originY` 夹在 0–100，`lightAnchorOrigin()` 则允许越界到 `LIGHT_ORIGIN_EXTENT`（±100%）。`lightFollowOrigin()` 的 base 夹取因此从 0–1 放宽到同一范围，否则指针一动就把画外的光源拽回边缘。`offsetX/offsetY` 收数字（= 盒子百分比）和 `'18%'` 字符串；`px` / `vh` 需要量盒子，**明确不支持**（`lightOffsetFraction()` 返回 0），不给半对的单位。
+- **负偏移可以把光源推到画面外**（`top-left` + `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±100%）；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。`offsetX/offsetY` 收数字（= 盒子百分比）和 `'18%'` 字符串；`px` / `vh` 需要量盒子，**明确不支持**（`lightOffsetFraction()` 返回 0），不给半对的单位。
 - `baseOrigin` 被 `useMemo` 缓存并作为 effect 依赖，所以改光源位置会重置当前位置，而无关的重渲染不会拆掉监听。
+- **光束方向由锚点推出来，不是另一个 prop**：`lightBeamAngle()` 取「从锚点指向盒子中心」的方向（`atan2`，`center` 特例朝下），所以光永远朝背向光源的一侧打，不可能出现「光源在右下、光束却往下」的自相矛盾。变体的 `angleOffset` 再叠上去（黄昏 -20° 让光束横扫）。这条规则替代了原来的 `from`。
 - **光束必须遮罩**：`repeating-conic-gradient` 在原点收成一点，不遮就是星芒镜。`lightBeamMask()` 藏掉顶点、中段最亮、边缘消失；没有 `mask-image` 的引擎整层 `display: none`（CSS `@supports not`），不画半对的东西。光束方向每次渲染只算一次，**不跟指针转**——太阳移动是平移光束。
 - **所有预设数值都在 `core/light.js` 的 `LIGHT_PRESETS`**，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 也由 core 转成渐变字符串。加变体是加一条预设，不改 CSS。
 - **`size` 省略 = 用预设**（`lightNumber()` 把 `undefined` 当「用预设」），这是「每个变体自己拥有尺寸」的写法；`intensity` 是各 alpha 的倍率，超过 100% 会向不透明白饱和。

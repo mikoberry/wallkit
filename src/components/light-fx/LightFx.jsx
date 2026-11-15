@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { prefersReducedMotion } from '../../core/index.js'
-import { ANCHORS } from '../../core/anchor.js'
 import { spotlightApproach } from '../../core/spotlight.js'
 import {
+  LIGHT_ANCHOR_DEFAULT,
   LIGHT_FOLLOW_DEFAULT,
-  LIGHT_FROM_DEFAULT,
   LIGHT_INTENSITY_DEFAULT,
   LIGHT_INTENSITY_MAX,
   LIGHT_PRESETS,
@@ -15,7 +14,6 @@ import {
   LIGHT_SMOOTHING_DEFAULT,
   LIGHT_SMOOTHING_MAX,
   LIGHT_VARIANT_DEFAULT,
-  lightBaseOrigin,
   lightAnchorOrigin,
   lightBeamAngle,
   lightBeamGradient,
@@ -23,7 +21,7 @@ import {
   lightFollowOrigin,
   lightNumber,
   lightWashGradient,
-  normalizeLightFrom,
+  normalizeLightAnchor,
   normalizeLightVariant,
 } from '../../core/light.js'
 import './LightFx.css'
@@ -57,8 +55,9 @@ function clamp(value, min, max) {
  * below, which reads as a floor lamp. Pointer motion is therefore remapped into
  * the top band and blended by `follow`.
  *
- * Like `PointerFx` and `Spotlight` it fills its positioning context and takes
- * no `anchor` — an effect layer has no box of its own. It never reads
+ * Like `PointerFx` and `Spotlight` it fills its positioning context, so the
+ * `anchor` prop means something narrower here than it does on a widget: it
+ * places the light *centre* (a point), not a corner of this element. It never reads
  * `window.wallpaper*`: sunshine is decoration, not data, so nothing here
  * pretends to know the real weather. Which variant matches the scene is the
  * application's decision.
@@ -69,27 +68,18 @@ function clamp(value, min, max) {
  *   `sun` is a warm midday wash with distinct shafts; `moon` is cool, dim and
  *   much softer; `dusk` is a low orange sun raking across the frame; `overcast`
  *   has no shafts at all, just a huge flat cool wash.
- * @param {'top-left'|'top-right'} [props.from='top-left'] Corner the light
- *   comes from. It also sets the phase of the shaft fan. A shorthand: the two
- *   corners are the only places a sun can plausibly sit, and `anchor` /
- *   `originX` / `originY` are the general forms. `from` keeps its job as the
- *   *direction* of the light even when the position comes from somewhere else.
- * @param {string} [props.anchor] Place the **light centre** on one of the nine
- *   anchors (`top-left` … `bottom-right`), with `offsetX` / `offsetY` measured
- *   from it. Takes priority over `originX` / `originY`. Offsets grow inward,
- *   exactly like a widget's: positive on `top-right` moves the light left.
+ * @param {string} [props.anchor='top-left'] Where the light comes from: one of
+ *   the nine anchors, with `offsetX` / `offsetY` measured from that point. It
+ *   places the **light centre**, not a box corner, and it is also what the
+ *   shaft direction is derived from — light always throws its shafts away from
+ *   the source, so there is no second prop that could contradict it. Offsets
+ *   grow inward, exactly like a widget's: positive on `top-right` moves the
+ *   light left, on `bottom-*` it moves up.
  * @param {number|string} [props.offsetX=0] Distance from the anchor point
  *   towards the box interior, as a percentage of its width (a `'18%'` string
  *   works too). Negative pushes the source outside the frame, which is a legal
  *   look — a window just out of shot.
  * @param {number|string} [props.offsetY=0] Same, vertically.
- * @param {number} [props.originX] Light origin as a percentage of the box
- *   width (0..100). Overrides `from` on that axis, so `originX={30}` alone
- *   slides the light sideways and keeps the corner's height. Ignored when
- *   `anchor` is given.
- * @param {number} [props.originY] Light origin as a percentage of the box
- *   height (0..100). Unlike pointer following this is NOT clamped above the
- *   horizon: a deliberately low light source is a valid look.
  * @param {number} [props.intensity=100]  Percentage of the preset's own
  *   alphas (0..200). Above 100 the wash climbs towards opaque.
  * @param {number} [props.size]  Radius of the wide wash in px (200..4000).
@@ -97,7 +87,7 @@ function clamp(value, min, max) {
  * @param {number} [props.rays=1]  Multiplier on the preset's shaft strength
  *   (0..1). 0 gives flat light; `overcast` has none to scale.
  * @param {number} [props.follow=0.45]  How far the light travels towards the
- *   pointer (0..1). 0 pins it to `from`.
+ *   pointer (0..1). 0 pins it to the anchor.
  * @param {number} [props.smoothing=0.12]  Follow lag as a time constant in
  *   seconds (0..0.5). 0 snaps to the pointer. Ignored under
  *   `prefers-reduced-motion`, which removes the easing, not the effect.
@@ -109,12 +99,9 @@ function clamp(value, min, max) {
 export default function LightFx({
   visible = true,
   variant = LIGHT_VARIANT_DEFAULT,
-  from = LIGHT_FROM_DEFAULT,
-  anchor,
+  anchor = LIGHT_ANCHOR_DEFAULT,
   offsetX = 0,
   offsetY = 0,
-  originX,
-  originY,
   intensity = LIGHT_INTENSITY_DEFAULT,
   size,
   rays = 1,
@@ -128,7 +115,7 @@ export default function LightFx({
   // pointer left it instead of drifting off.
   const targetRef = useRef(null)
   const currentRef = useRef(null)
-  // Set on the first pointer event. Until then the light sits at `from`, and a
+  // Set on the first pointer event. Until then the light sits at the anchor, and a
   // pause must not snap it back there.
   const movedRef = useRef(false)
   const frameRef = useRef(0)
@@ -137,21 +124,16 @@ export default function LightFx({
   const followRef = useRef(LIGHT_FOLLOW_DEFAULT)
 
   const resolvedVariant = normalizeLightVariant(variant)
-  const resolvedFrom = normalizeLightFrom(from)
-  // `anchor` is checked against the table rather than normalised: an unknown
-  // value should fall back to `from` / `originX` / `originY`, not quietly jump
-  // to `ANCHOR_DEFAULT` (bottom-left), which for a light is a completely
-  // different picture.
-  const anchored = ANCHORS.includes(anchor)
+  // Normalised through the light's own default, not `ANCHOR_DEFAULT`: for a
+  // light, "unknown" must not mean bottom-left, which would light the picture
+  // from below.
+  const resolvedAnchor = normalizeLightAnchor(anchor)
   // Resolved once per geometry change. Memoised rather than rebuilt every
   // render: it is an effect dependency, and a fresh object each time would
   // tear the pointer listener down and put it back on every unrelated render.
   const baseOrigin = useMemo(
-    () =>
-      anchored
-        ? lightAnchorOrigin(anchor, offsetX, offsetY)
-        : lightBaseOrigin(resolvedFrom, originX, originY),
-    [anchored, anchor, offsetX, offsetY, resolvedFrom, originX, originY],
+    () => lightAnchorOrigin(resolvedAnchor, offsetX, offsetY),
+    [resolvedAnchor, offsetX, offsetY],
   )
   const preset = LIGHT_PRESETS[resolvedVariant]
 
@@ -198,7 +180,7 @@ export default function LightFx({
     [resolvedSize, preset],
   )
 
-  const angle = `${lightBeamAngle(resolvedFrom, preset.angleOffset)}deg`
+  const angle = `${lightBeamAngle(resolvedAnchor, preset.angleOffset)}deg`
 
   useEffect(() => {
     followRef.current = clamp(
@@ -218,7 +200,7 @@ export default function LightFx({
   // Seed the resting position. Runs even when paused, which is what makes
   // `paused` at mount show light at the configured origin rather than at the
   // stylesheet's fallback point. The deps only change when the geometry really
-  // does, so a new `from` / `originX` / `originY` also wins over wherever the
+  // does, so a new `anchor` / offset also wins over wherever the
   // pointer had dragged the light, while an unrelated re-render leaves it put.
   useEffect(() => {
     const host = rootRef.current
@@ -318,7 +300,7 @@ export default function LightFx({
       ref={rootRef}
       className="wallkit-light"
       data-variant={resolvedVariant}
-      data-from={resolvedFrom}
+      data-anchor={resolvedAnchor}
       style={{ '--wallkit-light-angle': angle }}
       aria-hidden="true"
     >
