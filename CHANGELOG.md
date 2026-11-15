@@ -65,7 +65,7 @@
   自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、`pointer-events: none`、
   **不用 `anchorStyle()` 给自己找位置**；`z-index` 挂在两个子层而非根节点，否则根节点一成为层叠上下文，`screen`
   就够不到壁纸，光会退化成一层平蒙版。
-- **定位只有一套词汇：`anchor` + `offsetX` / `offsetY`**。九个锚点之一（`top-left` …
+- **定位只有一套词汇：`anchor` + `offsetX` / `offsetY`**（`59a5c6c`）。九个锚点之一（`top-left` …
   `bottom-right`）加偏移，和浮动控件完全同一套——但**基准点是光源中心**：这一层铺满定位上下文、
   没有自己的盒子，所以「锚点」在这里放的是一个点，不是盒子的角。偏移沿用同一套符号规则：数字永远
   **朝盒内为正**（`top-right` 下正数往左、`bottom-*` 下正数往上），换角不用翻符号。
