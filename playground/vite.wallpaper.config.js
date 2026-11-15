@@ -48,13 +48,15 @@ export default defineConfig({
     // failures. The library uses optional chaining, which esbuild lowers.
     target: 'es2019',
     rollupOptions: {
-      // Two pages, one build: the cycling testbed and the geometry proof. Both
-      // land in `dist-wallpaper/`, so `deploy:wallpaper` copies them together
-      // and Wallpaper Engine can show either by pointing `project.json` → "file"
-      // at `wallpaper.html` or `layout.html`.
+      // Three pages, one build: the cycling testbed, the geometry proof and the
+      // frame proof. All land in `dist-wallpaper/`, so `deploy:wallpaper` copies
+      // them together and Wallpaper Engine can show any of them by pointing
+      // `project.json` → "file" at `wallpaper.html`, `layout.html` or
+      // `frame.html`.
       input: {
         wallpaper: fileURLToPath(new URL('./wallpaper.html', import.meta.url)),
         layout: fileURLToPath(new URL('./layout.html', import.meta.url)),
+        frame: fileURLToPath(new URL('./frame.html', import.meta.url)),
       },
     },
   },

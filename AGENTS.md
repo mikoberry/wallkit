@@ -6,7 +6,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 
 它只负责渲染控件（时钟等），**不包含背景渲染、不含数据采集**。设计细节见 [docs/architecture.md](docs/architecture.md)。
 
-当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有四个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层）、`Spotlight`（跟随指针的聚光遮罩，同样需 WE 鼠标交互），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
+当前进度：P0–P4 均已完成。P0–P3 已在 Wallpaper Engine 中对接验证正常；P4（`wallkit/we` + Vite 插件）已实现，构建产物已部署到 WE 测试工程并完成实机接线复验，结果正常；P5（新项目验证）起未开始。P4 之后有五个增量：`PointerFx`（鼠标拖尾 / 点击特效，需在 WE 里开启鼠标交互才能实机看到）、`AmbientFx`（氛围粒子层）、`Spotlight`（跟随指针的聚光遮罩，同样需 WE 鼠标交互）、`Frame`（REC 取景框，画面级装饰层，待 WE 实机逐项验收），以及 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`；静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认生效，其余属性的渲染映射仍待逐项确认）。
 
 候补控件提案（Calendar / Frame / InfoCard / Text）记录在 [docs/backlog.md](docs/backlog.md)，**全部未开始**：那里只放设计与触发条件，不代表已排期，也不要因为「文档里写了」就提前实现。
 
@@ -88,6 +88,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/pointer-fx` | `src/components/pointer-fx/index.js` | PointerFx 组件（鼠标拖尾 + 点击特效） |
 | `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡氛围层） |
 | `./components/spotlight` | `src/components/spotlight/index.js` | Spotlight 组件（跟随指针的聚光 / 关灯遮罩） |
+| `./components/frame` | `src/components/frame/index.js` | Frame 组件（画面级 REC 取景框） |
 | `./project` | `src/project/index.js` | project.json 生成工具（构建期纯函数，**不进运行时**） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
@@ -109,6 +110,7 @@ src/
 │   ├── pointer.js        # 指针特效纯函数（环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期映射）
 │   ├── ambient.js        # 氛围粒子纯函数（预设表、参数填充、位置/旋转/透明度）
 │   ├── spotlight.js      # 聚光灯纯函数（渐变字符串构造、跟随缓动）
+│   ├── frame.js          # 取景框纯函数（变体/网格归一、数值钳制、timecode 格式化）
 │   ├── anchor.js         # 四角锚点：ANCHORS / anchorStyle / anchorOrigin
 │   ├── length.js         # toLength
 │   └── types.js          # JSDoc 类型约定（无运行时导出）
@@ -144,10 +146,14 @@ src/
 │   │   ├── renderers.js      # 3 种绘制函数（内部模块）
 │   │   ├── sprites.js        # 离屏精灵预渲染（内部模块）
 │   │   └── AmbientFx.css
-│   └── spotlight/
+│   ├── spotlight/
+│   │   ├── index.js
+│   │   ├── Spotlight.jsx     # 全容器覆盖层、两层 CSS 渐变、指针只改两个变量
+│   │   └── Spotlight.css
+│   └── frame/
 │       ├── index.js
-│       ├── Spotlight.jsx     # 全容器覆盖层、两层 CSS 渐变、指针只改两个变量
-│       └── Spotlight.css
+│       ├── Frame.jsx         # 画面级取景框：4 种边线 + 网格/刻度/录制点/读数，纯 CSS
+│       └── Frame.css
 ├── styles/index.css      # --wallkit-* 变量
 ├── project/              # 构建期工具，组件与运行时都不依赖
 │   ├── index.js          # 统一 re-export
@@ -314,7 +320,7 @@ src/
 - **`rain` / `fog` / `leaves` 的分工**：rain 走通用路径，但雨丝按风向整体倾斜（`atan2(drift * width, span)`，`travel` 在比值里约掉）；fog 在 `ambientOffset` 有横向漂移专用分支（X 槽复用为纵向锚点、phase 兼作横向起点，一半向左一半向右，`bankLife()` 双端淡入淡出藏 wrap），绘制时不旋转、横向拉伸；leaves 与樱花共用同一个绘制循环（`drawTumbling`），但走双频摆动分支得到之字翻滚，自转幅度也大得多。
 - `prefers-reduced-motion` 下**只画一帧**静止构图（保留构图、去掉运动）；`paused` 连这一帧都不重画，最后一帧留在屏上。
 - 粒子尺寸按视口缩放（`sqrt(min(w/1920, h/1080))` 钳到 0.7–2），否则 4K 壁纸会是 1080p 大小的雪。数量有 `AMBIENT_COUNT_MAX = 240` 的硬上限，预设另有更低的 `max`。
-- **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6），所以雪从时钟背后穿过、文字不被压住。
+- **没有 `anchor` 三元组**，覆盖层 `position: absolute; inset: 0; pointer-events: none`。局部 **`z-index: 1`**，在全部控件之下（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7），所以雪从时钟背后穿过、文字不被压住。
 - **背景里已有粒子时不要叠这一层**：WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看。该不该显示是应用层判断，`visible={false}` 既不渲染 DOM 也不留 canvas。
 - **WE 环境**：桌面壁纸默认不投递鼠标事件，收不到事件时画布保持空白，**不生成假轨迹**。要实机看到需在 WE 里开启鼠标交互；浏览器 / 预览窗口可直接看。因此 **`wallpaper.html` 不挂 PointerFx**（那页按 8 秒自动轮换，本来也没鼠标）。
 - `POINTER_TRAIL_VARIANTS` / `POINTER_CLICK_VARIANTS` 与尺寸 / 强度边界从 `components/pointer-fx` 和 `core` 导出；`renderers.js` 是内部模块，不进 `exports`。
@@ -343,9 +349,37 @@ src/
 - **高光层是 `mix-blend-mode: screen`**：只能提亮、不能覆盖，所以是「打光」而不是「蒙一层白」。它就是「亮圈」的来源——只压暗不增亮的版本在深色壁纸上看起来只是一个洞。
 - **`z-index` 必须写在两个子层上，不能写在根节点**：带 `z-index` 的定位元素会创建层叠上下文，而层叠上下文会把后代的混合背板限制在自身内部——写错位置时 `screen` 够不到壁纸，高光退化成一层平白蒙版。同理，根节点上不要加 `isolation` / `opacity` / `filter` / `transform`。
 - **没有收到任何指针事件前遮罩保持全透明**（`data-active` 属性触发 220ms 淡入）。WE 桌面壁纸默认不投递给网页鼠标事件，若首帧就压黑，整张壁纸会直接黑屏。
-- **`z-index: 6`，是唯一压在控件之上的层**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6）。效果本来就要压住时钟和专辑卡；想让某个控件始终亮着，在自己的样式表里降低该实例的层级。
+- **`z-index: 6` 是压在控件之上的第一层**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7）。效果本来就要压住时钟和专辑卡；想让某个控件始终亮着，在自己的样式表里降低该实例的层级。比它更高的只有 `Frame` 的 7，因为取景框是画面仪表、不该被压暗。
 - 与 `PointerFx` 同一套输入约定：监听 `window` 的 `pointermove` / `pointerdown`，坐标映射进自身盒子，盒子外的事件忽略，一页可挂多个实例；同样**不使用 `anchor` 三元组**。
 - `paused` 停止监听并冻结当前画面；`visible={false}` 不渲染 DOM。
+
+### Frame 组件
+
+画面级取景框（REC 相机那种）：四角括号 / 整框 / 翼型轨 / 胶片齿孔，加可选三分网格、刻度尺、录制红点、四角读数与时间码。**纯 CSS，没有 canvas、没有 rAF、没有事件监听。**
+
+```jsx
+<Frame
+  variant="corners"          // corners | frame | bracket | film
+  inset={28} thickness={1.5} length={56} size={1}
+  grid="none"                // none | thirds | cross
+  ticks={false}
+  rec={false}                // true = 只有红点；'REC' = 红点 + 文字
+  timecode=""                // 已格式化字符串，空则不显示
+  labels={{ tl, tr, bl, br }}
+  theme="dark" color visible paused
+/>
+```
+
+- **它装饰整个画面，不是某个控件**：铺满定位上下文、`pointer-events: none`、**没有子元素**，所以既不使用 `anchor`，也**不做控件级包裹**——给一张卡片加角饰是应用层两行 `border` 的事，为它引入 wrapper 会把整个锚点体系拖进来。父容器要 `position` + 确定尺寸。
+- **时间码不由组件计时**：`timecode` 收成品字符串，`core/frame.js` 的 `formatTimecode(seconds, fps)` 只做格式化。这是 §5.4「不内置定时器」的直接落点——WE 暂停时读数必须跟着停。
+- **REC 文字不内置**：`rec={true}` 只画红点，要字写 `rec="REC"`（不内置任何语言文案）。
+- **变体只管边怎么画**，网格 / 刻度 / 红点 / 读数全是正交开关。让四个变体各带一套 HUD 就是 4×5 个组合，维护成本立刻超过收益。
+- **`thickness` 默认 1.5px 而不是 1px**：WE 跑在桌面 DPR 下，1px 线跨两个设备像素，读起来是一条灰糊边而不是硬线。
+- **齿孔是矩形**：`repeating-linear-gradient` 只能画矩形，圆角要每个孔一个元素；这个尺寸看不出差别，不值得把 DOM 翻十倍。
+- **不做 `mix-blend-mode: difference` 自动反色**：那会让线在任何背景上自动反色，但会夺走 `color` / `theme` 的全部控制权。背景明暗由调用方按 `theme` 声明。
+- **`z-index: 7`，比 Spotlight 的 6 还高**：取景线与曝光读数是叠加在画面上的仪表，真实摄影机里它们不会跟着曝光压暗一起消失。
+- 形状全在 `data-variant` / `data-grid` / `data-theme` / `data-rec` / `data-tc` / `data-paused` 上，CSS 是唯一真相，JSX 不按变体分叉。`paused` 只停红点动画，`prefers-reduced-motion` 下常亮。
+- 验证页是 `playground/frame.html`（`← →` 切变体、`↑ ↓` 切背景与主题、`G` 网格、`T` 刻度、`R` 红点、`C` 时间码、空格暂停、`H` 提示）；时间码由该页自己累计，正好演示「应用层拥有时钟」。
 
 ## Conventions
 
@@ -361,11 +395,12 @@ src/
 - `PointerFx` **也不参与**：它是铺满定位上下文的特效层，没有自己的盒子可放（见上方组件说明）。
 - `AmbientFx` **同理**：氛围粒子层同样铺满定位上下文，`z-index: 1` 压在控件之下。
 - `Spotlight` 是反向的例外：它铺满定位上下文，但 `z-index: 6` **压在控件之上**——遮罩的意义就是把下面的一切压暗。
+- `Frame` 也不参与：它铺满定位上下文且**没有子元素**，`z-index: 7` 再高一层（画面仪表不被压暗）。它装饰的是画面，给控件加角饰请在应用层自己做。
 - 新增控件时复用这套三元组，并把 `anchor` 加进 `ANCHORS`（`core` 导出，顺序为阅读顺序，正好对应 2x2 选择器）。
 
 ### 样式
 
-- 类名统一 `<组件>__*`（BEM），前缀 `wallkit-`：`wallkit-clock__*`、`wallkit-spectrum__*`、`wallkit-mini-spectrum__*`、`wallkit-album-art__*`。主题修饰如 `wallkit-clock--theme-dark`。
+- 类名统一 `<组件>__*`（BEM），前缀 `wallkit-`：`wallkit-clock__*`、`wallkit-spectrum__*`、`wallkit-mini-spectrum__*`、`wallkit-album-art__*`、`wallkit-frame__*`。主题修饰如 `wallkit-clock--theme-dark`。
 - **`--theme-light` 是默认态，没有专门规则**；只有 `--theme-dark` 做覆盖。这是原设计，不是遗漏。
 - CSS 变量全部 `--wallkit-` 前缀。组件内部的局部变量用 `--wallkit-clock-*`。
 - 引用共享主题变量时**必须给回退值**，例如 `var(--wallkit-space-3, 12px)`，保证使用方只引入组件 CSS 也能正确渲染。

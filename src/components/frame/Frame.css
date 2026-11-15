@@ -1,0 +1,380 @@
+/* Frame — REC-style viewfinder chrome.
+ *
+ * A full-bleed overlay holding four drawing primitives (edge, rails,
+ * perforations, corner brackets) plus the optional furniture (grid, tick ruler,
+ * record dot, corner readouts). Everything is CSS: no canvas, no rAF, no
+ * timers. The only animated part is the record dot.
+ *
+ * Like PointerFx and Spotlight this fills its positioning context instead of
+ * using the anchor triple — a viewfinder is pinned to the edges of the picture,
+ * not to a widget — so the parent must be `position: relative` with a definite
+ * size. It has no children and never reflows anything.
+ *
+ * `pointer-events: none` is essential: this box covers the whole wallpaper and
+ * must never swallow a click.
+ *
+ * z-index 7 is one above Spotlight's 6 on purpose. The frame is instrumentation
+ * *on* the picture, the way a camera's own readouts sit on top of the exposure
+ * and never dim with it: dimming a wallpaper should not make its viewfinder
+ * disappear. A wallpaper that disagrees can lower this in its own stylesheet.
+ *
+ * Every length derives from `--wallkit-frame-inset` / `-thickness` / `-length`
+ * / `-unit`, which the component writes inline, so a stylesheet can restyle the
+ * frame without the component knowing. `--wallkit-frame-unit` is the bare
+ * `size` multiplier, for the few sizes CSS has to compute itself (dot, tick
+ * spacing, perforations). */
+
+.wallkit-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 7;
+  /* Dark theme = a dark line, i.e. meant for a light wallpaper. Same contract
+     as Clock: the name describes the ink, not the background. */
+  --wallkit-frame-color: #10141c;
+  --wallkit-frame-hair: calc(var(--wallkit-frame-thickness) * 0.5);
+  color: var(--wallkit-frame-color);
+}
+
+.wallkit-frame[data-theme='light'] {
+  --wallkit-frame-color: #f6f8ff;
+}
+
+/* --- Variant: frame (a full hairline box plus a dashed safe area) --------- */
+
+.wallkit-frame__edge {
+  position: absolute;
+  inset: var(--wallkit-frame-inset);
+  border: var(--wallkit-frame-thickness) solid currentColor;
+  display: none;
+}
+
+.wallkit-frame[data-variant='frame'] .wallkit-frame__edge {
+  display: block;
+}
+
+.wallkit-frame[data-variant='frame'] .wallkit-frame__edge::after {
+  content: '';
+  position: absolute;
+  /* A safe area is inset by a fraction of the shot, not by a fixed gutter —
+     6% keeps it clear of the corner readouts at any screen size. */
+  inset: 6%;
+  border: var(--wallkit-frame-hair) dashed currentColor;
+  opacity: 0.45;
+}
+
+/* --- Variant: film (side lines plus perforations) ------------------------ */
+
+.wallkit-frame[data-variant='film'] .wallkit-frame__edge {
+  display: block;
+  border-top-width: 0;
+  border-bottom-width: 0;
+}
+
+.wallkit-frame__perf {
+  position: absolute;
+  inset: calc(var(--wallkit-frame-inset) + var(--wallkit-frame-thickness) + 10px * var(--wallkit-frame-unit));
+  display: none;
+}
+
+.wallkit-frame[data-variant='film'] .wallkit-frame__perf {
+  display: block;
+}
+
+.wallkit-frame__perf::before,
+.wallkit-frame__perf::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(7px * var(--wallkit-frame-unit));
+  opacity: 0.8;
+  /* Square perforations rather than rounded ones: a repeating gradient can
+     only paint rectangles, and at this size the difference is invisible while
+     a second element per hole would not be. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0,
+    currentColor calc(9px * var(--wallkit-frame-unit)),
+    transparent calc(9px * var(--wallkit-frame-unit)),
+    transparent calc(22px * var(--wallkit-frame-unit))
+  );
+}
+
+.wallkit-frame__perf::before {
+  left: 0;
+}
+
+.wallkit-frame__perf::after {
+  right: 0;
+}
+
+/* --- Variant: bracket (two long rails with short wings) ------------------ */
+
+.wallkit-frame__rail {
+  position: absolute;
+  left: var(--wallkit-frame-inset);
+  right: var(--wallkit-frame-inset);
+  height: var(--wallkit-frame-thickness);
+  background: currentColor;
+  display: none;
+}
+
+.wallkit-frame[data-variant='bracket'] .wallkit-frame__rail {
+  display: block;
+}
+
+.wallkit-frame__rail--top {
+  top: var(--wallkit-frame-inset);
+}
+
+.wallkit-frame__rail--bottom {
+  bottom: var(--wallkit-frame-inset);
+}
+
+.wallkit-frame__rail::before,
+.wallkit-frame__rail::after {
+  content: '';
+  position: absolute;
+  width: var(--wallkit-frame-thickness);
+  height: calc(14px * var(--wallkit-frame-unit));
+  background: currentColor;
+}
+
+.wallkit-frame__rail::before {
+  left: 0;
+}
+
+.wallkit-frame__rail::after {
+  right: 0;
+}
+
+/* The wings grow inward from the rail: down on the top rail, up on the bottom
+   one, so the pair reads as a matched bracket instead of two hanging tabs. */
+.wallkit-frame__rail--top::before,
+.wallkit-frame__rail--top::after {
+  top: 0;
+}
+
+.wallkit-frame__rail--bottom::before,
+.wallkit-frame__rail--bottom::after {
+  bottom: 0;
+}
+
+/* --- Variant: corners (four L brackets) --------------------------------- */
+
+.wallkit-frame__corner {
+  position: absolute;
+  width: var(--wallkit-frame-length);
+  height: var(--wallkit-frame-length);
+  display: none;
+}
+
+.wallkit-frame[data-variant='corners'] .wallkit-frame__corner {
+  display: block;
+}
+
+.wallkit-frame__corner--tl {
+  top: var(--wallkit-frame-inset);
+  left: var(--wallkit-frame-inset);
+  border-top: var(--wallkit-frame-thickness) solid currentColor;
+  border-left: var(--wallkit-frame-thickness) solid currentColor;
+}
+
+.wallkit-frame__corner--tr {
+  top: var(--wallkit-frame-inset);
+  right: var(--wallkit-frame-inset);
+  border-top: var(--wallkit-frame-thickness) solid currentColor;
+  border-right: var(--wallkit-frame-thickness) solid currentColor;
+}
+
+.wallkit-frame__corner--bl {
+  bottom: var(--wallkit-frame-inset);
+  left: var(--wallkit-frame-inset);
+  border-bottom: var(--wallkit-frame-thickness) solid currentColor;
+  border-left: var(--wallkit-frame-thickness) solid currentColor;
+}
+
+.wallkit-frame__corner--br {
+  bottom: var(--wallkit-frame-inset);
+  right: var(--wallkit-frame-inset);
+  border-bottom: var(--wallkit-frame-thickness) solid currentColor;
+  border-right: var(--wallkit-frame-thickness) solid currentColor;
+}
+
+/* --- Grid and centre cross ---------------------------------------------- */
+
+.wallkit-frame__grid {
+  position: absolute;
+  inset: var(--wallkit-frame-inset);
+  display: none;
+  opacity: 0.4;
+  background-repeat: no-repeat;
+}
+
+.wallkit-frame[data-grid='thirds'] .wallkit-frame__grid,
+.wallkit-frame[data-grid='cross'] .wallkit-frame__grid {
+  display: block;
+}
+
+.wallkit-frame[data-grid='thirds'] .wallkit-frame__grid {
+  background-image: linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor),
+    linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor);
+  background-size: var(--wallkit-frame-hair) 100%, var(--wallkit-frame-hair) 100%, 100% var(--wallkit-frame-hair),
+    100% var(--wallkit-frame-hair);
+  background-position: 33.333% 0, 66.667% 0, 0 33.333%, 0 66.667%;
+}
+
+.wallkit-frame[data-grid='cross'] .wallkit-frame__grid {
+  background-image: linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor);
+  background-size: var(--wallkit-frame-hair) 100%, 100% var(--wallkit-frame-hair);
+  background-position: 50% 0, 0 50%;
+}
+
+/* --- Tick ruler --------------------------------------------------------- */
+
+.wallkit-frame__ticks {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--wallkit-frame-inset) + var(--wallkit-frame-thickness) + 8px * var(--wallkit-frame-unit));
+  transform: translateX(-50%);
+  width: calc(160px * var(--wallkit-frame-unit));
+  height: calc(9px * var(--wallkit-frame-unit));
+  opacity: 0.55;
+  background-repeat: no-repeat;
+  /* Two tiers: a long tick every fifth step, short ticks in between. Both are
+     anchored to the bottom edge so the ruler reads as rising from the line. */
+  background-image: repeating-linear-gradient(
+      to right,
+      currentColor 0,
+      currentColor 1px,
+      transparent 1px,
+      transparent calc(45px * var(--wallkit-frame-unit))
+    ),
+    repeating-linear-gradient(
+      to right,
+      currentColor 0,
+      currentColor 1px,
+      transparent 1px,
+      transparent calc(9px * var(--wallkit-frame-unit))
+    );
+  background-size: 100% 100%, 100% 55%;
+  background-position: left bottom, left bottom;
+}
+
+/* --- Record dot --------------------------------------------------------- */
+
+.wallkit-frame__rec {
+  position: absolute;
+  top: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  left: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--wallkit-frame-unit));
+  font-family: var(--wallkit-mono, ui-monospace, 'Cascadia Mono', monospace);
+  font-size: var(--wallkit-frame-font);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.wallkit-frame__dot {
+  width: calc(7px * var(--wallkit-frame-unit));
+  height: calc(7px * var(--wallkit-frame-unit));
+  border-radius: 50%;
+  background: #ef4a4a;
+  /* A hard on/off blink, not a fade: a real tally light is a switch. */
+  animation: wallkit-frame-blink 1.8s linear infinite;
+}
+
+.wallkit-frame[data-paused='true'] .wallkit-frame__dot {
+  animation-play-state: paused;
+}
+
+@keyframes wallkit-frame-blink {
+  0%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.12;
+  }
+}
+
+/* --- Readouts ----------------------------------------------------------- */
+
+.wallkit-frame__tc,
+.wallkit-frame__label {
+  position: absolute;
+  font-family: var(--wallkit-mono, ui-monospace, 'Cascadia Mono', monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.wallkit-frame__tc {
+  right: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  bottom: calc(var(--wallkit-frame-inset) + 8px * var(--wallkit-frame-unit));
+  font-size: calc(var(--wallkit-frame-font) * 1.15);
+}
+
+.wallkit-frame__label {
+  font-size: var(--wallkit-frame-font);
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.wallkit-frame__label--tl {
+  top: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  left: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+}
+
+.wallkit-frame__label--tr {
+  top: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  right: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  text-align: right;
+}
+
+.wallkit-frame__label--bl {
+  bottom: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  left: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+}
+
+.wallkit-frame__label--br {
+  bottom: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  right: calc(var(--wallkit-frame-inset) + 10px * var(--wallkit-frame-unit));
+  text-align: right;
+}
+
+/* The record dot owns the top-left slot and the timecode the bottom-right one,
+   so a label in the same slot steps down/up a line instead of overlapping. */
+.wallkit-frame[data-rec='true'] .wallkit-frame__label--tl {
+  top: calc(var(--wallkit-frame-inset) + 36px * var(--wallkit-frame-unit));
+}
+
+.wallkit-frame[data-tc='true'] .wallkit-frame__label--br {
+  bottom: calc(var(--wallkit-frame-inset) + 36px * var(--wallkit-frame-unit));
+}
+
+/* Film puts perforations in the gutter, so the readouts step clear of them:
+   10px for the base gutter plus the 7px holes and a matching gap. */
+.wallkit-frame[data-variant='film'] .wallkit-frame__rec,
+.wallkit-frame[data-variant='film'] .wallkit-frame__label--tl,
+.wallkit-frame[data-variant='film'] .wallkit-frame__label--bl {
+  left: calc(var(--wallkit-frame-inset) + 24px * var(--wallkit-frame-unit));
+}
+
+.wallkit-frame[data-variant='film'] .wallkit-frame__tc,
+.wallkit-frame[data-variant='film'] .wallkit-frame__label--tr,
+.wallkit-frame[data-variant='film'] .wallkit-frame__label--br {
+  right: calc(var(--wallkit-frame-inset) + 24px * var(--wallkit-frame-unit));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallkit-frame__dot {
+    animation: none;
+    opacity: 1;
+  }
+}

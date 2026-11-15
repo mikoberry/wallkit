@@ -32,6 +32,22 @@ import {
   SPOTLIGHT_SMOOTHING_MAX,
   SPOTLIGHT_SMOOTHING_DEFAULT,
 } from '../src/components/spotlight/index.js'
+import {
+  Frame,
+  FRAME_VARIANTS,
+  FRAME_INSET_MIN,
+  FRAME_INSET_DEFAULT,
+  FRAME_INSET_MAX,
+  FRAME_THICKNESS_MIN,
+  FRAME_THICKNESS_DEFAULT,
+  FRAME_THICKNESS_MAX,
+  FRAME_LENGTH_MIN,
+  FRAME_LENGTH_DEFAULT,
+  FRAME_LENGTH_MAX,
+  FRAME_SIZE_MIN,
+  FRAME_SIZE_MAX,
+  formatTimecode,
+} from '../src/components/frame/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
 import './playground.css'
@@ -73,6 +89,7 @@ const COMPONENTS = [
   { id: 'pointer', label: 'PointerFx', hint: '鼠标拖尾与点击特效' },
   { id: 'ambient', label: 'AmbientFx', hint: '全屏氛围粒子层' },
   { id: 'spotlight', label: 'Spotlight', hint: '跟随鼠标的聚光灯' },
+  { id: 'frame', label: 'Frame', hint: 'REC 取景框' },
 ]
 
 // Every trail / click combination gets its own cell. The lists come from the
@@ -1643,6 +1660,266 @@ function SpotlightDemo() {
   )
 }
 
+// Frame gallery.
+//
+// The viewfinder is judged at wallpaper scale, so the hero is a full-width
+// stage running every switch from the panel above; the four stages below keep
+// the furniture off, so what you compare is the shape of each variant.
+const FRAME_STAGES = [
+  { variant: 'corners', className: 'stage stage--photo', theme: 'light', caption: 'corners — 四角括号（默认）' },
+  { variant: 'frame', className: 'stage stage--light', theme: 'dark', caption: 'frame — 整框 + 虚线安全区' },
+  { variant: 'bracket', className: 'stage stage--dark', theme: 'light', caption: 'bracket — 上下翼型轨' },
+  { variant: 'film', className: 'stage stage--a', theme: 'dark', caption: 'film — 胶片齿孔' },
+]
+
+const FRAME_GRIDS = ['none', 'thirds', 'cross']
+
+// Readouts that also exercise the slot rules: `tl` steps down when the record
+// dot is on, `br` steps up when the timecode is on. Editable from the panel so
+// the empty slot can be seen too.
+const FRAME_LABELS = { tl: 'cam a', tr: '35mm · f2.0', bl: 'iso 800 · 1/50', br: '2026-11-15' }
+
+function FrameDemo() {
+  const [variant, setVariant] = useState('corners')
+  const [inset, setInset] = useState(FRAME_INSET_DEFAULT)
+  const [thickness, setThickness] = useState(FRAME_THICKNESS_DEFAULT)
+  const [length, setLength] = useState(FRAME_LENGTH_DEFAULT)
+  const [size, setSize] = useState(1)
+  const [grid, setGrid] = useState('thirds')
+  const [ticks, setTicks] = useState(true)
+  // `rec` has three states, not two: false draws nothing, true draws only the
+  // dot, a string adds that text. The panel has to show all three or the
+  // "no built-in copy" contract is impossible to verify.
+  const [rec, setRec] = useState('text')
+  const [tc, setTc] = useState(true)
+  const [labelsOn, setLabelsOn] = useState(true)
+  const [labels, setLabels] = useState(FRAME_LABELS)
+  const [colorOn, setColorOn] = useState(false)
+  const [color, setColor] = useState('#7dd3fc')
+  const [theme, setTheme] = useState('light')
+  const [visible, setVisible] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [elapsed, setElapsed] = useState(12)
+
+  // The page owns the clock, exactly like a wallpaper does. `Frame` only renders
+  // the string it is handed, so the readout stops here when paused.
+  useEffect(() => {
+    if (paused) return undefined
+    const id = setInterval(() => setElapsed((value) => value + 0.25), 250)
+    return () => clearInterval(id)
+  }, [paused])
+
+  const shared = {
+    variant,
+    inset,
+    thickness,
+    length,
+    size,
+    grid,
+    theme,
+    visible,
+    paused,
+    ticks,
+    color: colorOn ? color : undefined,
+    rec: rec === 'off' ? false : rec === 'dot' ? true : 'REC',
+    timecode: tc ? formatTimecode(elapsed) : '',
+    labels: labelsOn ? labels : undefined,
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>Frame</h1>
+        <p className="hint">
+          REC 相机式的取景框：四角括号 / 整框 / 翼型轨 / 胶片齿孔，加上取景器常见的几件仪表。
+          它是<b>画面级装饰层</b>——铺满定位上下文、<b>没有子元素</b>、<b>不使用 <code>anchor</code></b>，
+          所以不会包裹或位移任何控件；想给某张卡片加角饰，那是应用层两行 <code>border</code> 的事。
+          <b>变体只管「边怎么画」</b>，<code>grid</code> / <code>ticks</code> / <code>rec</code> /
+          <code>timecode</code> / <code>labels</code> 全是正交开关——让每个变体各带一套 HUD 会立刻变成
+          4×5 个组合。整层是纯 CSS，<b>没有 canvas、没有 rAF、没有事件监听</b>；唯一的动画是 7px 红点的硬切闪烁。
+          时间码由<b>本页</b>累计后交给 <code>formatTimecode()</code> 格式化，组件自己不计时，
+          <code>paused</code> 时读数与红点一起停。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="边线">
+          <label className="ctl">
+            <span className="ctl__label">
+              变体 variant <b>{variant}</b>
+            </span>
+            <select value={variant} onChange={(e) => setVariant(e.target.value)}>
+              {FRAME_VARIANTS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Slider
+            label="内缩 inset"
+            value={inset}
+            min={FRAME_INSET_MIN}
+            max={FRAME_INSET_MAX}
+            step={2}
+            suffix="px"
+            onChange={setInset}
+          />
+          <Slider
+            label="线宽 thickness"
+            value={thickness}
+            min={FRAME_THICKNESS_MIN}
+            max={FRAME_THICKNESS_MAX}
+            step={0.5}
+            suffix="px"
+            onChange={setThickness}
+          />
+          <Slider
+            label="臂长 length"
+            value={length}
+            min={FRAME_LENGTH_MIN}
+            max={FRAME_LENGTH_MAX}
+            step={4}
+            suffix="px"
+            onChange={setLength}
+          />
+          <Slider
+            label="倍率 size"
+            value={size}
+            min={FRAME_SIZE_MIN}
+            max={FRAME_SIZE_MAX}
+            step={0.1}
+            suffix="×"
+            onChange={setSize}
+          />
+        </Row>
+
+        <Row title="线色">
+          <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              线色 color <b>{colorOn ? color : '未覆盖'}</b>
+            </span>
+            <input
+              type="color"
+              value={color}
+              disabled={!colorOn}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖 color" on={colorOn} onChange={setColorOn} />
+          <span className="ctl ctl--note">
+            只在传入合法 <code>#rrggbb</code> 时生效，否则整层跟随 <code>theme</code>
+          </span>
+        </Row>
+
+        <Row title="取景器">
+          <label className="ctl">
+            <span className="ctl__label">
+              网格 grid <b>{grid}</b>
+            </span>
+            <select value={grid} onChange={(e) => setGrid(e.target.value)}>
+              {FRAME_GRIDS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="ctl">
+            <span className="ctl__label">
+              录制点 rec <b>{rec}</b>
+            </span>
+            <select value={rec} onChange={(e) => setRec(e.target.value)}>
+              <option value="off">false（不画）</option>
+              <option value="dot">true（只画红点）</option>
+              <option value="text">"REC"（红点 + 文字）</option>
+            </select>
+          </label>
+          <Toggle label="刻度 ticks" on={ticks} onChange={setTicks} />
+          <Toggle label="时间码 timecode" on={tc} onChange={setTc} />
+          <span className="ctl ctl--note">
+            <code>rec</code> 传字符串才画文字，库不内置文案；<code>grid</code> 也接受
+            <code>true</code>（= thirds）
+          </span>
+        </Row>
+
+        <Row title="角标">
+          <Toggle label="labels 角标" on={labelsOn} onChange={setLabelsOn} />
+          {['tl', 'tr', 'bl', 'br'].map((slot) => (
+            <label key={slot} className={`ctl ${labelsOn ? '' : 'ctl--off'}`}>
+              <span className="ctl__label">{slot}</span>
+              <input
+                type="text"
+                value={labels[slot]}
+                disabled={!labelsOn}
+                placeholder="（空则不画）"
+                onChange={(e) => setLabels((current) => ({ ...current, [slot]: e.target.value }))}
+              />
+            </label>
+          ))}
+        </Row>
+
+        <Row title="主题">
+          <label className="ctl">
+            <span className="ctl__label">
+              线色 theme <b>{theme}</b>
+            </span>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+              <option value="light">light（浅色线 / 深壁纸）</option>
+              <option value="dark">dark（深色线 / 浅壁纸）</option>
+            </select>
+          </label>
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+        </Row>
+      </section>
+
+      <figure className="cell frame-hero-cell">
+        <div className="stage stage--photo frame-hero">
+          <Frame {...shared} />
+        </div>
+        <figcaption>hero：上面所有开关都在这一格里生效，时间码真的在走</figcaption>
+      </figure>
+
+      <section className="grid">
+        {FRAME_STAGES.map((entry) => (
+          <figure className="cell" key={entry.variant}>
+            <div className={entry.className}>
+              <Frame
+                variant={entry.variant}
+                theme={entry.theme}
+                inset={inset}
+                thickness={thickness}
+                length={length}
+                size={0.8}
+              />
+            </div>
+            <figcaption>{entry.caption}</figcaption>
+          </figure>
+        ))}
+      </section>
+
+      <footer className="foot">
+        面板覆盖<b>全部 14 个 prop</b>：<code>variant</code>、<code>inset</code>、<code>thickness</code>、
+        <code>length</code>、<code>size</code>、<code>color</code>、<code>grid</code>、<code>ticks</code>、
+        <code>rec</code>（三态）、<code>timecode</code>、<code>labels</code>（四槽可清空）、<code>theme</code>、
+        <code>visible</code>、<code>paused</code>。下面四格刻意只传尺寸、关掉仪表，用来对比四种边线的形状。
+        库的默认值：<code>variant="corners"</code>、<code>inset=28</code>、<code>thickness=1.5</code>、
+        <code>length=56</code>、<code>size=1</code>、<code>grid="none"</code>、<code>ticks=false</code>、
+        <code>rec=false</code>、<code>timecode=""</code>、<code>theme="dark"</code>、<code>paused=false</code>。
+        <code>thickness</code> 的默认值不是 1px：WE 跑在桌面 DPR 下，1px 线跨两个设备像素，看起来是一条灰糊边。
+        <code>theme</code> 与 Clock 同义，名字指<b>线的颜色</b>：<code>light</code> 是浅色线（深壁纸），
+        <code>dark</code> 是深色线（浅壁纸）。
+        层级是 <code>z-index: 7</code>，<b>比 Spotlight 的 6 还高</b>（ambient 1 → spectrum 3 → 指针特效 4 →
+        clock / album 5 → spotlight 6 → frame 7）：取景线与曝光读数是叠加在画面上的仪表，不该跟着压暗一起消失；
+        想让聚光灯连框一起压暗，在自己的样式表里调低这个值。
+        网格与刻度尺用 <code>linear-gradient</code> 画，齿孔用 <code>repeating-linear-gradient</code>——
+        只能画矩形，但这个尺寸看不出差别，不值得为圆角把 DOM 翻十倍。
+      </footer>
+    </>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -1682,6 +1959,7 @@ function App() {
         {active === 'pointer' && <PointerFxDemo />}
         {active === 'ambient' && <AmbientFxDemo />}
         {active === 'spotlight' && <SpotlightDemo />}
+        {active === 'frame' && <FrameDemo />}
       </main>
     </div>
   )

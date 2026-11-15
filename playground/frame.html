@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>WallKit Frame Proof</title>
+    <style>
+      /* Avoid a white flash before the module CSS arrives. */
+      html,
+      body {
+        margin: 0;
+        background: #0b0e14;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Frame proof page. A viewfinder is a full-picture overlay, so this page is
+      a single stage rather than a grid of sample cards: the only honest way to
+      judge the gutters, the line weight and the readout positions is to see
+      them at wallpaper size.
+
+      No Wallpaper Engine bridge is needed — nothing here is data. To look at it
+      inside the engine, point `project.json` → "file" at `frame.html`;
+      `build:wallpaper` emits it next to `wallpaper.html` and `layout.html`.
+    -->
+    <div id="root"></div>
+    <script type="module" src="./frame.jsx"></script>
+  </body>
+</html>

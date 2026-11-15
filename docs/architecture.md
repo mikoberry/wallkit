@@ -191,6 +191,7 @@ wallkit/
 ├── docs/
 │   ├── architecture.md       # 本文件
 │   ├── spectrum-design.md    # Spectrum 接口与渲染方案
+│   ├── frame-design.md       # Frame（REC 取景框）接口与实现方案
 │   ├── we-integration.md     # WE 工程集成与排查
 │   ├── we-design.md          # wallkit/we 接口与接线规格（P4）
 │   └── extraction-map.md     # 与原项目的抽取映射
@@ -205,6 +206,7 @@ wallkit/
 │   │   ├── anchor.js         # 锚点：ANCHORS / anchorStyle / anchorOrigin
 │   │   ├── length.js         # toLength：数字与 CSS 长度的统一归一
 │   │   ├── pointer.js        # 指针特效纯函数：环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期与尺寸映射
+│   │   ├── frame.js          # 取景框纯函数：变体/网格归一、数值钳制、timecode 格式化
 │   │   └── types.js          # JSDoc 类型约定（无运行时导出）
 │   ├── components/
 │   │   ├── index.js          # 便利 barrel
@@ -227,11 +229,17 @@ wallkit/
 │   │   │   ├── index.js
 │   │   │   ├── AlbumArt.jsx          # 11 种布局，内嵌 MiniSpectrum
 │   │   │   └── AlbumArt.css
-│   │   └── pointer-fx/
+│   │   ├── pointer-fx/
+│   │   │   ├── index.js
+│   │   │   ├── PointerFx.jsx         # 覆盖层、指针映射、按需 rAF 循环
+│   │   │   ├── renderers.js          # 4 拖尾 + 4 点击形态，气泡/烟花绘制函数两通道共用
+│   │   │   └── PointerFx.css
+│   │   ├── ambient-fx/               # 氛围粒子层：纯函数驱动，无粒子数组
+│   │   ├── spotlight/                # 跟随指针的聚光遮罩：两层 CSS 渐变，无 canvas
+│   │   └── frame/
 │   │       ├── index.js
-│   │       ├── PointerFx.jsx         # 覆盖层、指针映射、按需 rAF 循环
-│   │       ├── renderers.js          # 4 拖尾 + 4 点击形态，气泡/烟花绘制函数两通道共用
-│   │       └── PointerFx.css
+│   │       ├── Frame.jsx             # 画面级取景框：4 种边线 + 网格/刻度/录制点/读数
+│   │       └── Frame.css
 │   ├── we/                   # 可选外壳层：WE 数据源 hooks + 注入脚本
 │   │   ├── index.js          # hooks 统一 re-export
 │   │   ├── audio.js          # useWallpaperAudio / useWallpaperBeat + 共享 rAF 泵
@@ -314,6 +322,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `PointerFx` | `wallkit/components/pointer-fx` | 拖尾 4 种（glow / ribbon / bubble / firework）+ 点击 4 种（ripple / sparks / bubble / firework），气泡与烟花两通道通用，共 16 种组合 | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 | `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
+| `Frame` | `wallkit/components/frame` | 画面级取景框：4 种边线（括号 / 整框 / 翼型 / 胶片齿孔）+ 可选三分网格、刻度尺、录制点、四角读数与时间码；纯 CSS，无 canvas、无定时器 | P4 后增量 | ✅ 已实现（待 WE 实机逐项验收） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -361,6 +370,10 @@ x, y = f(seed, t)
 - **`AlbumArt` 的 `bars` 可选**：没有频谱时卡片仍显示封面与文字；`vinyl` 的碟缘环一起消失，预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）会把槽位一起收掉，`poster` 的均衡器区消失。另有 `spectrum` 三态开关：省略时按布局（`vinyl` 关、其余开），显式布尔值覆盖布局默认。
 
 **`AlbumArt` 的 `theme`**（P3 补齐）：与 `Clock` 同一套约定——名字指**文字色**，`light` 是浅色文字（深色壁纸），`dark` 是深色文字（浅色壁纸）。`--theme-dark` 除了换 ink 变量，还会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把 `--wallkit-accent` 压暗，否则浅底上的频谱看不见。唱片、CD 与磁带壳保持深色：它们是物件，不是文字底板。纸面样式（磁带标签、拍立得、票根）用固定深色墨、海报用固定浅色墨，不随主题翻转。
+
+**`Frame` 是唯一没有任何绘制运行时的组件。** 四角括号是 4 个带 `border` 的 span，整框是 1 条 `border`，网格与刻度尺是 `linear-gradient`，胶片齿孔是 `repeating-linear-gradient`；唯一会动的是 7px 的录制点常驻 CSS 动画。所以没有 canvas、没有 rAF、没有事件监听：`paused` 只是 `animation-play-state: paused`，`prefers-reduced-motion` 下常亮。它与 `PointerFx` / `Spotlight` 一样铺满定位上下文、不使用 `anchor`，但它装饰的是**整个画面**而不是某个控件，**没有子元素**——这正是 [backlog](./backlog.md#2-frame--decoration) 里 Frame 定位争议的落点：不做控件级包裹，那是应用层两行 `border` 的事。
+
+时间码是它唯一看起来有状态的东西，而它同样纯 props：`timecode` 收**已格式化**的字符串，组件不持定时器（§5.4），`core/frame.js` 的 `formatTimecode(seconds, fps)` 只是把秒数写成 `HH:MM:SS:FF`。REC 文字也不内置——`rec={true}` 只画红点，要文字写 `rec="REC"`。细节见 [frame-design.md](./frame-design.md)。
 
 ### 5.4 组件不做的事
 
@@ -538,6 +551,14 @@ useEffect(() => {
 ### 层级约定
 
 组件内部只使用**局部** z-index（相对自身的层叠上下文），不设全局层级。控件与背景层的相对层级由使用方通过包裹容器的 `position` / `z-index` 决定。
+
+组件之间的固定序列只有一条，用来保证「全屏装饰层」叠放顺序可预期：
+
+```
+ambient 1 → spectrum 3 → pointer 4 → clock / album 5 → spotlight 6 → frame 7
+```
+
+`Frame` 排在 `Spotlight` 之上是语义而非美观：取景线与曝光读数是叠加在画面上的仪表，真实摄影机里它们不会跟着曝光压暗一起消失。想让聚光灯连框一起压暗的应用层，在自己样式表里降低该值即可。两者都不使用 `anchor`，父容器需要是定位上下文（见 [frame-design.md](./frame-design.md) §2）。
 
 ---
 

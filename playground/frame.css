@@ -1,0 +1,49 @@
+/* Frame proof page styling.
+ *
+ * The backdrop exists so the hairline has something to read against — a
+ * viewfinder on a flat colour proves nothing. Two stops, dark and light, so the
+ * `theme` contract can be checked with the arrow keys.
+ *
+ * `position: fixed` here is also what makes this the Frame's positioning
+ * context, exactly like the wrapper a wallpaper would use. */
+
+.fp-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.fp-stage--dark {
+  background: radial-gradient(circle at 26% 30%, rgba(116, 148, 214, 0.34), transparent 55%),
+    radial-gradient(circle at 74% 72%, rgba(206, 132, 104, 0.26), transparent 52%), #0b0e14;
+}
+
+.fp-stage--light {
+  background: radial-gradient(circle at 30% 28%, #f4f7fd, transparent 62%),
+    radial-gradient(circle at 72% 74%, #dfe9fa, transparent 55%), #c3cfe2;
+}
+
+.fp-hint {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(8, 10, 16, 0.62);
+  color: #e9eefb;
+  font-family: var(--wallkit-mono, ui-monospace, 'Cascadia Mono', monospace);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.fp-keys {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.62;
+  letter-spacing: 0.04em;
+}

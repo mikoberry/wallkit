@@ -7,6 +7,38 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/)，只记录影响使用方的
 变化（新增能力 / 行为变化 / 破坏性改动），内部重构与纯文档修正从简。
 
+## 2026-11-15
+
+### Added
+
+- **新增 `Frame` 组件**（`wallkit/components/frame`，待提交）：REC 相机式的**画面级**取景框。
+  四种边线：`corners`（四角括号，默认）/ `frame`（整框 + 内嵌虚线安全框）/ `bracket`（上下翼型轨）/
+  `film`（左右竖线 + 胶片齿孔）。取景器的其余部件全是**正交开关**，不与变体耦合：`grid`
+  （`none` / `thirds` / `cross`）、`ticks`（底边刻度尺）、`rec`（录制红点）、`timecode`（时间码）、
+  `labels`（四角读数）。之所以不按「变体各带一套 HUD」来做，是因为那会变成 4×5 个组合——变体只负责
+  「边怎么画」。
+- **它是画面级装饰层，不是布局容器**：铺满定位上下文（`position: absolute; inset: 0;
+  pointer-events: none`），**没有子元素、不使用 `anchor`**，因此不包裹任何控件、不改现有布局。
+  给某张卡片加角饰是应用层两行 `border` 的事，这一项明确不做。
+- **`timecode` 收已格式化字符串，组件不计时**：壁纸暂停时读数必须跟着停，`formatTimecode(seconds,
+  fps = 24)` 只把秒数写成 `HH:MM:SS:FF`（小时不取模）。`rec` 同理不内置文案——`rec={true}` 只画红点，
+  要 `REC` 三个字就传 `rec="REC"`。
+- **尺寸接口**：`inset`（0–240 px）、`thickness`（默认 **1.5**，1px 在桌面 DPR 下会糊成
+  灰边）、`length`（括号臂长）、`size`（统一倍率，同乘尺寸与字号）、`color`（`#rrggbb` 覆盖线色）。
+  `theme` 沿用 Clock 语义：`light` = 浅色线（深壁纸）、`dark` = 深色线，默认 `dark`。
+- **纯 CSS，没有 canvas / rAF / 事件监听**：矩阵、刻度尺用 `linear-gradient`，齿孔用
+  `repeating-linear-gradient`，唯一动画是 7px 录制点的硬切闪烁（`paused` 停、`prefers-reduced-motion`
+  下常亮）。零空闲功耗。
+- **`z-index: 7`，比 `Spotlight` 的 6 再高一层**：取景线与读数是叠加在画面上的仪表，不该跟着曝光压暗
+  一起消失。这条写进了层级约定（ambient 1 → spectrum 3 → pointer 4 → clock/album 5 → spotlight 6 →
+  frame 7）。
+- **新增观感验证页** `playground/frame.html`：`← →` 切变体、`↑ ↓` 切深/浅背景与 `theme`、`G` 网格、
+  `T` 刻度、`R` 红点、`C` 时间码、空格暂停、`H` 提示；时间码由页面自己累计，正好演示「应用层拥有
+  时钟」。`build:wallpaper` 现在一起打三个页面，把 `project.json` 的 `"file"` 指向 `frame.html` 即可在
+  WE 里查看。
+- **playground 画廊新增 Frame 页**：侧栏 `Frame` 一栏里，hero 舞台跑全部开关（变体 / 内缩 / 线宽 /
+  臂长 / 倍率 / 网格 / 刻度 / 红点 / 时间码 / 主题），下面四格关掉仪表只看四种边线的画法。
+
 ## 2026-11-14
 
 ### Added

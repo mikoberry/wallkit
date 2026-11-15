@@ -493,3 +493,33 @@ body {
 .grid--spotlight .stage {
   height: 340px;
 }
+
+/* The viewfinder is judged at wallpaper scale: in a 260px cell the 28px gutter
+ * reads as a toy frame, and neither the line weight nor the readout positions
+ * carry over to a real screen. The hero runs every switch from the panel; the
+ * four stages below it keep the furniture off, so what you compare is the shape
+ * of each variant. */
+.frame-hero-cell {
+  margin-bottom: 20px;
+}
+
+.frame-hero {
+  height: 420px;
+}
+
+/* Free-text readouts. The frame's `labels` are four independent strings, so the
+ * panel needs real inputs rather than a fixed sample: clearing one has to show
+ * that an empty slot draws nothing. */
+.ctl input[type='text'] {
+  font: inherit;
+  color: #e8ecf8;
+  background: #1a2030;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 5px 10px;
+  width: 108px;
+}
+
+.ctl input[type='text']:disabled {
+  cursor: not-allowed;
+}

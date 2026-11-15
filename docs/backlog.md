@@ -12,7 +12,7 @@
 | 提案 | 结论 | 优先级 | 首批变体 | 触发条件 |
 |---|---|---|---|---|
 | [Calendar](#1-calendar) | 做 | 中低 | 4 | 某个壁纸需要「一眼看日期」，而 Clock `stamp` 不够用 |
-| [Frame / Decoration](#2-frame--decoration) | 做，先定定位契约 | 低 | 4 | 需要给现有控件统一加质感时 |
+| [Frame / Decoration](#2-frame--decoration) | **已实现**（方案 C：视口级） | — | 4 | 由「REC 取景框」需求触发，2026-11-15 落地 |
 | [InfoCard / Status](#3-infocard--status) | 砍到最小再做 | 很低 | 3 | 真的出现 2–3 行非时钟状态信息 |
 | [Text / Quote](#4-text--quote) | 暂不进库 | — | 0 | 应用层手写过第二遍同样的样式 |
 
@@ -80,6 +80,11 @@
 ---
 
 ## 2. Frame / Decoration
+
+> **2026-11-15 已实现**，入口 `wallkit/components/frame`，规格见 [frame-design.md](./frame-design.md)。
+> 定位契约没有走 A / B，而是第三案 **C：视口级装饰层**——铺满定位上下文、无子元素、不用 `anchor`。
+> 触发它的是「REC 取景框」需求：取景框装饰的是**整个画面**，不是某个控件。控件级包裹（给卡片加角饰）因此明确不做。
+> 下面保留原始评估，作为取舍依据。
 
 **结论：做，但动手前必须先定「它是不是布局容器」。** 优先级低。
 
@@ -169,3 +174,4 @@
 ## 审查记录
 
 - **2026-11-14**：由 GPT 提出四个控件提案（InfoCard、Frame、Text/Quote、Calendar），经评估后形成本文档。评估依据为 §1.2（不投机抽象）、§12.3（默认位置是游戏仓库）、§15（weather 已被否决）与现有变体/CSS 规模的实测统计。**未写任何实现代码。**
+- **2026-11-15**：Frame 以「REC 取景框」形态落地（`corners` / `frame` / `bracket` / `film` + 网格、刻度、录制点、读数开关），定位契约定为视口级装饰层，A / B 两案作废；控件级装饰不做。`splits` 分割线仍未实现（它没有「框」的语义）。规格见 [frame-design.md](./frame-design.md)。

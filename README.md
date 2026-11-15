@@ -336,7 +336,7 @@ import { AmbientFx } from 'wallkit/components/ambient-fx'
 
 `prefers-reduced-motion` 下只画一帧静止构图，不动。
 
-`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
+`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
 
 ### Spotlight
 
@@ -368,7 +368,53 @@ import { Spotlight } from 'wallkit/components/spotlight'
 
 **收到第一个指针事件前遮罩保持全透明**：WE 桌面壁纸默认不投递鼠标事件，若首帧就压黑，整张壁纸会黑屏。没有合成光标来「模拟」这件事——和 `PointerFx` 同一条原则。要在实机看到效果必须在 WE 里为该壁纸开启鼠标交互，浏览器 / 预览窗口可直接看。
 
-`z-index: 6`，**压在全部控件之上**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6）：遮罩的意义就是把下面的一切压暗。想让时钟始终亮着，在自己的样式表里调低这个值。
+`z-index: 6`，**压在全部控件之上**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7）：遮罩的意义就是把下面的一切压暗。想让时钟始终亮着，在自己的样式表里调低这个值。
+
+### Frame
+
+REC 相机式的取景框：四角括号 / 细线整框 / 翼型轨 / 胶片齿孔，可选三分网格、刻度尺、录制红点、四角读数与时间码。
+
+它装饰的是**整个画面**，铺满定位容器，所以**没有** `anchor` / `offsetX` / `offsetY`；也**没有子元素**——不要用它包住某个控件（给卡片加角饰请在应用层写两行 `border`）。
+
+```jsx
+import { Frame, formatTimecode } from 'wallkit/components/frame'
+
+<Frame />                                     {/* 默认：四角括号，inset 28 */}
+<Frame variant="frame" grid="thirds" />       {/* 细线框 + 虚线安全框 + 三分网格 */}
+<Frame variant="bracket" ticks />             {/* 上下翼型轨 + 底部刻度尺 */}
+<Frame variant="film" theme="light" />        {/* 胶片齿孔；浅色线配深色壁纸 */}
+
+<Frame
+  rec="REC"
+  timecode={formatTimecode(elapsed)}
+  labels={{ tl: 'cam a', tr: '35mm', bl: 'iso 800', br: '2026-11-15' }}
+/>
+```
+
+`rec="REC"` 的红点与文字、`timecode` 的时间码、`labels` 的四角读数都是可选的：只写 `rec="REC"` 就只剩红点加文字，`timecode` 的内容完全由你算好传入（组件不计时），`labels` 里没有的角就空着。
+
+| prop | 默认 | 说明 |
+|---|---|---|
+| `variant` | `'corners'` | `corners` / `frame` / `bracket` / `film`；非法值回退 `corners` |
+| `inset` | `28` | 框线距画面边缘，px，0–240 |
+| `thickness` | `1.5` | 线宽，px，0.5–8。默认不是 1：WE 跑在桌面 DPR 下，1px 线会糊成灰边 |
+| `length` | `56` | 括号臂长，px，0–240；`frame` / `film` 不用 |
+| `size` | `1` | 统一倍率，同乘 `inset` / `thickness` / `length` 与字号，0.5–3 |
+| `color` | — | `#rrggbb` 覆盖线色，优先于 `theme` |
+| `grid` | `'none'` | `'none'` / `'thirds'` / `'cross'`；`true` 等于 `thirds` |
+| `ticks` | `false` | 底边刻度尺 |
+| `rec` | `false` | `true` 只画红点；传字符串额外画该文本（如 `rec="REC"`） |
+| `timecode` | `''` | 已格式化字符串，空则不显示 |
+| `labels` | — | `{ tl, tr, bl, br }`，逐项字符串，空项不渲染 |
+| `theme` | `'dark'` | 与 `Clock` 同义：`'light'` 是浅色线（深壁纸），`'dark'` 是深色线 |
+| `visible` | `true` | `false` 不渲染 DOM |
+| `paused` | `false` | 冻结录制红点的闪烁 |
+
+**时间码不由组件计时**：`timecode` 收成品字符串，`formatTimecode(seconds, fps = 24)` 只负责把秒数写成 `HH:MM:SS:FF`。壁纸被 WE 暂停时，读数和闪烁一起停——这也是组件不持定时器的原因。
+
+**变体只管「边怎么画」**，网格 / 刻度 / 红点 / 读数都是正交开关；四个角上的 `rec` 与 `timecode` 各占一角，同位置的 `labels` 会自动让开一行。
+
+`z-index: 7`，**比 `Spotlight` 的 6 再高一层**：取景线与读数是叠加在画面上的仪表，不该跟着曝光压暗一起消失。想让聚光灯连框一起压暗，在自己样式表里调低这个值。
 
 ### WE 集成（可选）
 
@@ -449,6 +495,7 @@ npm run test:project                   # 工具自测（50 条断言，不需要
 | `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
 | `wallkit/components/ambient-fx` | 全屏氛围粒子层（飘雪 / 樱花 / 气泡） |
 | `wallkit/components/spotlight` | 跟随指针的聚光遮罩（亮圈 + 圈外压暗） |
+| `wallkit/components/frame` | 画面级 REC 取景框（括号 / 整框 / 翼型 / 齿孔 + 网格、刻度、录制点、读数） |
 | `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
 | `wallkit/project` | project.json 生成工具（构建期纯函数，不进运行时） |
@@ -474,6 +521,7 @@ npm run test:project                   # 工具自测（50 条断言，不需要
 
 - [架构方案](./docs/architecture.md) — 定位、分层、接口原则、阶段计划
 - [Spectrum 设计](./docs/spectrum-design.md) — 频谱组件的接口、定位与渲染方案
+- [Frame 设计](./docs/frame-design.md) — 取景框的定位契约、变体与层级取舍
 - [WE 集成指南](./docs/we-integration.md) — 内联脚本、`project.json`、音频排查
 - [抽取映射](./docs/extraction-map.md) — 从现有壁纸项目迁移的代码归属
 
