@@ -3,6 +3,9 @@ import { prefersReducedMotion } from '../../core/index.js'
 import { spotlightApproach } from '../../core/spotlight.js'
 import {
   LIGHT_ANCHOR_DEFAULT,
+  LIGHT_FLARE_DEFAULT,
+  LIGHT_FLARE_MAX,
+  LIGHT_FLARE_MIN,
   LIGHT_FOLLOW_DEFAULT,
   LIGHT_INTENSITY_DEFAULT,
   LIGHT_INTENSITY_MAX,
@@ -19,6 +22,7 @@ import {
   lightBeamAngle,
   lightBeamGradient,
   lightBeamMask,
+  lightFlareGradient,
   lightFollowOrigin,
   lightLayers,
   lightNumber,
@@ -66,10 +70,12 @@ function clamp(value, min, max) {
  *
  * @param {Object} props
  * @param {boolean} [props.visible=true]  Render nothing when false.
- * @param {'sun'|'moon'|'dusk'|'overcast'} [props.variant='sun']
+ * @param {'sun'|'moon'|'dusk'|'overcast'|'beach'} [props.variant='sun']
  *   `sun` is a warm midday wash with distinct shafts; `moon` is cool, dim and
  *   much softer; `dusk` is a low orange sun raking across the frame; `overcast`
- *   has no shafts at all, just a huge flat cool wash.
+ *   has no shafts at all, just a huge flat cool wash; `beach` is a hard midday
+ *   sun over water — a blown-out disc with a lens-flare chain trailing across
+ *   the frame.
  * @param {string} [props.anchor='top-left'] Where the light comes from: one of
  *   the nine anchors, with `offsetX` / `offsetY` measured from that point. It
  *   places the **light centre**, not a box corner, and it is also what the
@@ -92,6 +98,10 @@ function clamp(value, min, max) {
  * @param {number} [props.rays=1]  How much of the light is shafts rather than
  *   flat pool (0..1) — a ratio, not a brightness. 0 gives flat light;
  *   `overcast` has none to scale. Use `intensity` to make the light dimmer.
+ * @param {number} [props.flare=1]  Multiplier on the variant's lens flare
+ *   (0..1). 0 removes the ghost chain; variants that ship without one ignore
+ *   this. Same axis as `rays`: a share of the effect, scaled by `intensity`
+ *   along with everything else.
  * @param {number} [props.follow=0.45]  How far the light travels towards the
  *   pointer (0..1). 0 pins it to the anchor.
  * @param {number} [props.smoothing=0.12]  Follow lag as a time constant in
@@ -111,6 +121,7 @@ export default function LightFx({
   intensity = LIGHT_INTENSITY_DEFAULT,
   size,
   rays = 1,
+  flare = LIGHT_FLARE_DEFAULT,
   follow = LIGHT_FOLLOW_DEFAULT,
   smoothing = LIGHT_SMOOTHING_DEFAULT,
   colorHex,
@@ -150,12 +161,13 @@ export default function LightFx({
   ) / 100
   const resolvedSize = lightNumber(size, preset.size, LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
   const rayStrength = lightNumber(rays, 1, LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
+  const flareStrength = lightNumber(flare, LIGHT_FLARE_DEFAULT, LIGHT_FLARE_MIN, LIGHT_FLARE_MAX)
 
-  // One gain over the whole light: wash, hotspot and shafts come out of the
-  // same call, so `intensity` can never dim one layer and leave another.
+  // One gain over the whole light: wash, hotspot, shafts and flare come out of
+  // the same call, so `intensity` can never dim one layer and leave another.
   const layers = useMemo(
-    () => lightLayers(preset, { gain, rays: rayStrength }),
-    [preset, gain, rayStrength],
+    () => lightLayers(preset, { gain, rays: rayStrength, flare: flareStrength }),
+    [preset, gain, rayStrength, flareStrength],
   )
 
   const color = colorHex
@@ -173,6 +185,7 @@ export default function LightFx({
         coreColor: preset.coreColor,
         washAlpha: layers.washAlpha,
         coreAlpha: layers.coreAlpha,
+        disc: preset.disc,
       }),
     [resolvedSize, preset, layers, color],
   )
@@ -186,6 +199,17 @@ export default function LightFx({
         period: preset.period,
       }),
     [preset, layers, color],
+  )
+
+  const flareImage = useMemo(
+    () =>
+      lightFlareGradient({
+        color: color ?? preset.color,
+        flareAlpha: layers.flareAlpha,
+        spread: preset.flareSpread,
+        size: resolvedSize,
+      }),
+    [preset, layers, resolvedSize, color],
   )
 
   const beamMask = useMemo(
@@ -323,6 +347,9 @@ export default function LightFx({
           className="wallkit-light__beams"
           style={{ backgroundImage: beamImage, WebkitMaskImage: beamMask, maskImage: beamMask }}
         />
+      ) : null}
+      {flareImage ? (
+        <div className="wallkit-light__flare" style={{ backgroundImage: flareImage }} />
       ) : null}
     </div>
   )

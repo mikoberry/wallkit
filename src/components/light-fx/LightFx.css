@@ -6,9 +6,11 @@
  * light *centre*, which is a point, not a corner of this element. The parent
  * must be `position: relative` with a definite size.
  *
- * Two children, two jobs:
+ * Up to three children, three jobs:
  *   __wash   the wide pool of light plus its hotspot (plain radial gradients)
  *   __beams  the shaft fan (conic gradients) — masked, see below
+ *   __flare  the lens-flare chain (radial ghosts + aperture rings), only
+ *            present on variants whose preset has `flare` above 0
  *
  * Both read their origin from `--wallkit-light-x` / `-y` on the root. Keep
  * those on the root so the wash, the hotspot and the shaft mask share one
@@ -37,7 +39,8 @@
 }
 
 .wallkit-light__wash,
-.wallkit-light__beams {
+.wallkit-light__beams,
+.wallkit-light__flare {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -59,6 +62,11 @@
     display: none;
   }
 }
+
+/* The flare is the last child, so it paints above the shafts on purpose: glare
+   is scattered *inside the lens*, and in a photograph it lands on top of the
+   light rather than under it. It shares the `screen` blend above, so it can
+   only ever add brightness — never dim what is under it. */
 
 /* Nothing to disable for reduced motion: the component already sets its
    smoothing to 0 in that mode, which is the only motion this layer has. */

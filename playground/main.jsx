@@ -57,6 +57,8 @@ import {
   LIGHT_INTENSITY_DEFAULT,
   LIGHT_INTENSITY_MAX,
   LIGHT_INTENSITY_MIN,
+  LIGHT_FLARE_MIN,
+  LIGHT_FLARE_MAX,
   LIGHT_SIZE_MIN,
   LIGHT_SIZE_MAX,
   LIGHT_SMOOTHING_DEFAULT,
@@ -1949,6 +1951,8 @@ const LIGHT_STAGES = [
   { variant: 'moon', anchor: 'top-right', className: 'stage stage--dark', caption: 'moon — 月光：冷、暗、几乎没有光束' },
   { variant: 'dusk', anchor: 'top-left', className: 'stage stage--photo', caption: 'dusk — 黄昏低角度，光束被拉长' },
   { variant: 'overcast', anchor: 'top-left', className: 'stage stage--light', caption: 'overcast — 阴天：没有光束，只有一片平光' },
+  { variant: 'beach', anchor: 'top-left', className: 'stage stage--photo', caption: 'beach — 海边晴天：硬光盘 + 镜头光圈' },
+  { variant: 'beach', anchor: 'center-left', className: 'stage stage--dark', caption: 'beach — 光源挪到画面中段，光圈链横穿整幅' },
 ]
 
 // A cell is roughly a third of a 1080p frame, so the preset radius is scaled to
@@ -1970,6 +1974,7 @@ function LightFxDemo() {
   // switch of its own: "every variant owns a size" is part of the contract.
   const [sizeOn, setSizeOn] = useState(false)
   const [rays, setRays] = useState(1)
+  const [flare, setFlare] = useState(1)
   const [follow, setFollow] = useState(LIGHT_FOLLOW_DEFAULT)
   const [smoothing, setSmoothing] = useState(LIGHT_SMOOTHING_DEFAULT)
   const [colorOn, setColorOn] = useState(false)
@@ -1985,6 +1990,7 @@ function LightFxDemo() {
     intensity,
     size: sizeOn ? size : undefined,
     rays,
+    flare,
     follow,
     smoothing,
     visible,
@@ -1998,7 +2004,8 @@ function LightFxDemo() {
         <h1>LightFx</h1>
         <p className="hint">
           一层<b>天气光照</b>：晴天正午的暖光从画面某一点斜射下来，夜里换成又冷又柔的月光，
-          另有黄昏的低角度长光束与阴天的一片平光。<b>把鼠标移到下面的大画面里</b>，
+          另有黄昏的低角度长光束、阴天的一片平光，以及<b>海边晴天</b>——
+          太阳本身被吹成一个硬光盘，镜头里拖出一串光圈。<b>把鼠标移到下面的大画面里</b>，
           光会朝指针偏一点（<code>follow</code> 控制偏移多远，<code>smoothing</code> 控制跟得多重）。
           它和 <code>Spotlight</code> 一样是<b>纯 CSS 渐变</b>：一层宽阔的光池 + 一个热点 + 一束被遮罩的
           锥形光束，指针每次移动只改写 <code>--wallkit-light-x</code> / <code>-y</code> 两个变量，
@@ -2103,11 +2110,22 @@ function LightFxDemo() {
             suffix="×"
             onChange={setRays}
           />
+          <Slider
+            label="光圈 flare"
+            value={flare}
+            min={LIGHT_FLARE_MIN}
+            max={LIGHT_FLARE_MAX}
+            step={0.05}
+            suffix="×"
+            onChange={setFlare}
+          />
           <span className="ctl ctl--note">
             <code>size</code> 省略时跟随变体（
             {LIGHT_VARIANTS.map((id) => `${id} ${LIGHT_PRESETS[id].size}`).join(' / ')}px）；
             <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
-            1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用
+            1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用。
+            <code>flare</code> 是同一类倍率，乘在<b>镜头光圈</b>上——只有 <code>beach</code> 预设带这层
+            （一串光斑 + 两个光圈环，沿「光源 → 画面中心」的轴线往对面铺），别的变体乘了也没有
           </span>
         </Row>
 
@@ -2189,7 +2207,9 @@ function LightFxDemo() {
         给自己定位</b>——锚点在这里只用来放<b>光源中心</b>，因为这一层没有自己的盒子；
         层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →
         clock / album 5）之下——画面被打亮，文字仍然压得住；想让阳光也扫过时钟，在自己的样式表里抬高这个值。
-        两层都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；光束是
+        最多三层（光池 + 光束 + 光圈），都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；
+        <code>beach</code> 的硬光盘来自预设的 <code>disc=1</code>（把热点的两个内圈往外推、调硬），
+        光圈层的位置写成 <code>calc()</code> 引用光源变量，所以它也白拿指针跟随；光束是
         <code>repeating-conic-gradient</code>，靠一层径向 <code>mask-image</code> 藏掉锥形顶点——
         不遮的话它就是个星芒镜而不是日光。没有 <code>mask-image</code> 的引擎里光束整层不画。
         和 <code>PointerFx</code> / <code>Spotlight</code> 一样自己监听 <code>window</code> 指针事件并把坐标

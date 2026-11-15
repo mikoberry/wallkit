@@ -323,7 +323,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 | `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `Frame` | `wallkit/components/frame` | 画面级取景框：4 种边线（括号 / 整框 / 翼型 / 胶片齿孔）+ 可选三分网格、刻度尺、录制点、四角读数与时间码；纯 CSS，无 canvas、无定时器 | P4 后增量 | ✅ 已实现（待 WE 实机逐项验收） |
-| `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天四种预设，从画面某一点斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
+| `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 海边晴天五种预设，从画面某一点斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
 
 **实现顺序：Clock 优先，完成并验证后再做 Spectrum。**（已按此顺序落地：P1 Clock → P2 Spectrum → P3 MiniSpectrum/AlbumArt。）
 
@@ -376,7 +376,11 @@ x, y = f(seed, t)
 
 时间码是它唯一看起来有状态的东西，而它同样纯 props：`timecode` 收**已格式化**的字符串，组件不持定时器（§5.4），`core/frame.js` 的 `formatTimecode(seconds, fps)` 只是把秒数写成 `HH:MM:SS:FF`。REC 文字也不内置——`rec={true}` 只画红点，要文字写 `rec="REC"`。细节见 [frame-design.md](./frame-design.md)。
 
-**`LightFx` 是 `Spotlight` 的兄弟，但有一处刻意相反：它第一帧就在。** 效果同样是纯 CSS 渐变——一层宽阔光池 + 一个热点（径向渐变）+ 一束被遮罩的锥形光束（`repeating-conic-gradient`）——指针事件只改写 `--wallkit-light-x` / `-y` 两个自定义属性，`useMemo` 之外没有任何字符串拼接。四个预设（`sun` / `moon` / `dusk` / `overcast`）的全部数值集中在 `core/light.js` 的 `LIGHT_PRESETS` 里，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 之类的几何也由 `core` 转成渐变字符串。
+**五种变体里 `beach` 多出一层。** 前四种都是「一片光池 + 一束光束」，`beach` 是海边正午的直射太阳：光源本身被吹成一块**硬白盘**（预设的 `disc: 1` 让 `lightWashGradient()` 把热点的两个内圈推到 62% / 84%、alpha 抬到 0.94 / 0.55，同时把热点半径从 0.13R 收到 0.095R——一块占 13% 半径的白盘读起来是灰斑，不是太阳），并且因为这么亮，光必须在镜头里散开，于是多了一串**光斑 + 光圈环**。这两件事绑在同一个预设里：「硬」是光圈出现的原因，拆成两套开关只会让人配出「软光 + 一圈光环」这种物理上不存在的组合。别的预设 `flare: 0`，整层根本不渲染。
+
+**光圈链不新增状态。** 每个光斑落在「光源 → 画面中心」这条轴线的 `t` 处（`t=0` 光源、`1` 中心、`>1` 已到对面），坐标写成 `calc(var(--wallkit-light-x) * (1 - t) + 50% * t)`，所以移动光源仍然只改那两个自定义属性，光圈白拿指针跟随，也不用每帧重建字符串。光斑只取 `t > 0`——落在太阳背面会被太阳自己挡住。颜色分成两族：光斑往淡蓝偏（`COOL_GHOST_RGB`，那是镜头镀膜的颜色而不是太阳的颜色），光圈环比它偏得更狠，于是画面里有冷暖对比而不是一坨黄。`flareSpread` 控制这条轴线的展开程度，`flare` prop 是整层的倍率（0 就整层不画）。
+
+**`LightFx` 是 `Spotlight` 的兄弟，但有一处刻意相反：它第一帧就在。** 效果同样是纯 CSS 渐变——一层宽阔光池 + 一个热点（径向渐变）+ 一束被遮罩的锥形光束（`repeating-conic-gradient`），`beach` 再叠一层镜头光圈——指针事件只改写 `--wallkit-light-x` / `-y` 两个自定义属性，`useMemo` 之外没有任何字符串拼接。五个预设（`sun` / `moon` / `dusk` / `overcast` / `beach`）的全部数值集中在 `core/light.js` 的 `LIGHT_PRESETS` 里，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 之类的几何也由 `core` 转成渐变字符串。
 
 和 `Spotlight` 相反的地方是**没有指针输入时的表现**：聚光灯必须藏起来，否则整屏黑；太阳不能藏，否则「没有鼠标的壁纸就没有天气」。所以光默认停在 `anchor` 指定的那个点（`lightAnchorOrigin()`，默认左上角），跟随只是加分项，`data-active` 那套「首帧透明」在这里不存在。
 
@@ -396,7 +400,7 @@ x, y = f(seed, t)
 
 **光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。光束方向 `lightBeamAngle()` 每次渲染只算一次，**不跟着指针转**——太阳移动是平移光束，不是旋转它。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
 
-`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是**整盏灯唯一的亮度旋钮**（0–200%）：三层的 alpha 由 `lightLayers(preset, { gain, rays })` 一次算出——`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`——所以调低它是「光池 + 热点 + 光束一起暗」，而不是只把光束抹掉、留一个亮光池。超过 100% 时 alpha 向不透明白饱和，热点先到顶，画面读作过曝而不是变白。`rays`（0–1）**不是亮度，是分配**：这盏灯里多少比例走成光束，0 就是一片平光；`overcast` 本身没有光束，乘什么都没用。这条不变式写在 `lightLayers()` 里而不是组件里各乘各的，新增变体只要往 `LIGHT_PRESETS` 加数，就自动被同一个 gain 覆盖。
+`size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是**整盏灯唯一的亮度旋钮**（0–200%）：三层的 alpha 由 `lightLayers(preset, { gain, rays })` 一次算出——`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`——所以调低它是「光池 + 热点 + 光束 + 光圈一起暗」，而不是只把光束抹掉、留一个亮光池。超过 100% 时 alpha 向不透明白饱和，热点先到顶，画面读作过曝而不是变白。`rays`（0–1）**不是亮度，是分配**：这盏灯里多少比例走成光束，0 就是一片平光；`overcast` 本身没有光束，乘什么都没用。这条不变式写在 `lightLayers()` 里而不是组件里各乘各的，新增变体只要往 `LIGHT_PRESETS` 加数，就自动被同一个 gain 覆盖。
 
 `z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、**不用 `anchorStyle()` 定位自己**（`anchor` 只用来放光源中心），`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
 

@@ -14,7 +14,7 @@
 import { ANCHORS, anchorPoint } from './anchor.js'
 import { isHexColor } from './audio.js'
 
-export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast']
+export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast', 'beach']
 export const LIGHT_VARIANT_DEFAULT = 'sun'
 
 // Where the light centre sits. It is an anchor point — the same nine the
@@ -40,6 +40,12 @@ export const LIGHT_SIZE_FALLBACK = 1400
 // means "flat light" (that is what overcast is).
 export const LIGHT_RAYS_MIN = 0
 export const LIGHT_RAYS_MAX = 1
+
+// Lens flare strength, 0..1. A multiplier on the preset's own value, like
+// `rays`: `0` removes the ghost chain even on a variant that has one.
+export const LIGHT_FLARE_MIN = 0
+export const LIGHT_FLARE_MAX = 1
+export const LIGHT_FLARE_DEFAULT = 1
 
 // How far the light travels towards the pointer, 0..1. 0 pins it to the
 // configured corner, 1 puts it on the pointer (still clamped above the horizon).
@@ -82,6 +88,13 @@ export const LIGHT_ORIGIN_MAX_Y = 0.6
 //               like a star filter, not like daylight.
 //   maskOuter   where they have faded out
 //   angleOffset degrees added to the corner's base direction
+//   disc        hardness of the hotspot, 0..1. 0 is the soft bloom every
+//               variant had; 1 is a blown-out sun disc with a tight edge —
+//               what a hard, direct source looks like through a lens.
+//   flare       strength of the lens-flare chain, 0..1. 0 = no layer at all,
+//               which is every variant except `beach`.
+//   flareSpread how far the ghosts travel away from the frame centre, 1 = the
+//               default. Only matters when `flare` is above 0.
 export const LIGHT_PRESETS = {
   sun: {
     size: 1400,
@@ -95,6 +108,9 @@ export const LIGHT_PRESETS = {
     maskInner: 0.18,
     maskOuter: 0.95,
     angleOffset: 0,
+    disc: 0,
+    flare: 0,
+    flareSpread: 1,
   },
   moon: {
     size: 1100,
@@ -108,6 +124,9 @@ export const LIGHT_PRESETS = {
     maskInner: 0.12,
     maskOuter: 1.1,
     angleOffset: 4,
+    disc: 0,
+    flare: 0,
+    flareSpread: 1,
   },
   // Low sun: warmer, longer shafts, and the direction is pushed from
   // "down-right" (135°) towards "right" so the light rakes across the frame.
@@ -123,6 +142,9 @@ export const LIGHT_PRESETS = {
     maskInner: 0.2,
     maskOuter: 1.05,
     angleOffset: -20,
+    disc: 0.25,
+    flare: 0,
+    flareSpread: 1,
   },
   // No shafts at all: an overcast sky is a huge, flat, slightly cool source.
   overcast: {
@@ -137,6 +159,30 @@ export const LIGHT_PRESETS = {
     maskInner: 0,
     maskOuter: 1,
     angleOffset: 0,
+    disc: 0,
+    flare: 0,
+    flareSpread: 1,
+  },
+  // A hard midday sun over water: the source itself is a blown-out disc rather
+  // than a soft bloom, and being that bright it has to scatter in the lens —
+  // a chain of ghosts and two aperture rings trailing off to the far side of
+  // the frame. This is the only variant with a flare, and the only one whose
+  // disc is harder than a bloom.
+  beach: {
+    size: 1700,
+    color: '#ffe3a8',
+    coreColor: '#fffdf6',
+    washAlpha: 0.42,
+    coreAlpha: 1,
+    rayAlpha: 0.24,
+    wedge: 4,
+    period: 30,
+    maskInner: 0.16,
+    maskOuter: 1,
+    angleOffset: 0,
+    disc: 1,
+    flare: 0.55,
+    flareSpread: 1.05,
   },
 }
 
@@ -157,6 +203,15 @@ function rgba([r, g, b], alpha) {
 function finite(value, fallback) {
   const number = Number(value)
   return Number.isFinite(number) ? number : fallback
+}
+
+function mixRgb(from, to, weight) {
+  const t = clamp(finite(weight, 0), 0, 1)
+  return [
+    Math.round(from[0] + (to[0] - from[0]) * t),
+    Math.round(from[1] + (to[1] - from[1]) * t),
+    Math.round(from[2] + (to[2] - from[2]) * t),
+  ]
 }
 
 /**
@@ -302,9 +357,10 @@ export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) 
  * @param {Object} [scale]
  * @param {number} [scale.gain=1]  Intensity as a multiplier (0..2).
  * @param {number} [scale.rays=1]  Share of the light that is shafts (0..1).
- * @returns {{ washAlpha: number, coreAlpha: number, rayAlpha: number }}
+ * @param {number} [scale.flare=1] Share of the flare the preset keeps (0..1).
+ * @returns {{ washAlpha: number, coreAlpha: number, rayAlpha: number, flareAlpha: number }}
  */
-export function lightLayers(preset, { gain = 1, rays = 1 } = {}) {
+export function lightLayers(preset, { gain = 1, rays = 1, flare = 1 } = {}) {
   const source = preset || LIGHT_PRESETS[LIGHT_VARIANT_DEFAULT]
   const g = clamp(
     finite(gain, LIGHT_INTENSITY_DEFAULT / 100),
@@ -312,6 +368,7 @@ export function lightLayers(preset, { gain = 1, rays = 1 } = {}) {
     LIGHT_INTENSITY_MAX / 100,
   )
   const share = clamp(finite(rays, 1), LIGHT_RAYS_MIN, LIGHT_RAYS_MAX)
+  const flareShare = clamp(finite(flare, 1), LIGHT_FLARE_MIN, LIGHT_FLARE_MAX)
 
   return {
     washAlpha: clamp(finite(source.washAlpha, 0) * g, 0, 1),
@@ -319,6 +376,9 @@ export function lightLayers(preset, { gain = 1, rays = 1 } = {}) {
     // Only the third one takes `rays`: the shafts are the part whose strength
     // is a *ratio*, everything else is the source itself.
     rayAlpha: clamp(finite(source.rayAlpha, 0) * g * share, 0, 1),
+    // Flare is scattered light from the same source, so it takes the intensity
+    // gain too — turning the sun down must not leave its ghosts at full power.
+    flareAlpha: clamp(finite(source.flare, 0) * g * flareShare, 0, 1),
   }
 }
 
@@ -335,9 +395,11 @@ export function lightLayers(preset, { gain = 1, rays = 1 } = {}) {
  * @param {string} options.coreColor Hotspot tint, `#rrggbb`.
  * @param {number} options.washAlpha 0..1.
  * @param {number} options.coreAlpha 0..1.
+ * @param {number} [options.disc=0]  Hotspot hardness, 0 = soft bloom, 1 = a
+ *   blown-out sun disc. See `LIGHT_PRESETS`' `disc`.
  * @returns {string}
  */
-export function lightWashGradient({ size, color, coreColor, washAlpha, coreAlpha } = {}) {
+export function lightWashGradient({ size, color, coreColor, washAlpha, coreAlpha, disc } = {}) {
   const radius = clamp(finite(size, LIGHT_SIZE_FALLBACK), LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
   const washRgb = rgb(color, LIGHT_PRESETS.sun.color)
   const coreRgb = rgb(coreColor, color)
@@ -347,12 +409,19 @@ export function lightWashGradient({ size, color, coreColor, washAlpha, coreAlpha
 
   // The hotspot is a fixed fraction of the wash so scaling `size` keeps the
   // sun disc in proportion with the pool of light around it.
-  const coreRadius = Math.max(24, radius * 0.13)
+  //
+  // `disc` moves the two inner stops outwards and stiffens them. A hard source
+  // is also a smaller one: a blown-out disc 13% of the wash radius across reads
+  // as a grey blob rather than as the sun. Even at 1 the profile keeps a ramp —
+  // a stop pair 100 → 0 would draw a visible ring of banding on a real display.
+  const hardness = clamp(finite(disc, 0), 0, 1)
+  const blend = (soft, hard) => soft + (hard - soft) * hardness
+  const coreRadius = Math.max(24, radius * (0.13 - 0.035 * hardness))
 
   const hotspot = [
     `${rgba(coreRgb, core)} 0%`,
-    `${rgba(coreRgb, core * 0.56)} 34%`,
-    `${rgba(coreRgb, core * 0.2)} 66%`,
+    `${rgba(coreRgb, core * blend(0.56, 0.94))} ${blend(34, 62)}%`,
+    `${rgba(coreRgb, core * blend(0.2, 0.55))} ${blend(66, 84)}%`,
     `${rgba(coreRgb, 0)} 100%`,
   ].join(', ')
 
@@ -451,6 +520,105 @@ export function lightBeamMask({ size, maskInner, maskOuter } = {}) {
   ].join(', ')
 
   return `radial-gradient(circle ${radius.toFixed(1)}px at var(--wallkit-light-x, 50%) var(--wallkit-light-y, 30%), ${stops})`
+}
+
+// Ghosts of a lens flare, in the order they sit along the axis that runs from
+// the source through the middle of the frame and out the other side.
+//
+//   t     position on that axis: 0 = the source, 1 = frame centre, >1 = beyond
+//   r     radius as a fraction of the wash radius
+//   alpha fraction of the flare strength
+//   cool  how far the ghost is pushed from the light's colour towards a pale
+//         blue. Real flare ghosts are the lens coating, not the sun, so they
+//         shift hue while the light itself does not.
+const FLARE_GHOSTS = [
+  { t: 0.58, r: 0.055, alpha: 0.5, cool: 0.1 },
+  { t: 0.82, r: 0.15, alpha: 0.2, cool: 0.6 },
+  { t: 1.06, r: 0.032, alpha: 0.55, cool: 0.25 },
+  { t: 1.32, r: 0.21, alpha: 0.15, cool: 0.85 },
+  { t: 1.6, r: 0.085, alpha: 0.26, cool: 0.4 },
+  { t: 1.95, r: 0.17, alpha: 0.11, cool: 0.95 },
+]
+
+// Aperture rings: hollow circles, the shape of the blades inside the lens.
+const FLARE_RINGS = [
+  { t: 1.18, r: 0.27, alpha: 0.22 },
+  { t: 1.72, r: 0.35, alpha: 0.14 },
+]
+
+const COOL_GHOST_RGB = [176, 205, 255]
+
+// One axis of the flare's haul. A ghost at `t` sits on the line between the
+// light (`--wallkit-light-x` / `-y`) and the middle of the box, so the whole
+// chain follows the sun with the same two custom properties the wash reads —
+// no per-frame string building, exactly like the rest of this file.
+function flareAxis(axis, t) {
+  const keep = 1 - t
+  const middle = t * 50
+  if (Math.abs(keep - 1) < 1e-6) return `var(--wallkit-light-${axis}, 50%)`
+  return `calc(var(--wallkit-light-${axis}, 50%) * ${keep.toFixed(3)} + ${middle.toFixed(2)}%)`
+}
+
+/**
+ * The lens-flare chain: a handful of soft ghosts plus two aperture rings,
+ * arranged along the axis from the source through the centre of the frame.
+ *
+ * This is what makes a hard sun read as *bright* rather than merely white: the
+ * eye expects glare to scatter inside the lens. It is a third layer of its own
+ * so it can be switched off per variant (`flare: 0`, the default) without
+ * touching the wash or the shafts.
+ *
+ * Returns `''` when there is no flare to draw, and the component then renders
+ * no flare element at all.
+ *
+ * Positions are written as `calc()` against the light's own custom properties,
+ * which is why the chain tracks the pointer for free. `t` is never negative:
+ * ghosts only ever sit on the far side of the frame from the source, because a
+ * flare behind the sun is hidden by the sun.
+ *
+ * @param {Object} options
+ * @param {string} options.color       Base tint, `#rrggbb`.
+ * @param {number} options.flareAlpha  0..1.
+ * @param {number} [options.spread=1]  How far the chain reaches, 1 = default.
+ * @param {number} [options.size]      Wash radius in px; ghosts scale with it.
+ * @returns {string}
+ */
+export function lightFlareGradient({ color, flareAlpha, spread, size } = {}) {
+  const alpha = clamp(finite(flareAlpha, 0), 0, 1)
+  if (alpha <= 0) return ''
+
+  const radius = clamp(finite(size, LIGHT_SIZE_FALLBACK), LIGHT_SIZE_MIN, LIGHT_SIZE_MAX)
+  const baseRgb = rgb(color, LIGHT_PRESETS.sun.color)
+  const reach = clamp(finite(spread, 1), 0.2, 2)
+  const layers = []
+
+  for (const ghost of FLARE_GHOSTS) {
+    const t = 1 + (ghost.t - 1) * reach
+    const at = `${flareAxis('x', t)} ${flareAxis('y', t)}`
+    const tint = mixRgb(baseRgb, COOL_GHOST_RGB, ghost.cool)
+    const ghostRadius = Math.max(6, radius * ghost.r).toFixed(1)
+    const peak = clamp(alpha * ghost.alpha, 0, 1)
+    layers.push(
+      `radial-gradient(circle ${ghostRadius}px at ${at}, ` +
+        `${rgba(tint, peak)} 0%, ${rgba(tint, peak * 0.42)} 58%, ${rgba(tint, 0)} 100%)`,
+    )
+  }
+
+  for (const ring of FLARE_RINGS) {
+    const t = 1 + (ring.t - 1) * reach
+    const at = `${flareAxis('x', t)} ${flareAxis('y', t)}`
+    const tint = mixRgb(baseRgb, COOL_GHOST_RGB, 0.55)
+    const ringRadius = Math.max(6, radius * ring.r).toFixed(1)
+    const peak = clamp(alpha * ring.alpha, 0, 1)
+    // A band, not a disc: hollow centre, hard-ish inner edge, soft outer one.
+    layers.push(
+      `radial-gradient(circle ${ringRadius}px at ${at}, ` +
+        `${rgba(tint, 0)} 0%, ${rgba(tint, 0)} 62%, ${rgba(tint, peak)} 68%, ` +
+        `${rgba(tint, peak * 0.5)} 76%, ${rgba(tint, 0)} 86%)`,
+    )
+  }
+
+  return layers.join(', ')
 }
 
 /**
