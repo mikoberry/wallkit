@@ -11,7 +11,7 @@
 
 ### Added
 
-- **新增 `Frame` 组件**（`wallkit/components/frame`，待提交）：REC 相机式的**画面级**取景框。
+- **新增 `Frame` 组件**（`wallkit/components/frame`，`db4ace5`）：REC 相机式的**画面级**取景框。
   四种边线：`corners`（四角括号，默认）/ `frame`（整框 + 内嵌虚线安全框）/ `bracket`（上下翼型轨）/
   `film`（左右竖线 + 胶片齿孔）。取景器的其余部件全是**正交开关**，不与变体耦合：`grid`
   （`none` / `thirds` / `cross`）、`ticks`（底边刻度尺）、`rec`（录制红点）、`timecode`（时间码）、
@@ -36,8 +36,9 @@
   `T` 刻度、`R` 红点、`C` 时间码、空格暂停、`H` 提示；时间码由页面自己累计，正好演示「应用层拥有
   时钟」。`build:wallpaper` 现在一起打三个页面，把 `project.json` 的 `"file"` 指向 `frame.html` 即可在
   WE 里查看。
-- **playground 画廊新增 Frame 页**：侧栏 `Frame` 一栏里，hero 舞台跑全部开关（变体 / 内缩 / 线宽 /
-  臂长 / 倍率 / 网格 / 刻度 / 红点 / 时间码 / 主题），下面四格关掉仪表只看四种边线的画法。
+- **playground 画廊新增 Frame 页**：侧栏 `Frame` 一栏里，hero 舞台跑**全部 14 个 prop**（变体 / 内缩 /
+  线宽 / 臂长 / 倍率 / 线色 / 网格 / 刻度 / 红点三态 / 时间码 / 四角读数 / 主题 / 显示 / 暂停），下面四格
+  关掉仪表只看四种边线的画法。
 
 ## 2026-11-14
 
