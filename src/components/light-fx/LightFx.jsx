@@ -17,11 +17,15 @@ import {
   LIGHT_SIZE_MIN,
   LIGHT_SMOOTHING_DEFAULT,
   LIGHT_SMOOTHING_MAX,
+  LIGHT_SWAY_DEFAULT,
+  LIGHT_SWAY_MAX,
+  LIGHT_SWAY_MIN,
   LIGHT_VARIANT_DEFAULT,
   lightAnchorOrigin,
   lightBeamAngle,
   lightBeamGradient,
   lightBeamMask,
+  lightBeamSway,
   lightFlareGradient,
   lightFollowOrigin,
   lightLayers,
@@ -36,18 +40,34 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
+// The three custom properties the gradient strings already read. Written at
+// once, from one place, so the fan can never end up aimed by an older position
+// than the one the wash is drawn at.
+function writeLight(host, origin, { anchor, angleOffset, sway }) {
+  host.style.setProperty('--wallkit-light-x', `${origin.x.toFixed(2)}%`)
+  host.style.setProperty('--wallkit-light-y', `${origin.y.toFixed(2)}%`)
+  const angle = lightBeamSway({ anchor, angleOffset, origin, sway })
+  host.style.setProperty('--wallkit-light-angle', `${angle.toFixed(1)}deg`)
+}
+
 /**
  * LightFx — a directional light over the whole picture: sunlight, moonlight,
  * dusk, or a flat overcast sky.
  *
  * The look is a stack of CSS gradients, exactly like `Spotlight`: a wide wash
  * plus a hotspot, and a masked fan of shafts. There is no canvas and no draw
- * loop. Moving the light rewrites two custom properties — `--wallkit-light-x`
- * / `-y` — which the gradient strings already reference, so a pointer move
- * costs a style write instead of a repaint of new gradient text. With
- * `smoothing` at 0 that happens right inside the event; above 0 a rAF eases the
- * light towards the pointer with the same catch-up curve the spotlight uses and
- * stops the moment it arrives.
+ * loop. Moving the light rewrites three custom properties — `--wallkit-light-x`
+ * / `-y` / `-angle` — which the gradient strings already reference, so a
+ * pointer move costs a style write instead of a repaint of new gradient text.
+ * With `smoothing` at 0 that happens right inside the event; above 0 a rAF eases
+ * the light towards the pointer with the same catch-up curve the spotlight uses
+ * and stops the moment it arrives.
+ *
+ * The fan is not merely dragged along: as the source travels it **leans** a few
+ * degrees towards the middle of the frame, derived from where the light is
+ * (`lightBeamSway()`) and capped by `sway`. Translation alone makes the light
+ * read as a decal sliding over the picture — rotation is what makes it feel
+ * like a source with distance to the scene.
  *
  * **It shows from the first frame, unlike `Spotlight`.** A wallpaper with no
  * pointer input still has weather, so the light rests where `from` / `anchor`
@@ -107,6 +127,12 @@ function clamp(value, min, max) {
  * @param {number} [props.smoothing=0.12]  Follow lag as a time constant in
  *   seconds (0..0.5). 0 snaps to the pointer. Ignored under
  *   `prefers-reduced-motion`, which removes the easing, not the effect.
+ * @param {number} [props.sway=16]  How far the shaft fan may lean away from its
+ *   at-rest direction while the light moves, in degrees (0..60). 0 keeps the
+ *   shafts rigidly parallel to the anchor-derived direction and only slides
+ *   them, which reads stiff; the lean is derived from where the light actually
+ *   is, so it can never contradict the source. Variants without shafts
+ *   (`overcast`) ignore it.
  * @param {string} [props.colorHex]  `#rrggbb` override of the light colour.
  *   The hotspot stays a pale version of it.
  * @param {boolean} [props.paused=false]  Keep the current frame, stop
@@ -124,6 +150,7 @@ export default function LightFx({
   flare = LIGHT_FLARE_DEFAULT,
   follow = LIGHT_FOLLOW_DEFAULT,
   smoothing = LIGHT_SMOOTHING_DEFAULT,
+  sway = LIGHT_SWAY_DEFAULT,
   colorHex,
   paused = false,
 }) {
@@ -139,6 +166,9 @@ export default function LightFx({
   const lastRef = useRef(0)
   const tauRef = useRef(0)
   const followRef = useRef(LIGHT_FOLLOW_DEFAULT)
+  // What the fan leans *towards* changes with the variant and with `sway`, but
+  // the pointer handlers must not be torn down for it — they read this instead.
+  const angleRef = useRef({ anchor: LIGHT_ANCHOR_DEFAULT, angleOffset: 0, sway: LIGHT_SWAY_DEFAULT })
 
   const resolvedVariant = normalizeLightVariant(variant)
   // Normalised through the light's own default, not `ANCHOR_DEFAULT`: for a
@@ -217,7 +247,11 @@ export default function LightFx({
     [resolvedSize, preset],
   )
 
-  const angle = `${lightBeamAngle(resolvedAnchor, preset.angleOffset)}deg`
+  const angleOffset = preset.angleOffset
+  const resolvedSway = lightNumber(sway, LIGHT_SWAY_DEFAULT, LIGHT_SWAY_MIN, LIGHT_SWAY_MAX)
+  // The at-rest direction: what the first paint gets, and what `paused` keeps.
+  // Everything after a pointer event goes through `lightBeamSway()` instead.
+  const restAngle = lightBeamAngle(resolvedAnchor, angleOffset)
 
   useEffect(() => {
     followRef.current = clamp(
@@ -226,6 +260,12 @@ export default function LightFx({
       1,
     )
   }, [follow])
+
+  // Published before the effects below run (declaration order), so a geometry
+  // change never writes an angle computed from the previous variant.
+  useEffect(() => {
+    angleRef.current = { anchor: resolvedAnchor, angleOffset, sway: resolvedSway }
+  }, [resolvedAnchor, angleOffset, resolvedSway])
 
   // Reduced motion removes the trailing, not the effect: the light still
   // follows, it just stops easing behind the pointer.
@@ -246,9 +286,23 @@ export default function LightFx({
     targetRef.current = null
     const rest = lightFollowOrigin(baseOrigin, null)
     currentRef.current = rest
-    host.style.setProperty('--wallkit-light-x', `${rest.x.toFixed(2)}%`)
-    host.style.setProperty('--wallkit-light-y', `${rest.y.toFixed(2)}%`)
+    writeLight(host, rest, angleRef.current)
   }, [baseOrigin, visible])
+
+  // `sway` / variant / anchor can change while the light sits still (the gallery
+  // has a slider for exactly that), and the resting frame has to answer at once
+  // rather than waiting for the next pointer event. Only the angle changes here
+  // — the position is re-read, never reset, so a slider drag does not fight the
+  // pointer.
+  useEffect(() => {
+    const host = rootRef.current
+    if (!host) return
+    const origin = currentRef.current || lightFollowOrigin(baseOrigin, null)
+    host.style.setProperty(
+      '--wallkit-light-angle',
+      `${lightBeamSway({ anchor: resolvedAnchor, angleOffset, origin, sway: resolvedSway }).toFixed(1)}deg`,
+    )
+  }, [resolvedAnchor, angleOffset, resolvedSway, baseOrigin])
 
   useEffect(() => {
     if (!visible || paused) return undefined
@@ -257,10 +311,7 @@ export default function LightFx({
 
     const base = baseOrigin
 
-    const write = (x, y) => {
-      host.style.setProperty('--wallkit-light-x', `${x.toFixed(2)}%`)
-      host.style.setProperty('--wallkit-light-y', `${y.toFixed(2)}%`)
-    }
+    const write = (x, y) => writeLight(host, { x, y }, angleRef.current)
 
     const tick = (nowMs) => {
       const delta = Math.min(0.05, Math.max(0, (nowMs - lastRef.current) / 1000))
@@ -338,7 +389,7 @@ export default function LightFx({
       className="wallkit-light"
       data-variant={resolvedVariant}
       data-anchor={resolvedAnchor}
-      style={{ '--wallkit-light-angle': angle }}
+      style={{ '--wallkit-light-angle': `${restAngle.toFixed(1)}deg` }}
       aria-hidden="true"
     >
       <div className="wallkit-light__wash" style={{ backgroundImage: washImage }} />

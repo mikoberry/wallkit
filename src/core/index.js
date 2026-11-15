@@ -183,6 +183,9 @@ export {
   LIGHT_SMOOTHING_MIN,
   LIGHT_SMOOTHING_MAX,
   LIGHT_SMOOTHING_DEFAULT,
+  LIGHT_SWAY_MIN,
+  LIGHT_SWAY_MAX,
+  LIGHT_SWAY_DEFAULT,
   LIGHT_ORIGIN_MAX_Y,
   LIGHT_ORIGIN_EXTENT,
   LIGHT_PRESETS,
@@ -198,4 +201,5 @@ export {
   lightBeamGradient,
   lightBeamMask,
   lightBeamAngle,
+  lightBeamSway,
 } from './light.js'

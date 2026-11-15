@@ -403,6 +403,7 @@ src/
   flare={1}                  // 镜头光圈倍率，0–1（只有 beach 带这一层）
   follow={0.45}              // 朝指针偏移多远，0–1
   smoothing={0.12}           // 跟随延迟（时间常数，秒）
+  sway={16}                  // 移动时扇面额外偏转上限（度，0–60）；0 = 纯平移
   colorHex={undefined}       // 覆盖光色
   visible paused
 />
@@ -419,7 +420,8 @@ src/
 - **负偏移可以把光源推到画面外**（`top-left` + `-40` 就是一盏画外的路灯），最远到 `LIGHT_ORIGIN_EXTENT`（±100%）；`lightFollowOrigin()` 对 base 的夹取也放宽到同一范围，否则指针一动就把画外的光源拽回边缘。`offsetX/offsetY` 收数字（= 盒子百分比）和 `'18%'` 字符串；`px` / `vh` 需要量盒子，**明确不支持**（`lightOffsetFraction()` 返回 0），不给半对的单位。
 - `baseOrigin` 被 `useMemo` 缓存并作为 effect 依赖，所以改光源位置会重置当前位置，而无关的重渲染不会拆掉监听。
 - **光束方向由锚点推出来，不是另一个 prop**：`lightBeamAngle()` 取「从锚点指向盒子中心」的方向（`atan2`，`center` 特例朝下），所以光永远朝背向光源的一侧打，不可能出现「光源在右下、光束却往下」的自相矛盾。变体的 `angleOffset` 再叠上去（黄昏 -20° 让光束横扫）。这条规则替代了原来的 `from`。
-- **光束必须遮罩**：`repeating-conic-gradient` 在原点收成一点，不遮就是星芒镜。`lightBeamMask()` 藏掉顶点、中段最亮、边缘消失；没有 `mask-image` 的引擎整层 `display: none`（CSS `@supports not`），不画半对的东西。光束方向每次渲染只算一次，**不跟指针转**——太阳移动是平移光束。
+- **光束必须遮罩**：`repeating-conic-gradient` 在原点收成一点，不遮就是星芒镜。`lightBeamMask()` 藏掉顶点、中段最亮、边缘消失；没有 `mask-image` 的引擎整层 `display: none`（CSS `@supports not`），不画半对的东西。
+- **移动时扇面会「转」一点，而且这个转角也是推导出来的**（`lightBeamSway()`）：静止方向仍由锚点给出（`lightBeamAngle()`），光源一旦离开锚点，扇面就朝「光当前位置 → 画面中心」那条线偏——偏转量 = `sway`（度，软饱和 `tanh`）乘方位差，写进第三个自定义属性 `--wallkit-light-angle`。**只有平移看起来像一张贴纸在画面上滑**，所以这不是可选装饰，默认 16° 开着。三条约束别丢：① 偏转量对「去掉 `angleOffset` 的几何方向」取差，否则黄昏的 -20° 横扫会被 sway 抵掉一半；② 用 `tanh` 软饱和而不是硬夹，快划不会撞到上限就卡住；③ 光源正落在画面中心时没有方向可指，直接返回静止角，不要除零或让扇面抽一下。`sway=0` 恢复纯平移。
 - **所有预设数值都在 `core/light.js` 的 `LIGHT_PRESETS`**，CSS 不认识任何一个：`wedge` / `period` / `maskInner` 也由 core 转成渐变字符串。加变体是加一条预设，不改 CSS。
 - **`size` 省略 = 用预设**（`lightNumber()` 把 `undefined` 当「用预设」），这是「每个变体自己拥有尺寸」的写法；`intensity` 是各 alpha 的倍率，超过 100% 会向不透明白饱和。
 - **`z-index: 2`：氛围粒子之上、控件之下**（ambient 1 → 光照 2 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7）。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高。`z-index` 挂在两个子层而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光退化为平蒙版。

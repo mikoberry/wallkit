@@ -63,6 +63,9 @@ import {
   LIGHT_SIZE_MAX,
   LIGHT_SMOOTHING_DEFAULT,
   LIGHT_SMOOTHING_MAX,
+  LIGHT_SWAY_DEFAULT,
+  LIGHT_SWAY_MAX,
+  LIGHT_SWAY_MIN,
 } from '../src/components/light-fx/index.js'
 import { ANCHORS, SPECTRUM_BARS, resampleBars } from '../src/core/index.js'
 import '../src/styles/index.css'
@@ -2004,6 +2007,11 @@ const LIGHT_FIT_ROWS = [
     universal: true,
   },
   {
+    prop: 'sway',
+    detail: '移动时扇面的额外偏转上限（度，0–60），偏转量由「光当前位置 → 画面中心」推导；overcast 没有光束，转了看不见',
+    universal: true,
+  },
+  {
     prop: 'colorHex',
     detail: '光池 / 热点 / 光束 / 光圈一起换色，热点取它的淡色版；只换一半会像两盏灯',
     universal: true,
@@ -2088,6 +2096,7 @@ function LightFxDemo() {
   const [flare, setFlare] = useState(1)
   const [follow, setFollow] = useState(LIGHT_FOLLOW_DEFAULT)
   const [smoothing, setSmoothing] = useState(LIGHT_SMOOTHING_DEFAULT)
+  const [sway, setSway] = useState(LIGHT_SWAY_DEFAULT)
   const [colorOn, setColorOn] = useState(false)
   const [color, setColor] = useState('#ffd9a0')
   const [visible, setVisible] = useState(true)
@@ -2112,6 +2121,7 @@ function LightFxDemo() {
     flare,
     follow,
     smoothing,
+    sway,
     visible,
     paused,
     colorHex: colorOn ? color : undefined,
@@ -2125,7 +2135,9 @@ function LightFxDemo() {
           一层<b>天气光照</b>：晴天正午的暖光从画面某一点斜射下来，夜里换成又冷又柔的月光，
           另有黄昏的低角度长光束、阴天的一片平光，以及<b>海边晴天</b>——
           太阳本身被吹成一个硬光盘，镜头里拖出一串光圈。<b>把鼠标移到下面的大画面里</b>，
-          光会朝指针偏一点（<code>follow</code> 控制偏移多远，<code>smoothing</code> 控制跟得多重）。
+          光会朝指针偏一点（<code>follow</code> 控制偏移多远，<code>smoothing</code> 控制跟得多重），
+          移动途中<b>整束扇面还会朝画面中心微微转过去</b>（<code>sway</code> 控制最多转几度）——
+          只有平移的话光像一张贴纸在画面上滑。
           它和 <code>Spotlight</code> 一样是<b>纯 CSS 渐变</b>：一层宽阔的光池 + 一个热点 + 一束被遮罩的
           锥形光束，指针每次移动只改写 <code>--wallkit-light-x</code> / <code>-y</code> 两个变量，
           <b>没有 canvas、没有绘制循环</b>。
@@ -2134,7 +2146,8 @@ function LightFxDemo() {
           光<b>不会掉到地平线以下</b>（指针的 y 先被夹在上半区再混合），否则会变成从脚底打光。
           位置只有一套词汇：时钟那套 <code>anchor</code> + <code>offsetX</code> / <code>offsetY</code>，
           但<b>基准点是光源中心</b>（这一层没有自己的盒子），偏移照旧<b>朝盒内为正</b>。
-          光束方向由锚点推出来——光永远朝背向光源的一侧打，所以不存在第二个会跟它打架的参数。
+          光束方向由锚点推出来——光永远朝背向光源的一侧打；光源移开之后，扇面再朝<b>画面中心</b>
+          偏一点（<code>sway</code>，软饱和），所以不存在第二个能跟它打架的方向参数。
           <b>不是所有属性都通用</b>：<code>rays</code> 在 <code>overcast</code> 上、<code>flare</code>
           在 <code>beach</code> 之外都没有对应图层，下面的<b>属性适用表</b>逐条列了出来，控制面板里
           这类滑块会直接置灰。
@@ -2206,8 +2219,9 @@ function LightFxDemo() {
             沿用时钟那套符号：数字永远<b>朝盒子内部为正</b>——<code>top-right</code> 下正数往左、
             <code>bottom-*</code> 下正数往上，所以同一个数在每个角都表示「再往里一点」。
             负值把光源推出画面（<code>top-left</code> + <code>-40</code> 就是一盏画外的路灯），
-            最远到 <code>LIGHT_ORIGIN_EXTENT</code>（±100%）。光束方向跟着锚点走，
-            <b>没有第二个能改方向的参数</b>
+            最远到 <code>LIGHT_ORIGIN_EXTENT</code>（±100%）。光束方向跟着光源走——
+            <code>anchor</code> 决定静止方向，移动时 <code>sway</code> 再让它朝画面中心偏一点，
+            <b>没有可以直接指定方向的角度 prop</b>
           </span>
         </Row>
 
@@ -2267,6 +2281,16 @@ function LightFxDemo() {
             onChange={setFollow}
           />
           <Slider
+            label="光束旋转 sway"
+            value={sway}
+            min={LIGHT_SWAY_MIN}
+            max={LIGHT_SWAY_MAX}
+            step={1}
+            suffix="°"
+            disabled={!hasShafts}
+            onChange={setSway}
+          />
+          <Slider
             label="延迟 smoothing"
             value={smoothing}
             min={0}
@@ -2275,6 +2299,13 @@ function LightFxDemo() {
             suffix="s"
             onChange={setSmoothing}
           />
+          <span className="ctl ctl--note">
+            <code>sway</code> 是<b>移动时</b>扇面额外偏转的上限（度），不是另一个方向参数：
+            它只决定「光源走开后，光束朝画面中心转过去多少」，<code>0</code> 就是纯平移（旧行为），
+            越大越「活」。偏转量由光源<b>当前所在的位置</b>推出来，所以永远指向画面中心，
+            不会出现「光在左上、光束却朝左下」这种自相矛盾。接近上限时是<b>软饱和</b>
+            （<code>tanh</code>），快速划过不会突然撞墙。<code>overcast</code> 没有光束，转了也看不见 → 置灰。
+          </span>
         </Row>
 
         <Row title="光色与运行 · 通用">
@@ -2303,7 +2334,7 @@ function LightFxDemo() {
               out: the wash is below the controls on purpose. */}
           <p className="light-probe">控件层的文字留在这里检查可读性 · z-index 5</p>
         </div>
-        <figcaption>hero：上面所有开关都在这一格里生效；鼠标划过时注意光池与光束一起偏移</figcaption>
+        <figcaption>hero：上面所有开关都在这一格里生效；鼠标划过时注意光池平移、扇面同时转动</figcaption>
       </figure>
 
       <LightFitTable variant={variant} />
@@ -2320,6 +2351,7 @@ function LightFxDemo() {
                 flare={entry.flare ?? flare}
                 follow={follow}
                 smoothing={smoothing}
+                sway={sway}
                 size={Math.round(LIGHT_PRESETS[entry.variant].size * LIGHT_CELL_SCALE)}
               />
             </div>
@@ -2332,7 +2364,7 @@ function LightFxDemo() {
         默认值：<code>variant="sun"</code>、<code>anchor="top-left"</code>、<code>offsetX</code> /{' '}
         <code>offsetY</code>（省略 → 0）、<code>intensity=100</code>、
         <code>size</code>（省略 → 跟随变体）、<code>rays=1</code>、<code>follow=0.45</code>、
-        <code>smoothing=0.12</code>、<code>visible=true</code>、<code>paused=false</code>。
+        <code>smoothing=0.12</code>、<code>sway=16</code>、<code>visible=true</code>、<code>paused=false</code>。
         覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），<b>不用 <code>anchorStyle</code>
         给自己定位</b>——锚点在这里只用来放<b>光源中心</b>，因为这一层没有自己的盒子；
         层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →
@@ -2340,7 +2372,9 @@ function LightFxDemo() {
         最多三层（光池 + 光束 + 光圈），都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；
         <code>beach</code> 的硬光盘来自预设的 <code>disc=1</code>（把热点的两个内圈往外推、调硬），
         光圈层的位置写成 <code>calc()</code> 引用光源变量，所以它也白拿指针跟随；光束是
-        <code>repeating-conic-gradient</code>，靠一层径向 <code>mask-image</code> 藏掉锥形顶点——
+        <code>repeating-conic-gradient</code>，角度写在 <code>--wallkit-light-angle</code> 上——
+        静止时由锚点推出，移动时按光源<b>当前位置</b>重算并软饱和在 <code>sway</code> 里，靠一层径向
+        <code>mask-image</code> 藏掉锥形顶点——
         不遮的话它就是个星芒镜而不是日光。没有 <code>mask-image</code> 的引擎里光束整层不画。
         和 <code>PointerFx</code> / <code>Spotlight</code> 一样自己监听 <code>window</code> 指针事件并把坐标
         映射进自身盒子，盒子外的事件忽略；WE 桌面壁纸默认不投递鼠标事件，实机要看到跟随需开启鼠标交互，

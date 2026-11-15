@@ -59,6 +59,14 @@ export const LIGHT_SMOOTHING_MIN = 0
 export const LIGHT_SMOOTHING_MAX = 0.5
 export const LIGHT_SMOOTHING_DEFAULT = 0.12
 
+// How far the shaft fan may lean away from its at-rest direction, in degrees.
+// Pure translation reads stiff — a source that changes place while its shafts
+// keep pointing the same way is a decal, not a light. `0` switches the lean off
+// and leaves the fan exactly where `lightBeamAngle()` put it.
+export const LIGHT_SWAY_MIN = 0
+export const LIGHT_SWAY_MAX = 60
+export const LIGHT_SWAY_DEFAULT = 16
+
 // How far *outside* the box the light may sit, in percent of the box. Reachable
 // through a negative offset: a streetlamp or a window just off camera is a
 // legitimate source, and gradients accept origins outside 0–100%, so there is
@@ -633,8 +641,11 @@ export function lightFlareGradient({ color, flareAlpha, spread, size } = {}) {
  *
  * The variant nudges the base angle (`angleOffset`), which is what makes a low
  * dusk sun rake across the frame instead of pointing at the opposite corner.
- * The angle is fixed per render rather than following the pointer: moving the
- * sun slides the shafts, it does not spin them.
+ *
+ * This is the **at-rest** direction: it knows the anchor and nothing else. Once
+ * the light starts travelling, `lightBeamSway()` bends it a few degrees towards
+ * wherever the light actually is, and that is what the component writes into
+ * `--wallkit-light-angle` on every move.
  *
  * @param {string} anchor
  * @param {number} [angleOffset=0]
@@ -648,5 +659,54 @@ export function lightBeamAngle(anchor, angleOffset = 0) {
   const dy = 0.5 - point.y
   const base = dx === 0 && dy === 0 ? 180 : (Math.atan2(dx, -dy) * 180) / Math.PI
   const offset = clamp(finite(angleOffset, 0), -90, 90)
-  return (((base + offset) % 360) + 360) % 360
+  return normalizeDegrees(base + offset)
+}
+
+function normalizeDegrees(degrees) {
+  return ((degrees % 360) + 360) % 360
+}
+
+/**
+ * The shaft direction *right now*, given where the light currently sits.
+ *
+ * The lean is derived, not configured as an independent axis: the fan always
+ * aims at the middle of the frame from wherever the source is, exactly the rule
+ * the anchor already follows. Translating the light therefore rotates the fan a
+ * little as a side effect, which is what stops a moving sun from looking like a
+ * sticker sliding across the wallpaper.
+ *
+ * `sway` is a **soft** limit, in degrees: small displacements turn the fan by
+ * about as much as they asked for, and long sweeps asymptote towards the limit
+ * (`tanh`) instead of hitting a wall. Near the limit the fan keeps turning a
+ * little, so a fast drag never looks like it jammed.
+ *
+ * The lean is measured against the *geometric* direction, i.e. the one with
+ * `angleOffset` left out: a variant's own offset (dusk rakes 20° to the side)
+ * is a style decision and must survive the sway untouched.
+ *
+ * @param {Object} [options]
+ * @param {string} [options.anchor]        One of `ANCHORS`.
+ * @param {number} [options.angleOffset=0] The variant's own direction nudge.
+ * @param {{ x: number, y: number }} [options.origin] Where the light is, in
+ *   percent of the box (the pointer-blended value, not the anchor).
+ * @param {number} [options.sway=LIGHT_SWAY_DEFAULT] Max lean, degrees.
+ * @returns {number} Degrees.
+ */
+export function lightBeamSway({ anchor, angleOffset = 0, origin, sway = LIGHT_SWAY_DEFAULT } = {}) {
+  const rest = lightBeamAngle(anchor, angleOffset)
+  const limit = clamp(finite(sway, LIGHT_SWAY_DEFAULT), LIGHT_SWAY_MIN, LIGHT_SWAY_MAX)
+  if (limit <= 0) return rest
+
+  const x = finite(origin && origin.x, 50)
+  const y = finite(origin && origin.y, 50)
+  const dx = 50 - x
+  const dy = 50 - y
+  // The light sits on the middle of the frame: there is no direction to aim in,
+  // so the fan keeps the direction its anchor gave it rather than snapping to 0.
+  if (dx === 0 && dy === 0) return rest
+
+  const aim = (Math.atan2(dx, -dy) * 180) / Math.PI
+  // Wrapped to [-180, 180] so a fan crossing 0°/360° turns the short way.
+  const delta = normalizeDegrees(aim - lightBeamAngle(anchor, 0) + 180) - 180
+  return normalizeDegrees(rest + limit * Math.tanh(delta / limit))
 }
