@@ -203,7 +203,7 @@ wallkit/
 │   │   ├── storage.js        # createStore(namespace)
 │   │   ├── clock.js          # 时间格式化、倾斜、缓动、进度 / 周数
 │   │   ├── audio.js          # 频谱数据纯函数（抽取、平滑、重采样、整形）
-│   │   ├── anchor.js         # 锚点：ANCHORS / anchorStyle / anchorOrigin
+│   │   ├── anchor.js         # 锚点：ANCHORS / anchorStyle / anchorOrigin / anchorPoint
 │   │   ├── length.js         # toLength：数字与 CSS 长度的统一归一
 │   │   ├── pointer.js        # 指针特效纯函数：环形缓冲、衰减、气泡/烟花粒子、弹道、生命周期与尺寸映射
 │   │   ├── frame.js          # 取景框纯函数：变体/网格归一、数值钳制、timecode 格式化
@@ -382,13 +382,21 @@ x, y = f(seed, t)
 
 **光不会掉到地平线以下**：指针的 y 在混合前就被夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 与光源位置插值。不夹的话把鼠标拖到屏幕底部就变成从脚底打光，整个场景立刻像舞台脚灯。
 
-**`from` 只是两个上角的简写，`originX` / `originY` 才是通用形式**：盒子宽高的百分比（0–100），两轴各自独立覆盖，所以 `originX={30}` 单独给就只横移、纵向仍留在那个角的高度。这两个值**不受地平线夹取**——被夹的只是「指针能拖到哪儿」，刻意从低角度打光是合法需求。光源位置变化会重置当前位置（`baseOrigin` 是 effect 依赖），指针拖过之后改 `from` 也能立刻生效。
+**位置有三档说法，精度递增：`from` < `originX`/`originY` < `anchor` + 偏移。** 解析优先级就是倒过来：给了 `anchor` 就用它，否则看 `originX`/`originY`，再否则用 `from` 的角落。`from` 永远保留**方向**的职责（`lightBeamAngle()` 按它算光束相位），所以位置交给别人之后它仍然有用，不是死参数。
+
+- `from`：两个上角的简写，落在 14% / 6% 或 86% / 6%。
+- `originX` / `originY`：盒子宽高的百分比（0–100），两轴各自独立覆盖，所以 `originX={30}` 单独给就只横移、纵向仍留在那个角的高度。这两个值**不受地平线夹取**——被夹的只是「指针能拖到哪儿」，刻意从低角度打光是合法需求。
+- `anchor` + `offsetX` / `offsetY`：和浮动控件同一套词汇——九个锚点之一，加上偏移。差别只在**基准点**：时钟放的是盒子角，这里放的是**光源中心**，因为这一层没有自己的盒子（根节点 `inset: 0`）。它只借 `core/anchor.js` 的九点表（`anchorPoint()`，与 `anchorStyle()` 共用同一张 `POINTS`，两者不会各自漂移），不借 inset 那套。
+
+偏移沿用时钟的符号规则：**数字永远朝盒子内部为正**，`top-right` 下正数往左、`bottom-*` 下正数往上，所以同一个数在每个角都表示「再往里一点」，换角不用翻符号。**也只有这条路径能把光源推到画面外**：`originX` / `originY` 夹在 0–100，而 `lightAnchorOrigin()` 允许越界到 `LIGHT_ORIGIN_EXTENT`（±100%）——一盏画外的路灯只需要 `anchor="top-left"` 配负偏移。因此 `lightFollowOrigin()` 对 base 的夹取也从 0–1 放宽到了同一范围，否则指针一动就把画外的光源拽回边缘。偏移只接受数字（= 盒子百分比）和 `'18%'` 这类百分比字符串；`px` / `vh` 需要量盒子，明确不支持，`lightOffsetFraction()` 对它们返回 0，不给一个半对的单位。
+
+`anchor` 认不出时**不回落 `ANCHOR_DEFAULT`（左下）**——对光来说那是完全另一幅画面。组件用 `ANCHORS.includes()` 先判断，认不出就走 `from` / `origin` 那条路；`lightAnchorOrigin()` 内部的 normalize 是给直接调用者的防御。光源位置变化会重置当前位置（`baseOrigin` 是 effect 依赖），指针拖过之后改也能立刻生效。
 
 **光束必须遮罩**：锥形渐变在原点收成一个点，不遮就是星芒镜。`lightBeamMask()` 遮掉顶点（`maskInner`）、在池子中段最亮、到边缘消失；没有 `mask-image` 的引擎里整层 `display: none`（CSS 里的 `@supports not`），而不是画个半对的东西。光束方向 `lightBeamAngle()` 每次渲染只算一次，**不跟着指针转**——太阳移动是平移光束，不是旋转它。加了两族不同周期/宽度的锥形渐变（第二族 alpha 减半），一族单独用会看出明显重复节奏。
 
 `size` 是**光池半径（px）**，与 `Spotlight.size` 同一量纲；省略时跟随预设（`sun` 1400 / `moon` 1100 / `dusk` 1750 / `overcast` 2400），这是「每个变体自己拥有一个尺寸」的落点——`lightNumber()` 把 `undefined` 解释成「用预设」。`intensity` 是预设各 alpha 的倍率（0–200%），超过 100% 会向不透明白饱和。`rays` 是光束强度的倍率，`overcast` 本身就是 0，乘什么都没用。
 
-`z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、不用 `anchor`，`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
+`z-index: 2`：**在氛围粒子之上、控件之下**。画面被打亮而文字不被糊掉；想让阳光扫过时钟的应用层自己抬高这个值。和 `PointerFx` / `Spotlight` 一样铺满定位上下文、**不用 `anchorStyle()` 定位自己**（`anchor` 只用来放光源中心），`pointer-events: none`，事件坐标映射进自身盒子、盒外忽略。`z-index` 同样挂在两个子层上而不是根节点——根节点一旦成为层叠上下文，`screen` 就够不到壁纸，光会退化成一层平蒙版。
 
 ### 5.4 组件不做的事
 

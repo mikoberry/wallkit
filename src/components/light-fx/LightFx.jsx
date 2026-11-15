@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { prefersReducedMotion } from '../../core/index.js'
+import { ANCHORS } from '../../core/anchor.js'
 import { spotlightApproach } from '../../core/spotlight.js'
 import {
   LIGHT_FOLLOW_DEFAULT,
@@ -15,6 +16,7 @@ import {
   LIGHT_SMOOTHING_MAX,
   LIGHT_VARIANT_DEFAULT,
   lightBaseOrigin,
+  lightAnchorOrigin,
   lightBeamAngle,
   lightBeamGradient,
   lightBeamMask,
@@ -44,8 +46,8 @@ function clamp(value, min, max) {
  * stops the moment it arrives.
  *
  * **It shows from the first frame, unlike `Spotlight`.** A wallpaper with no
- * pointer input still has weather, so the light rests at the corner named by
- * `from` and simply stops following. `Spotlight` hides until an event arrives
+ * pointer input still has weather, so the light rests where `from` / `anchor`
+ * puts it and simply stops following. `Spotlight` hides until an event arrives
  * because a full-screen dark mask with no light in it is a black screen; a
  * light with no pointer is just light. The follow is an enhancement, not the
  * effect.
@@ -69,11 +71,22 @@ function clamp(value, min, max) {
  *   has no shafts at all, just a huge flat cool wash.
  * @param {'top-left'|'top-right'} [props.from='top-left'] Corner the light
  *   comes from. It also sets the phase of the shaft fan. A shorthand: the two
- *   corners are the only places a sun can plausibly sit, and `originX` /
- *   `originY` are the general form.
+ *   corners are the only places a sun can plausibly sit, and `anchor` /
+ *   `originX` / `originY` are the general forms. `from` keeps its job as the
+ *   *direction* of the light even when the position comes from somewhere else.
+ * @param {string} [props.anchor] Place the **light centre** on one of the nine
+ *   anchors (`top-left` … `bottom-right`), with `offsetX` / `offsetY` measured
+ *   from it. Takes priority over `originX` / `originY`. Offsets grow inward,
+ *   exactly like a widget's: positive on `top-right` moves the light left.
+ * @param {number|string} [props.offsetX=0] Distance from the anchor point
+ *   towards the box interior, as a percentage of its width (a `'18%'` string
+ *   works too). Negative pushes the source outside the frame, which is a legal
+ *   look — a window just out of shot.
+ * @param {number|string} [props.offsetY=0] Same, vertically.
  * @param {number} [props.originX] Light origin as a percentage of the box
  *   width (0..100). Overrides `from` on that axis, so `originX={30}` alone
- *   slides the light sideways and keeps the corner's height.
+ *   slides the light sideways and keeps the corner's height. Ignored when
+ *   `anchor` is given.
  * @param {number} [props.originY] Light origin as a percentage of the box
  *   height (0..100). Unlike pointer following this is NOT clamped above the
  *   horizon: a deliberately low light source is a valid look.
@@ -97,6 +110,9 @@ export default function LightFx({
   visible = true,
   variant = LIGHT_VARIANT_DEFAULT,
   from = LIGHT_FROM_DEFAULT,
+  anchor,
+  offsetX = 0,
+  offsetY = 0,
   originX,
   originY,
   intensity = LIGHT_INTENSITY_DEFAULT,
@@ -122,12 +138,20 @@ export default function LightFx({
 
   const resolvedVariant = normalizeLightVariant(variant)
   const resolvedFrom = normalizeLightFrom(from)
+  // `anchor` is checked against the table rather than normalised: an unknown
+  // value should fall back to `from` / `originX` / `originY`, not quietly jump
+  // to `ANCHOR_DEFAULT` (bottom-left), which for a light is a completely
+  // different picture.
+  const anchored = ANCHORS.includes(anchor)
   // Resolved once per geometry change. Memoised rather than rebuilt every
   // render: it is an effect dependency, and a fresh object each time would
   // tear the pointer listener down and put it back on every unrelated render.
   const baseOrigin = useMemo(
-    () => lightBaseOrigin(resolvedFrom, originX, originY),
-    [resolvedFrom, originX, originY],
+    () =>
+      anchored
+        ? lightAnchorOrigin(anchor, offsetX, offsetY)
+        : lightBaseOrigin(resolvedFrom, originX, originY),
+    [anchored, anchor, offsetX, offsetY, resolvedFrom, originX, originY],
   )
   const preset = LIGHT_PRESETS[resolvedVariant]
 

@@ -2,7 +2,7 @@
 
 export { isWallpaperEngine, isWallpaperAudioAvailable } from './env.js'
 export { createStore } from './storage.js'
-export { ANCHORS, ANCHOR_DEFAULT, normalizeAnchor, anchorStyle, anchorOrigin } from './anchor.js'
+export { ANCHORS, ANCHOR_DEFAULT, normalizeAnchor, anchorPoint, anchorStyle, anchorOrigin } from './anchor.js'
 export { toLength } from './length.js'
 export {
   AUDIO_BANDS,
@@ -184,11 +184,14 @@ export {
   LIGHT_ORIGIN_MIN,
   LIGHT_ORIGIN_MAX,
   LIGHT_ORIGIN_MAX_Y,
+  LIGHT_ORIGIN_EXTENT,
   LIGHT_PRESETS,
   normalizeLightVariant,
   normalizeLightFrom,
   lightNumber,
   lightBaseOrigin,
+  lightAnchorOrigin,
+  lightOffsetFraction,
   lightFollowOrigin,
   lightWashGradient,
   lightBeamGradient,

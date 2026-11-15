@@ -1961,10 +1961,14 @@ function LightFxDemo() {
   const [variant, setVariant] = useState('sun')
   const [from, setFrom] = useState('top-left')
   const [intensity, setIntensity] = useState(LIGHT_INTENSITY_DEFAULT)
-  // Off = the two corners `from` knows about; on = an arbitrary point. Nothing
-  // else in the component changes between the two, which is the point of
-  // exposing an origin instead of a second positioning system.
-  const [originOn, setOriginOn] = useState(false)
+  // Three ways to say where the light centre is, from coarsest to finest. The
+  // anchor default (top-left, 14% / 6%) is deliberately the same point as
+  // `from`'s top-left, so switching modes never moves the light — only the
+  // vocabulary used to describe it.
+  const [position, setPosition] = useState('anchor')
+  const [anchor, setAnchor] = useState('top-left')
+  const [offsetX, setOffsetX] = useState(14)
+  const [offsetY, setOffsetY] = useState(6)
   const [originX, setOriginX] = useState(30)
   const [originY, setOriginY] = useState(14)
   const [size, setSize] = useState(LIGHT_PRESETS.sun.size)
@@ -1982,8 +1986,13 @@ function LightFxDemo() {
   const shared = {
     variant,
     from,
-    originX: originOn ? originX : undefined,
-    originY: originOn ? originY : undefined,
+    // Only the active vocabulary is passed; the component resolves
+    // `anchor` first and falls back to `originX` / `originY`, then `from`.
+    anchor: position === 'anchor' ? anchor : undefined,
+    offsetX: position === 'anchor' ? offsetX : undefined,
+    offsetY: position === 'anchor' ? offsetY : undefined,
+    originX: position === 'origin' ? originX : undefined,
+    originY: position === 'origin' ? originY : undefined,
     intensity,
     size: sizeOn ? size : undefined,
     rays,
@@ -2008,6 +2017,9 @@ function LightFxDemo() {
           和 <code>Spotlight</code> 相反的一点：<b>它第一帧就在</b>——没有指针输入的壁纸照样有天气，
           光就停在 <code>from</code> 指定的那个角；跟随只是加分项，不是效果本身。
           光<b>不会掉到地平线以下</b>（指针的 y 先被夹在上半区再混合），否则会变成从脚底打光。
+          光源位置有三套说法：<code>from</code>（两个上角）、<code>originX</code> / <code>originY</code>
+          （盒子百分比），以及时钟那套 <code>anchor</code> + <code>offsetX</code> / <code>offsetY</code>
+          ——<b>基准点是光源中心</b>，偏移朝盒内为正。
         </p>
       </header>
 
@@ -2049,32 +2061,97 @@ function LightFxDemo() {
         </Row>
 
         <Row title="光源位置">
-          <Toggle label="任意光源 origin" on={originOn} onChange={setOriginOn} />
-          <Slider
-            label="横向 originX"
-            value={originX}
-            min={LIGHT_ORIGIN_MIN}
-            max={LIGHT_ORIGIN_MAX}
-            step={1}
-            suffix="%"
-            disabled={!originOn}
-            onChange={setOriginX}
-          />
-          <Slider
-            label="纵向 originY"
-            value={originY}
-            min={LIGHT_ORIGIN_MIN}
-            max={LIGHT_ORIGIN_MAX}
-            step={1}
-            suffix="%"
-            disabled={!originOn}
-            onChange={setOriginY}
-          />
+          <label className="ctl">
+            <span className="ctl__label">
+              定位方式 <b>{position}</b>
+            </span>
+            <select value={position} onChange={(e) => setPosition(e.target.value)}>
+              <option value="from">from — 两个上角</option>
+              <option value="anchor">anchor + 偏移 — 时钟式</option>
+              <option value="origin">originX / originY — 百分比</option>
+            </select>
+          </label>
+
+          {position === 'anchor' && (
+            <>
+              <label className="ctl">
+                <span className="ctl__label">
+                  锚点 anchor <b>{anchor}</b>
+                </span>
+                <select value={anchor} onChange={(e) => setAnchor(e.target.value)}>
+                  {ANCHORS.map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Slider
+                label="偏移 offsetX"
+                value={offsetX}
+                min={-50}
+                max={100}
+                step={1}
+                suffix="%"
+                onChange={setOffsetX}
+              />
+              <Slider
+                label="偏移 offsetY"
+                value={offsetY}
+                min={-50}
+                max={100}
+                step={1}
+                suffix="%"
+                onChange={setOffsetY}
+              />
+            </>
+          )}
+
+          {position === 'origin' && (
+            <>
+              <Slider
+                label="横向 originX"
+                value={originX}
+                min={LIGHT_ORIGIN_MIN}
+                max={LIGHT_ORIGIN_MAX}
+                step={1}
+                suffix="%"
+                onChange={setOriginX}
+              />
+              <Slider
+                label="纵向 originY"
+                value={originY}
+                min={LIGHT_ORIGIN_MIN}
+                max={LIGHT_ORIGIN_MAX}
+                step={1}
+                suffix="%"
+                onChange={setOriginY}
+              />
+            </>
+          )}
+
           <span className="ctl ctl--note">
-            省略时由 <code>from</code> 决定（左上 14% / 6%、右上 86% / 6%）；
-            两轴各自独立覆盖，只给 <code>originX</code> 就只横移。
-            <code>originY</code> <b>不受地平线限制</b>——刻意从低处打光是合法需求，
-            被夹的只是指针跟随
+            {position === 'anchor' ? (
+              <>
+                基准点是<b>光源中心</b>（这一层没有自己的盒子）。<code>offsetX</code> / <code>offsetY</code>{' '}
+                沿用时钟那套符号：数字永远<b>朝盒子内部为正</b>——<code>top-right</code> 下正数往左、
+                <code>bottom-*</code> 下正数往上，所以同一个数在每个角都表示「再往里一点」。
+                负值把光源推出画面（<code>top-left</code> + <code>-40</code> 就是一盏画外的路灯），
+                这是唯一能越界的定位方式
+              </>
+            ) : position === 'origin' ? (
+              <>
+                盒子宽高的百分比（0–100），两轴各自独立覆盖 <code>from</code>，所以只给{' '}
+                <code>originX</code> 就只横移。<code>originY</code> <b>不受地平线限制</b>
+                ——被夹的只是指针跟随
+              </>
+            ) : (
+              <>
+                不给位置时由 <code>from</code> 决定（左上 14% / 6%、右上 86% / 6%）。
+                <code>from</code> 同时决定<b>光的方向</b>，所以即使位置来自
+                <code>anchor</code>，它仍然控制光束朝哪边斜
+              </>
+            )}
           </span>
         </Row>
 
@@ -2177,10 +2254,12 @@ function LightFxDemo() {
 
       <footer className="foot">
         默认值：<code>variant="sun"</code>、<code>from="top-left"</code>、<code>intensity=100</code>、
-        <code>size</code>（省略 → 跟随变体）、<code>originX</code> / <code>originY</code>（省略 → 跟随
-        <code>from</code>）、<code>rays=1</code>、<code>follow=0.45</code>、
+        <code>size</code>（省略 → 跟随变体）、<code>anchor</code>（省略 → 用
+        <code>originX</code> / <code>originY</code>，再省略 → 跟随 <code>from</code>）、
+        <code>offsetX</code> / <code>offsetY</code>（省略 → 0）、<code>rays=1</code>、<code>follow=0.45</code>、
         <code>smoothing=0.12</code>、<code>visible=true</code>、<code>paused=false</code>。
-        覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），<b>不使用 <code>anchor</code></b>；
+        覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），<b>不用 <code>anchorStyle</code>
+        给自己定位</b>——锚点在这里只用来放<b>光源中心</b>，因为这一层没有自己的盒子；
         层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →
         clock / album 5）之下——画面被打亮，文字仍然压得住；想让阳光也扫过时钟，在自己的样式表里抬高这个值。
         两层都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；光束是

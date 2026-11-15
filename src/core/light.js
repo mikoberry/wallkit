@@ -11,6 +11,7 @@
 //
 // Everything here is pure: no DOM, no React, no timers.
 
+import { anchorPoint } from './anchor.js'
 import { isHexColor } from './audio.js'
 
 export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast']
@@ -57,6 +58,13 @@ export const LIGHT_SMOOTHING_DEFAULT = 0.12
 // frame is not a problem.
 export const LIGHT_ORIGIN_MIN = 0
 export const LIGHT_ORIGIN_MAX = 100
+
+// How far *outside* the box an anchored light may sit, in percent of the box.
+// Only reachable through `anchor` + a negative offset: a streetlamp or a window
+// just off camera is a legitimate source, and gradients accept origins outside
+// 0–100%, so there is no reason to stop at the edge. Bounded only to keep a
+// typo (offset -4000) from parking the light in another postcode.
+export const LIGHT_ORIGIN_EXTENT = 100
 
 // The *pointer* never drags the light below this fraction of the box height:
 // a sun that chased the cursor into the bottom half would light the picture
@@ -219,6 +227,64 @@ export function lightBaseOrigin(from, originX, originY) {
   return { x: x / 100, y: y / 100 }
 }
 
+// The anchor is a *point*, so it has to be expressed as a fraction even when it
+// sits outside the box — see `LIGHT_ORIGIN_EXTENT`.
+const ORIGIN_FRACTION_MIN = -LIGHT_ORIGIN_EXTENT / 100
+const ORIGIN_FRACTION_MAX = 1 + LIGHT_ORIGIN_EXTENT / 100
+
+function clampOrigin(fraction) {
+  return clamp(fraction, ORIGIN_FRACTION_MIN, ORIGIN_FRACTION_MAX)
+}
+
+/**
+ * One offset as a fraction of the box.
+ *
+ * A number is a percentage, exactly like `anchorStyle`'s numeric form, and a
+ * percentage string is accepted because that is the only unit that can be
+ * resolved without measuring the box. `px` / `vh` would silently mean "0" here,
+ * so they are rejected rather than half-supported.
+ *
+ * @param {*} value
+ * @returns {number} Fractions of the box; 0 for anything unusable.
+ */
+export function lightOffsetFraction(value) {
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (!text.endsWith('%')) return 0
+    const parsed = Number.parseFloat(text)
+    return Number.isFinite(parsed) ? parsed / 100 : 0
+  }
+  const number = Number(value)
+  return Number.isFinite(number) ? number / 100 : 0
+}
+
+/**
+ * The light centre placed the way the whole library places widgets: on one of
+ * the nine anchor points, plus offsets measured from it.
+ *
+ * The point that coincides is the **light centre**, not a box corner — this
+ * layer has no box of its own, and "the sun is at 30% × 18%" is the thing an
+ * author wants to say. Offsets keep the `anchorStyle` sign rule: a number always
+ * grows *inward*, so on `top-right` a positive `offsetX` moves the light left,
+ * and on `bottom-*` a positive `offsetY` moves it up. That way one number means
+ * "further in" on every corner instead of flipping between left and right.
+ *
+ * Unlike `originX` / `originY` these may leave the box: a negative offset pushes
+ * the source out of frame, up to `LIGHT_ORIGIN_EXTENT` beyond the edge.
+ *
+ * @param {string} anchor One of `ANCHORS` (see `core/anchor.js`).
+ * @param {number|string} [offsetX=0] Percentage of the box width, growing inward.
+ * @param {number|string} [offsetY=0] Percentage of the box height, growing inward.
+ * @returns {{ x: number, y: number }} Fractions of the box; may be negative.
+ */
+export function lightAnchorOrigin(anchor, offsetX = 0, offsetY = 0) {
+  const point = anchorPoint(anchor)
+  // A right/bottom anchor is measured from that edge, so "inward" is negative.
+  const dx = lightOffsetFraction(offsetX) * (point.x === 1 ? -1 : 1)
+  const dy = lightOffsetFraction(offsetY) * (point.y === 1 ? -1 : 1)
+  return { x: clampOrigin(point.x + dx), y: clampOrigin(point.y + dy) }
+}
+
 /**
  * Blend the resting position towards the pointer.
  *
@@ -238,8 +304,10 @@ export function lightBaseOrigin(from, originX, originY) {
  * @returns {{ x: number, y: number }} Percentages.
  */
 export function lightFollowOrigin(base, pointer, follow = LIGHT_FOLLOW_DEFAULT) {
-  const bx = clamp(finite(base && base.x, BASE_ORIGINS['top-left'].x), 0, 1)
-  const by = clamp(finite(base && base.y, BASE_ORIGINS['top-left'].y), 0, 1)
+  // `clampOrigin`, not 0..1: an anchored light may legitimately sit outside the
+  // box, and pinning it to the edge here would undo that on the first event.
+  const bx = clampOrigin(finite(base && base.x, BASE_ORIGINS['top-left'].x))
+  const by = clampOrigin(finite(base && base.y, BASE_ORIGINS['top-left'].y))
 
   if (!pointer) return { x: bx * 100, y: by * 100 }
 

@@ -60,6 +60,22 @@ export function normalizeAnchor(value) {
 }
 
 /**
+ * The anchor point itself, as fractions of the box.
+ *
+ * `anchorStyle()` answers "which insets pin a *box* here"; this answers "where
+ * is the *point*", which is what a layer that places a point instead of a box
+ * needs — a light centre, a lens flare, a first-person origin. Same table, so
+ * the two can never drift apart.
+ *
+ * @param {string} anchor
+ * @returns {{ x: number, y: number }} 0 = start edge, 0.5 = centre, 1 = end.
+ */
+export function anchorPoint(anchor) {
+  const [x, y] = POINTS[normalizeAnchor(anchor)]
+  return { x, y }
+}
+
+/**
  * Resolve one axis: which inset to write, what value, and whether the widget
  * still has to be shifted by half of itself.
  *

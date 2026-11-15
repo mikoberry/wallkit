@@ -1,8 +1,10 @@
 /* LightFx — a directional light over the whole picture.
  *
  * Like Spotlight this overlay fills its positioning context instead of using
- * the anchor triple: a full-bleed light has no box of its own to place. The
- * parent must be `position: relative` with a definite size.
+ * the anchor triple to place a box: a full-bleed light has no box of its own.
+ * The `anchor` prop therefore means something narrower here — it places the
+ * light *centre*, which is a point, not a corner of this element. The parent
+ * must be `position: relative` with a definite size.
  *
  * Two children, two jobs:
  *   __wash   the wide pool of light plus its hotspot (plain radial gradients)
