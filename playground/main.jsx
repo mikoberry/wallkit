@@ -2112,7 +2112,7 @@ function LightFxDemo() {
             value={follow}
             min={0}
             max={1}
-            step={0.05}
+            step={0.01}
             suffix="×"
             onChange={setFollow}
           />
