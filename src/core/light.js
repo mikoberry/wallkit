@@ -542,8 +542,8 @@ const FLARE_GHOSTS = [
 
 // Aperture rings: hollow circles, the shape of the blades inside the lens.
 const FLARE_RINGS = [
-  { t: 1.18, r: 0.27, alpha: 0.22 },
-  { t: 1.72, r: 0.35, alpha: 0.14 },
+  { t: 1.18, r: 0.2, alpha: 0.3 },
+  { t: 1.72, r: 0.28, alpha: 0.2 },
 ]
 
 const COOL_GHOST_RGB = [176, 205, 255]
