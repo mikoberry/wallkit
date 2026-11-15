@@ -561,3 +561,92 @@ body {
 .grid--light .stage {
   height: 300px;
 }
+
+/* The fit table answers "does this prop do anything here?" — the question the
+ * controls alone cannot: three of LightFx's props are no-ops on some variants,
+ * and a slider that silently does nothing reads as a bug. Cells are read off
+ * `LIGHT_PRESETS`, so the table is a view of the same numbers the component
+ * consumes rather than a second hand-written list. */
+.fit {
+  margin: 20px 0 8px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.fit table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fit th,
+.fit td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.fit tbody tr:last-child th,
+.fit tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.fit thead th {
+  color: #aab4cc;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fit tbody th {
+  color: #e8ecf8;
+  font-weight: 500;
+}
+
+.fit code {
+  font-size: 11.5px;
+  color: #7dd3fc;
+}
+
+/* The current variant's column, so the table keeps answering for whatever the
+ * select above is set to. */
+.fit__now {
+  background: rgba(125, 211, 252, 0.08);
+  color: #e8ecf8;
+}
+
+/* "This variant has no such layer." Muted rather than hidden: the missing layer
+ * is information, and the numbers either side of it are what make the gap
+ * legible. */
+.fit__off {
+  color: #4b5468;
+}
+
+/* A row that does not depend on the variant at all. Muted: it is the baseline,
+   not the interesting part of the table. */
+.fit__all {
+  color: #8b96ad;
+  letter-spacing: 0.04em;
+}
+
+.fit__why {
+  color: #aab4cc;
+  white-space: normal;
+  min-width: 320px;
+}
+
+.fit__legend {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #8b96ad;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.fit__legend b {
+  color: #cbd6ea;
+  font-weight: 600;
+}

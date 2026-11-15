@@ -1960,6 +1960,117 @@ const LIGHT_STAGES = [
 // diameter, and picking the number for the target screen is the caller's job.
 const LIGHT_CELL_SCALE = 0.35
 
+// Which prop works on which variant — the full picture, read off
+// `LIGHT_PRESETS` rather than written by hand. Adding a variant adds a column
+// and setting its `flare` to 0 turns that cell into a dash, so the table cannot
+// drift away from the component the way a prose note would.
+//
+// A number means "this variant has that layer, and this is its preset strength";
+// `null` means "no such layer here, passing the prop does nothing".
+const LIGHT_FIT_ROWS = [
+  {
+    prop: 'rays',
+    detail: '光束占比。overcast 本身没有光束，传了等于 0',
+    cell: (preset) => (preset.rayAlpha > 0 ? preset.rayAlpha.toFixed(2) : null),
+  },
+  {
+    prop: 'flare',
+    detail: '光圈链倍率。只有 beach 带这一层，其余变体传了没反应',
+    cell: (preset) => (preset.flare > 0 ? preset.flare.toFixed(2) : null),
+  },
+  {
+    prop: 'disc',
+    detail: '预设字段、不是 prop：热点硬度（0 = 柔光晕，1 = 硬白盘）',
+    cell: (preset) => (preset.disc > 0 ? preset.disc.toFixed(2) : null),
+  },
+  {
+    prop: 'size',
+    detail: '光池半径 px，省略取预设；beach 下太阳盘与光圈跟着一起缩放',
+    cell: (preset) => preset.size,
+  },
+  {
+    prop: 'intensity',
+    detail: '整盏灯的亮度倍率（0–200%），光池 / 热点 / 光束 / 光圈同一个 gain；0 = 全灭，超过 100% 热点先饱和',
+    universal: true,
+  },
+  {
+    prop: 'anchor / offsetX / offsetY',
+    detail: '光源中心的位置（光束方向由它推导）；负偏移可以把光源推出画面，正数一律朝盒内',
+    universal: true,
+  },
+  {
+    prop: 'follow / smoothing',
+    detail: '跟随距离与延迟；paused 时停止跟随（画面保留），reduced-motion 下延迟归零；指针的 y 被夹在上半区',
+    universal: true,
+  },
+  {
+    prop: 'colorHex',
+    detail: '光池 / 热点 / 光束 / 光圈一起换色，热点取它的淡色版；只换一半会像两盏灯',
+    universal: true,
+  },
+  {
+    prop: 'visible / paused',
+    detail: 'visible=false 整层不渲染；paused 保留当前画面、停止跟随',
+    universal: true,
+  },
+]
+
+
+function LightFitTable({ variant }) {
+  return (
+    <section className="fit">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">属性</th>
+            {LIGHT_VARIANTS.map((id) => (
+              <th key={id} scope="col" className={id === variant ? 'fit__now' : undefined}>
+                {id}
+              </th>
+            ))}
+            <th scope="col">特殊情况</th>
+          </tr>
+        </thead>
+        <tbody>
+          {LIGHT_FIT_ROWS.map((row) => (
+            <tr key={row.prop}>
+              <th scope="row">
+                <code>{row.prop}</code>
+              </th>
+              {row.universal ? (
+                // One cell instead of five identical ones: these rows are not
+                // about a variant at all, and repeating "通用" five times
+                // buries the rows that *are* variant-specific.
+                <td className="fit__all" colSpan={LIGHT_VARIANTS.length}>
+                  全部变体
+                </td>
+              ) : (
+                LIGHT_VARIANTS.map((id) => {
+                  const value = row.cell(LIGHT_PRESETS[id])
+                  const missing = value == null
+                  return (
+                    <td
+                      key={id}
+                      className={`${missing ? 'fit__off' : ''} ${id === variant ? 'fit__now' : ''}`}
+                    >
+                      {missing ? '—' : value}
+                    </td>
+                  )
+                })
+              )}
+              <td className="fit__why">{row.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="fit__legend">
+        <b>通用</b> = 任何变体都生效 · <b>数字</b> = 该变体预设里的强度/尺寸（不是 prop 的默认值）·
+        <b>—</b> = 这个变体没有这一层，<b>传了也不会有效果</b>。高亮列是当前变体。
+      </p>
+    </section>
+  )
+}
+
 function LightFxDemo() {
   const [variant, setVariant] = useState('sun')
   const [intensity, setIntensity] = useState(LIGHT_INTENSITY_DEFAULT)
@@ -1981,6 +2092,14 @@ function LightFxDemo() {
   const [color, setColor] = useState('#ffd9a0')
   const [visible, setVisible] = useState(true)
   const [paused, setPaused] = useState(false)
+
+  // What this variant actually ships. The two multipliers below are no-ops on a
+  // variant without the matching layer, so the demo disables them instead of
+  // letting a slider look broken — that *is* the special case the fit table
+  // documents one line at a time.
+  const preset = LIGHT_PRESETS[variant]
+  const hasShafts = preset.rayAlpha > 0
+  const hasFlare = preset.flare > 0
 
   const shared = {
     variant,
@@ -2016,11 +2135,14 @@ function LightFxDemo() {
           位置只有一套词汇：时钟那套 <code>anchor</code> + <code>offsetX</code> / <code>offsetY</code>，
           但<b>基准点是光源中心</b>（这一层没有自己的盒子），偏移照旧<b>朝盒内为正</b>。
           光束方向由锚点推出来——光永远朝背向光源的一侧打，所以不存在第二个会跟它打架的参数。
+          <b>不是所有属性都通用</b>：<code>rays</code> 在 <code>overcast</code> 上、<code>flare</code>
+          在 <code>beach</code> 之外都没有对应图层，下面的<b>属性适用表</b>逐条列了出来，控制面板里
+          这类滑块会直接置灰。
         </p>
       </header>
 
       <section className="panel">
-        <Row title="天气">
+        <Row title="天气 · 通用">
           <label className="ctl">
             <span className="ctl__label">
               变体 variant <b>{variant}</b>
@@ -2048,7 +2170,7 @@ function LightFxDemo() {
           </span>
         </Row>
 
-        <Row title="光源位置">
+        <Row title="光源位置 · 通用">
           <label className="ctl">
             <span className="ctl__label">
               锚点 anchor <b>{anchor}</b>
@@ -2089,7 +2211,7 @@ function LightFxDemo() {
           </span>
         </Row>
 
-        <Row title="光线">
+        <Row title="光线 · 随变体">
           <Slider
             label="光池半径 size"
             value={sizeOn ? size : LIGHT_PRESETS[variant].size}
@@ -2108,6 +2230,7 @@ function LightFxDemo() {
             max={1}
             step={0.05}
             suffix="×"
+            disabled={!hasShafts}
             onChange={setRays}
           />
           <Slider
@@ -2117,6 +2240,7 @@ function LightFxDemo() {
             max={LIGHT_FLARE_MAX}
             step={0.05}
             suffix="×"
+            disabled={!hasFlare}
             onChange={setFlare}
           />
           <span className="ctl ctl--note">
@@ -2125,11 +2249,14 @@ function LightFxDemo() {
             <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
             1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用。
             <code>flare</code> 是同一类倍率，乘在<b>镜头光圈</b>上——只有 <code>beach</code> 预设带这层
-            （一串光斑 + 两个光圈环，沿「光源 → 画面中心」的轴线往对面铺），别的变体乘了也没有
+            （一串光斑 + 两个光圈环，沿「光源 → 画面中心」的轴线往对面铺）。
+            <b>当前变体没有的层，滑块会直接置灰</b>：
+            {hasShafts ? '' : ' 这个变体没有光束（overcast 就是一片平光）；'}
+            {hasFlare ? '' : ' 这个变体没有光圈层，flare 传了也不会有效果。'}
           </span>
         </Row>
 
-        <Row title="跟随">
+        <Row title="跟随 · 通用（paused 时停）">
           <Slider
             label="跟随 follow"
             value={follow}
@@ -2150,7 +2277,7 @@ function LightFxDemo() {
           />
         </Row>
 
-        <Row title="光色与运行">
+        <Row title="光色与运行 · 通用">
           <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
             <span className="ctl__label">
               光色 colorHex <b>{colorOn ? color : '未覆盖'}</b>
@@ -2179,6 +2306,8 @@ function LightFxDemo() {
         <figcaption>hero：上面所有开关都在这一格里生效；鼠标划过时注意光池与光束一起偏移</figcaption>
       </figure>
 
+      <LightFitTable variant={variant} />
+
       <section className="grid grid--light">
         {LIGHT_STAGES.map((entry) => (
           <figure className="cell" key={`${entry.variant}-${entry.anchor}`}>
@@ -2188,6 +2317,7 @@ function LightFxDemo() {
                 anchor={entry.anchor}
                 intensity={entry.intensity ?? intensity}
                 rays={entry.rays ?? rays}
+                flare={entry.flare ?? flare}
                 follow={follow}
                 smoothing={smoothing}
                 size={Math.round(LIGHT_PRESETS[entry.variant].size * LIGHT_CELL_SCALE)}
