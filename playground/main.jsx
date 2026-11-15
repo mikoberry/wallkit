@@ -1960,8 +1960,8 @@ const LIGHT_STAGES = [
   { variant: 'moon', anchor: 'top-right', className: 'stage stage--dark', caption: 'moon — 月光：冷、暗、几乎没有光束' },
   { variant: 'dusk', anchor: 'top-left', className: 'stage stage--photo', caption: 'dusk — 黄昏低角度，光束被拉长' },
   { variant: 'overcast', anchor: 'top-left', className: 'stage stage--light', caption: 'overcast — 阴天：没有光束，只有一片平光' },
-  { variant: 'beach', anchor: 'top-left', className: 'stage stage--photo', caption: 'beach — 海边晴天：硬光盘 + 镜头光圈' },
-  { variant: 'beach', anchor: 'center-left', className: 'stage stage--dark', caption: 'beach — 光源挪到画面中段，光圈链横穿整幅' },
+  { variant: 'clear-sky', anchor: 'top-left', className: 'stage stage--photo', caption: 'clear-sky — 大晴天：硬光盘 + 镜头光圈' },
+  { variant: 'clear-sky', anchor: 'center-left', className: 'stage stage--dark', caption: 'clear-sky — 光源挪到画面中段，光圈链横穿整幅' },
 ]
 
 // A cell is roughly a third of a 1080p frame, so the preset radius is scaled to
@@ -1984,7 +1984,7 @@ const LIGHT_FIT_ROWS = [
   },
   {
     prop: 'flare',
-    detail: '光圈链倍率。只有 beach 带这一层，其余变体传了没反应',
+    detail: '光圈链倍率。只有 clear-sky 带这一层，其余变体传了没反应',
     cell: (preset) => (preset.flare > 0 ? preset.flare.toFixed(2) : null),
   },
   {
@@ -1994,7 +1994,7 @@ const LIGHT_FIT_ROWS = [
   },
   {
     prop: 'size',
-    detail: '光池半径 px，省略取预设；beach 下太阳盘与光圈跟着一起缩放。只要求 > 0——负数会让整条渐变失效、光整层消失，所以无效值回落预设；上不封顶',
+    detail: '光池半径 px，省略取预设；clear-sky 下太阳盘与光圈跟着一起缩放。只要求 > 0——负数会让整条渐变失效、光整层消失，所以无效值回落预设；上不封顶',
     cell: (preset) => preset.size,
   },
   {
@@ -2139,8 +2139,8 @@ function LightFxDemo() {
         <h1>LightFx</h1>
         <p className="hint">
           一层<b>天气光照</b>：晴天正午的暖光从画面某一点斜射下来，夜里换成又冷又柔的月光，
-          另有黄昏的低角度长光束、阴天的一片平光，以及<b>海边晴天</b>——
-          太阳本身被吹成一个硬光盘，镜头里拖出一串光圈。<b>把鼠标移到下面的大画面里</b>，
+          另有黄昏的低角度长光束、阴天的一片平光，以及<b>大晴天</b>——
+          太阳本身被吹成一个硬光盘，镜头里拖出一串光圈（紧贴太阳几圈，再往对面铺开）。<b>把鼠标移到下面的大画面里</b>，
           光会朝指针偏一点（<code>follow</code> 控制偏移多远，<code>smoothing</code> 控制跟得多重），
           移动途中<b>整束扇面还会朝画面中心微微转过去</b>（<code>sway</code> 控制最多转几度）——
           只有平移的话光像一张贴纸在画面上滑。
@@ -2155,7 +2155,7 @@ function LightFxDemo() {
           光束方向由锚点推出来——光永远朝背向光源的一侧打；光源移开之后，扇面再朝<b>画面中心</b>
           偏一点（<code>sway</code>，软饱和），所以不存在第二个能跟它打架的方向参数。
           <b>不是所有属性都通用</b>：<code>rays</code> 在 <code>overcast</code> 上、<code>flare</code>
-          在 <code>beach</code> 之外都没有对应图层，下面的<b>属性适用表</b>逐条列了出来，控制面板里
+          在 <code>clear-sky</code> 之外都没有对应图层，下面的<b>属性适用表</b>逐条列了出来，控制面板里
           这类滑块会直接置灰。
         </p>
       </header>
@@ -2272,8 +2272,9 @@ function LightFxDemo() {
             光<b>整层消失</b>（不是变小），所以这种值直接回落预设。
             <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
             1 是预设最大值；<code>overcast</code> 本身没有光束，乘什么都没用。
-            <code>flare</code> 是同一类倍率，乘在<b>镜头光圈</b>上——只有 <code>beach</code> 预设带这层
-            （一串光斑 + 两个光圈环，沿「光源 → 画面中心」的轴线往对面铺）。
+            <code>flare</code> 是同一类倍率，乘在<b>镜头光圈</b>上——只有 <code>clear-sky</code> 预设带这层
+            （一串光斑 + 一组光圈环：紧贴太阳几圈，其余沿「光源 → 画面中心」的轴线往对面铺，且<b>往轴线两侧
+            散开、半径间距错落</b>，读起来像随机的一簇而不是一条直线）。
             <b>当前变体没有的层，滑块会直接置灰</b>：
             {hasShafts ? '' : ' 这个变体没有光束（overcast 就是一片平光）；'}
             {hasFlare ? '' : ' 这个变体没有光圈层，flare 传了也不会有效果。'}
@@ -2381,7 +2382,7 @@ function LightFxDemo() {
         层级是 <code>z-index: 2</code>，在氛围粒子（1）之上、控件（spectrum 3 → 指针特效 4 →
         clock / album 5）之下——画面被打亮，文字仍然压得住；想让阳光也扫过时钟，在自己的样式表里抬高这个值。
         最多三层（光池 + 光束 + 光圈），都是 <code>mix-blend-mode: screen</code>，只加亮不蒙版；
-        <code>beach</code> 的硬光盘来自预设的 <code>disc=1</code>（把热点的两个内圈往外推、调硬），
+        <code>clear-sky</code> 的硬光盘来自预设的 <code>disc=1</code>（把热点的两个内圈往外推、调硬），
         光圈层的位置写成 <code>calc()</code> 引用光源变量，所以它也白拿指针跟随；光束是
         <code>repeating-conic-gradient</code>，角度写在 <code>--wallkit-light-angle</code> 上——
         静止时由锚点推出，移动时按光源<b>当前位置</b>重算并软饱和在 <code>sway</code> 里，靠一层径向

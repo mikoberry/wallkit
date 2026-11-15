@@ -94,12 +94,12 @@ function writeLight(host, origin, { anchor, angleOffset, sway }) {
  *
  * @param {Object} props
  * @param {boolean} [props.visible=true]  Render nothing when false.
- * @param {'sun'|'moon'|'dusk'|'overcast'|'beach'} [props.variant='sun']
+ * @param {'sun'|'moon'|'dusk'|'overcast'|'clear-sky'} [props.variant='sun']
  *   `sun` is a warm midday wash with distinct shafts; `moon` is cool, dim and
  *   much softer; `dusk` is a low orange sun raking across the frame; `overcast`
- *   has no shafts at all, just a huge flat cool wash; `beach` is a hard midday
- *   sun over water — a blown-out disc with a lens-flare chain trailing across
- *   the frame.
+ *   has no shafts at all, just a huge flat cool wash; `clear-sky` is a big
+ *   clear sky at midday — a blown-out disc with a lens-flare chain (ghosts and
+ *   aperture rings hugging the sun and trailing across the frame).
  * @param {string} [props.anchor='top-left'] Where the light comes from: one of
  *   the nine anchors, with `offsetX` / `offsetY` measured from that point. It
  *   places the **light centre**, not a box corner, and it is also what the

@@ -14,7 +14,7 @@
 import { ANCHORS, anchorPoint } from './anchor.js'
 import { isHexColor } from './audio.js'
 
-export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast', 'beach']
+export const LIGHT_VARIANTS = ['sun', 'moon', 'dusk', 'overcast', 'clear-sky']
 export const LIGHT_VARIANT_DEFAULT = 'sun'
 
 // Where the light centre sits. It is an anchor point — the same nine the
@@ -124,8 +124,8 @@ export const LIGHT_ORIGIN_MAX_Y = 0.6
 //   disc        hardness of the hotspot, 0..1. 0 is the soft bloom every
 //               variant had; 1 is a blown-out sun disc with a tight edge —
 //               what a hard, direct source looks like through a lens.
-//   flare       strength of the lens-flare chain, 0..1. 0 = no layer at all,
-//               which is every variant except `beach`.
+  //   flare       strength of the lens-flare chain, 0..1. 0 = no layer at all,
+  //               which is every variant except `clear-sky`.
 //   flareSpread how far the ghosts travel away from the frame centre, 1 = the
 //               default. Only matters when `flare` is above 0.
 export const LIGHT_PRESETS = {
@@ -196,12 +196,12 @@ export const LIGHT_PRESETS = {
     flare: 0,
     flareSpread: 1,
   },
-  // A hard midday sun over water: the source itself is a blown-out disc rather
+  // A big, clear sky at midday: the source itself is a blown-out disc rather
   // than a soft bloom, and being that bright it has to scatter in the lens —
-  // a chain of ghosts and two aperture rings trailing off to the far side of
-  // the frame. This is the only variant with a flare, and the only one whose
-  // disc is harder than a bloom.
-  beach: {
+  // a chain of ghosts and a cluster of aperture rings, some hugging the sun and
+  // some trailing off to the far side of the frame. This is the only variant
+  // with a flare, and the only one whose disc is harder than a bloom.
+  'clear-sky': {
     size: 1700,
     color: '#ffe3a8',
     coreColor: '#fffdf6',
@@ -591,19 +591,45 @@ export function lightBeamMask({ size, maskInner, maskOuter } = {}) {
 //   cool  how far the ghost is pushed from the light's colour towards a pale
 //         blue. Real flare ghosts are the lens coating, not the sun, so they
 //         shift hue while the light itself does not.
+//   ox/oy a fixed stagger, in percent of the box, added to the on-axis point.
+//         Their signs alternate and their magnitudes vary on purpose: real
+//         glare scatters *either side* of the source→centre line, so the chain
+//         zig-zags across it instead of filing into a single row. The spread is
+//         wide on purpose — off-axis angles up to ~±40° — so nothing reads as a
+//         neat bead on a string. No state is added: the stagger folds into the
+//         same `calc()` the axis already is.
 const FLARE_GHOSTS = [
-  { t: 0.58, r: 0.055, alpha: 0.5, cool: 0.1 },
-  { t: 0.82, r: 0.15, alpha: 0.2, cool: 0.6 },
-  { t: 1.06, r: 0.032, alpha: 0.55, cool: 0.25 },
-  { t: 1.32, r: 0.21, alpha: 0.15, cool: 0.85 },
-  { t: 1.6, r: 0.085, alpha: 0.26, cool: 0.4 },
-  { t: 1.95, r: 0.17, alpha: 0.11, cool: 0.95 },
+  // A tight cluster of tiny ghosts hugging the source: near the sun the coating
+  // barely shifts, so they stay almost the light's own colour.
+  { t: 0.07, r: 0.016, alpha: 0.3, cool: 0.03, ox: -7, oy: 6 },
+  { t: 0.12, r: 0.03, alpha: 0.26, cool: 0.08, ox: 10, oy: -9 },
+  { t: 0.16, r: 0.025, alpha: 0.32, cool: 0.05, ox: -4, oy: 4 },
+  { t: 0.21, r: 0.02, alpha: 0.28, cool: 0.05, ox: 13, oy: -11 },
+  { t: 0.35, r: 0.05, alpha: 0.26, cool: 0.12, ox: 7, oy: -6 },
+  { t: 0.5, r: 0.04, alpha: 0.5, cool: 0.1, ox: -8, oy: 7 },
+  { t: 0.74, r: 0.08, alpha: 0.2, cool: 0.6, ox: 10, oy: -8 },
+  { t: 0.92, r: 0.05, alpha: 0.55, cool: 0.25, ox: -6, oy: 9 },
+  { t: 1.22, r: 0.07, alpha: 0.15, cool: 0.85, ox: 11, oy: -7 },
+  { t: 1.48, r: 0.06, alpha: 0.26, cool: 0.4, ox: -10, oy: 10 },
+  { t: 1.88, r: 0.07, alpha: 0.11, cool: 0.95, ox: 9, oy: -11 },
 ]
 
-// Aperture rings: hollow circles, the shape of the blades inside the lens.
+// Aperture rings: hollow circles, the shape of the blades inside the lens. The
+// first few hug the source — a light this bright closes the lens down, so a
+// tight stack of rings crowds around the sun before the chain thins out towards
+// the far side of the frame. `cool` defaults to 0.55; the near rings carry their
+// own lower value so they stay warm against the sun instead of turning blue.
+// `ox` / `oy` zig-zag them across the axis like the ghosts. The radii stay small
+// near the sun, stay moderate across the middle, and only reach their peak at
+// the far end — a big ring parked near the frame centre reads as a bullseye, not
+// glare, so the largest one sits out where the chain is already fading.
 const FLARE_RINGS = [
-  { t: 1.18, r: 0.2, alpha: 0.3 },
-  { t: 1.72, r: 0.28, alpha: 0.2 },
+  { t: 0.16, r: 0.04, alpha: 0.28, cool: 0.1, ox: 9, oy: -7 },
+  { t: 0.26, r: 0.05, alpha: 0.32, cool: 0.15, ox: 5, oy: 5 },
+  { t: 0.43, r: 0.08, alpha: 0.24, cool: 0.28, ox: -9, oy: -7 },
+  { t: 0.62, r: 0.11, alpha: 0.18, cool: 0.4, ox: 10, oy: 8 },
+  { t: 1.1, r: 0.13, alpha: 0.3, ox: -11, oy: -9 },
+  { t: 1.6, r: 0.2, alpha: 0.2, ox: 12, oy: 10 },
 ]
 
 const COOL_GHOST_RGB = [176, 205, 255]
@@ -619,9 +645,26 @@ function flareAxis(axis, t) {
   return `calc(var(--wallkit-light-${axis}, 50%) * ${keep.toFixed(3)} + ${middle.toFixed(2)}%)`
 }
 
+// The full `at` for one ghost/ring: the on-axis point from `flareAxis`, plus an
+// optional fixed stagger in percent of the box. `ox` / `oy` knock the element
+// off the straight line (their signs alternate along the chain), and wrapping
+// them in `calc()` keeps the whole position a single self-contained expression
+// that still tracks `--wallkit-light-x` / `-y` for free. The sign is written out
+// explicitly (`+ n%` / `- n%`) rather than relying on `+ -n%`, which reads as a
+// parser edge case in some engines.
+function flarePosition(t, ox, oy) {
+  const shift = (value) => (value ? ` ${value < 0 ? '-' : '+'} ${Math.abs(value)}%` : '')
+  const x = flareAxis('x', t)
+  const y = flareAxis('y', t)
+  const px = ox ? `calc(${x}${shift(ox)})` : x
+  const py = oy ? `calc(${y}${shift(oy)})` : y
+  return `${px} ${py}`
+}
+
 /**
- * The lens-flare chain: a handful of soft ghosts plus two aperture rings,
- * arranged along the axis from the source through the centre of the frame.
+ * The lens-flare chain: soft ghosts plus aperture rings, some hugging the
+ * source and some trailing across the frame, arranged along the axis from the
+ * source through the centre of the frame.
  *
  * This is what makes a hard sun read as *bright* rather than merely white: the
  * eye expects glare to scatter inside the lens. It is a third layer of its own
@@ -633,8 +676,11 @@ function flareAxis(axis, t) {
  *
  * Positions are written as `calc()` against the light's own custom properties,
  * which is why the chain tracks the pointer for free. `t` is never negative:
- * ghosts only ever sit on the far side of the frame from the source, because a
- * flare behind the sun is hidden by the sun.
+ * ghosts and rings only ever sit between the source and the frame centre, or
+ * beyond it on the far side — never behind the sun, where they would be hidden
+ * by the sun itself. Each element also carries a fixed `ox` / `oy` stagger off
+ * the axis (alternating sign), so the chain fans out instead of filing into a
+ * single straight row.
  *
  * @param {Object} options
  * @param {string} options.color       Base tint, `#rrggbb`.
@@ -654,7 +700,7 @@ export function lightFlareGradient({ color, flareAlpha, spread, size } = {}) {
 
   for (const ghost of FLARE_GHOSTS) {
     const t = 1 + (ghost.t - 1) * reach
-    const at = `${flareAxis('x', t)} ${flareAxis('y', t)}`
+    const at = flarePosition(t, ghost.ox, ghost.oy)
     const tint = mixRgb(baseRgb, COOL_GHOST_RGB, ghost.cool)
     const ghostRadius = Math.max(6, radius * ghost.r).toFixed(1)
     const peak = clamp(alpha * ghost.alpha, 0, 1)
@@ -666,8 +712,8 @@ export function lightFlareGradient({ color, flareAlpha, spread, size } = {}) {
 
   for (const ring of FLARE_RINGS) {
     const t = 1 + (ring.t - 1) * reach
-    const at = `${flareAxis('x', t)} ${flareAxis('y', t)}`
-    const tint = mixRgb(baseRgb, COOL_GHOST_RGB, 0.55)
+    const at = flarePosition(t, ring.ox, ring.oy)
+    const tint = mixRgb(baseRgb, COOL_GHOST_RGB, ring.cool ?? 0.55)
     const ringRadius = Math.max(6, radius * ring.r).toFixed(1)
     const peak = clamp(alpha * ring.alpha, 0, 1)
     // A band, not a disc: hollow centre, hard-ish inner edge, soft outer one.

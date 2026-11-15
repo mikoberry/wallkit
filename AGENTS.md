@@ -89,7 +89,7 @@ WallKit 是 Wallpaper Engine 网页壁纸的**控件浮层库**，用 React 18 +
 | `./components/ambient-fx` | `src/components/ambient-fx/index.js` | AmbientFx 组件（飘雪 / 樱花 / 气泡 / 星尘等氛围层） |
 | `./components/spotlight` | `src/components/spotlight/index.js` | Spotlight 组件（跟随指针的聚光 / 关灯遮罩） |
 | `./components/frame` | `src/components/frame/index.js` | Frame 组件（画面级 REC 取景框） |
-| `./components/light-fx` | `src/components/light-fx/index.js` | LightFx 组件（天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 海边晴天） |
+| `./components/light-fx` | `src/components/light-fx/index.js` | LightFx 组件（天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 大晴天） |
 | `./project` | `src/project/index.js` | project.json 生成工具（构建期纯函数，**不进运行时**） |
 | `./we` | `src/we/index.js` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
 | `./we/vite` | `src/we/vite-plugin.js` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
@@ -390,18 +390,18 @@ src/
 
 ### LightFx 组件
 
-天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 海边晴天五种预设，光从画面某一点斜射下来，并朝指针偏移一点。**两到三层 CSS 渐变，没有 canvas、没有绘制循环。**
+天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 大晴天五种预设，光从画面某一点斜射下来，并朝指针偏移一点。**两到三层 CSS 渐变，没有 canvas、没有绘制循环。**
 
 ```jsx
 <LightFx
-  variant="sun"              // sun | moon | dusk | overcast | beach
+  variant="sun"              // sun | moon | dusk | overcast | clear-sky
   anchor="top-left"          // 九个锚点之一：把**光源中心**放上去，也是光束方向的来源
   offsetX={0}                // 从锚点出发的偏移 %，朝盒内为正（可负 → 光源出画）
   offsetY={0}                // 同上，纵向
   intensity={100}            // 整盏灯的亮度倍率，0–200（光池 + 热点 + 光束同一个 gain）
   size={undefined}           // 光池半径 px，省略 = 跟随预设
   rays={1}                   // 光束占比，0–1（形态，不是亮度）
-  flare={1}                  // 镜头光圈倍率，0–1（只有 beach 带这一层）
+  flare={1}                  // 镜头光圈倍率，0–1（只有 clear-sky 带这一层）
   follow={0.45}              // 朝指针偏移多远，0–1
   smoothing={0.12}           // 跟随延迟（时间常数，秒）
   sway={16}                  // 移动时扇面额外偏转上限（度，0–60）；0 = 纯平移
@@ -410,9 +410,9 @@ src/
 />
 ```
 
-- **五个预设里 `beach` 最特别：硬光盘 + 镜头光圈。** 它由预设里两个新字段驱动，不是新组件也不是新 prop 家族：`disc`（0–1，热点的**硬度**——把 `lightWashGradient()` 的两个内圈往外推、alpha 抬高，同时把热点半径收小，0.13R → 0.095R；1 就是把太阳吹成一块白盘）与 `flare`（0–1，光圈链强度，0 = 整层不画）。`flareSpread` 管光圈链沿轴线铺多远。别的预设都是 `flare: 0`，所以「有没有光圈」是变体的属性，不是全局开关。**不要把 `flare` 做成和 `variant` 正交的另一套变体组合**：光圈是「这盏灯有多硬」的后果，硬光盘和光圈必须同时出现才对得上。
+- **五个预设里 `clear-sky` 最特别：硬光盘 + 镜头光圈。** 它由预设里两个新字段驱动，不是新组件也不是新 prop 家族：`disc`（0–1，热点的**硬度**——把 `lightWashGradient()` 的两个内圈往外推、alpha 抬高，同时把热点半径收小，0.13R → 0.095R；1 就是把太阳吹成一块白盘）与 `flare`（0–1，光圈链强度，0 = 整层不画）。`flareSpread` 管光圈链沿轴线铺多远。别的预设都是 `flare: 0`，所以「有没有光圈」是变体的属性，不是全局开关。**不要把 `flare` 做成和 `variant` 正交的另一套变体组合**：光圈是「这盏灯有多硬」的后果，硬光盘和光圈必须同时出现才对得上。
 - **画廊里「这个 prop 在当前变体有没有用」是显式表达出来的**：`LightFx` 页把 `rays` / `flare` 在缺少对应图层的变体上**置灰**，并有一张<b>属性适用表</b>（`LIGHT_FIT_ROWS` + `LightFitTable`），单元格直接读 `LIGHT_PRESETS`——加变体自动多一列，把某个预设的 `flare` 设成 0 那一格自己变成 `—`。**这张表不许手写常量**：手写的第二份清单一定会跟组件漂移，而这类漂移刚好会误导「这个 prop 能用吗」这种问题。
-- **光圈链的位置是 `calc()` 而不是新变量。** 每个光斑落在「光源 → 画面中心」这条轴线的 `t` 处（`t=0` 是光源、`1` 是中心、`>1` 到对面），坐标写成 `calc(var(--wallkit-light-x) * (1-t) + 50% * t)`，因此**光圈白拿指针跟随**，移动光源仍然只改两个自定义属性。光斑永远是 t≥0 的：光圈落在太阳背面会被太阳自己遮住。两族颜色——光斑往淡蓝偏（`COOL_GHOST_RGB`，这是镜头镀膜的颜色，不是太阳的颜色），光圈环偏得更狠，所以画面里有冷暖对比而不是一片黄。
+- **光圈链的位置是 `calc()` 而不是新变量。** 每个光斑落在「光源 → 画面中心」这条轴线的 `t` 处（`t=0` 是光源、`1` 是中心、`>1` 到对面），坐标写成 `calc(var(--wallkit-light-x) * (1-t) + 50% * t)`，因此**光圈白拿指针跟随**，移动光源仍然只改两个自定义属性。光斑永远是 t≥0 的：光圈落在太阳背面会被太阳自己遮住。每个光圈再叠一个固定的 `ox`/`oy` 偏移（画面百分比，符号沿链交替、幅度起伏）把它们**往轴线两侧撞开**，半径与间距也刻意错落——真实眩光会往「光源→中心」两侧散射，不会列队成一条直线。靠近太阳的光圈（`t<1`）保持暖色，越往对面越偏淡蓝（`COOL_GHOST_RGB`，这是镜头镀膜的颜色，不是太阳的颜色），光圈环偏得更狠，所以画面里有冷暖对比而不是一片黄。
 - **`intensity` 是整盏灯唯一的亮度旋钮，`rays` 不是亮度。** 三层的 alpha 全部由 `lightLayers(preset, { gain, rays })` 一次算出：`washAlpha` / `coreAlpha` 只乘 `gain`，`rayAlpha` 再乘 `rays`。所以拉低 `intensity` 时「光池 + 热点 + 光束」一起暗，不会剩下一个亮光池配一束淡光束。`rays` 管的是**分配**——这盏灯里多少比例走成光束（0 = 一片平光），跟亮不亮无关。**新增变体只往 `LIGHT_PRESETS` 里加数，不要回到组件里各乘各的**，否则「同一个 gain 覆盖全部」就不再是代码保证，只是习惯。
 - **它和 `Spotlight` 有一处刻意相反：第一帧就在。** 聚光灯没有指针时必须藏起来（否则整屏黑），光不能藏——没有鼠标的壁纸照样有天气。默认位置由 `anchor` 决定（`lightAnchorOrigin()`，默认 `top-left`），跟随只是加分项。
 - **光不掉到地平线以下**：指针 y 在混合前先夹到 `LIGHT_ORIGIN_MAX_Y`（0.6），再按 `follow` 插值。不夹的话鼠标拖到底就变成脚底打光。**锚点本身不受这条限制**——那条只管指针，`anchor="bottom-*"` 刻意从低处打光是合法需求。
