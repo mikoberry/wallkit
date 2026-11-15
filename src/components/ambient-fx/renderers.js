@@ -152,6 +152,29 @@ function drawFog(ctx, particles, count, t, unit, width, height, sprite, gain) {
 }
 
 /**
+ * A pinned field of points. No pad and no vertical span: nothing enters or
+ * leaves the frame, so a star seeded near an edge simply stays there — that is
+ * what a sky looks like, and it is why this is the one loop with no wrap to
+ * hide.
+ */
+function drawStars(ctx, particles, count, t, unit, width, height, sprite, gain) {
+  for (let i = 0; i < count; i += 1) {
+    const offset = i * AMBIENT_STRIDE
+    ambientOffset('stars', particles, offset, t, scratch)
+    const alpha = clamp01(scratch[3] * gain)
+    // Mid-twinkle stars drop under this threshold; skipping them is free and
+    // there are two hundred of them.
+    if (alpha <= 0.003) continue
+    const radius = particles[offset + AMBIENT_SIZE] * unit
+    if (radius <= 0.15) continue
+    const x = scratch[0] * width
+    const y = scratch[1] * height
+    ctx.globalAlpha = alpha
+    ctx.drawImage(sprite, x - radius, y - radius, radius * 2, radius * 2)
+  }
+}
+
+/**
  * Paint one frame.
  *
  * @param {CanvasRenderingContext2D} ctx
@@ -179,7 +202,13 @@ export function drawAmbient(
 ) {
   if (!sprite || count <= 0) return
 
-  if (variant === 'sakura' || variant === 'leaves') {
+  if (variant === 'stars') {
+    // Additive: overlapping halos brighten the way a crowded patch of sky
+    // does, and the field can only ever add light, never dim what is behind
+    // it. Reset in the tail below with everything else.
+    ctx.globalCompositeOperation = 'lighter'
+    drawStars(ctx, particles, count, t, unit, width, height, sprite, gain)
+  } else if (variant === 'sakura' || variant === 'leaves') {
     drawTumbling(ctx, particles, count, t, unit, width, height, sprite, gain, variant)
   } else if (variant === 'bubble') {
     drawBubbles(ctx, particles, count, t, unit, width, height, sprite, gain)
@@ -194,7 +223,9 @@ export function drawAmbient(
   }
 
   // Rotated loops (petals, leaves, rain streaks) leave a transform behind;
-  // one unconditional reset covers them all.
+  // the stars loop leaves an additive blend mode. One unconditional reset
+  // covers both.
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
 }

@@ -305,20 +305,28 @@ import { AmbientFx } from 'wallkit/components/ambient-fx'
   <AmbientFx variant="rain" />         {/* 雨：高速细雨丝，随风斜落 */}
   <AmbientFx variant="fog" />          {/* 雾：大团薄雾横向漂移 */}
   <AmbientFx variant="leaves" />       {/* 落叶：之字翻滚、逐叶自转 */}
+  <AmbientFx variant="stars" />        {/* 星尘：满天星点，只闪不落 */}
   <Clock now={now} />                  {/* 控件在它的上层 */}
 </div>
 ```
 
 | 选项 | 默认 | 说明 |
 |---|---|---|
-| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆 / `steam` 雾的竖直孪生：大团薄雾缓升、边缘淡入淡出 / `rain` 高速细雨丝、随风整体倾斜 / `fog` 大团薄雾横向漂移、边缘淡入淡出 / `leaves` 强风斜落、之字翻滚、逐叶自转。非法值回退 `snow` |
+| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆 / `steam` 雾的竖直孪生：大团薄雾缓升、边缘淡入淡出 / `rain` 高速细雨丝、随风整体倾斜 / `fog` 大团薄雾横向漂移、边缘淡入淡出 / `leaves` 强风斜落、之字翻滚、逐叶自转 / `stars` 满天星点、位置固定只闪烁。非法值回退 `snow` |
 | `visible` | `true` | `false` 不渲染 DOM，也不留 canvas |
-| `colorHex` | — | `#rrggbb`。除 `bubble` 外每种形态都有自己的固有色（雪 `#dbe9ff` / 樱 `#f5b8cd` / 蒸气 `#eef1f4` / 雨 `#a8c0dc` / 雾 `#dfe6ee` / 落叶 `#d98a4f`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
+| `colorHex` | — | `#rrggbb`。除 `bubble` 外每种形态都有自己的固有色（雪 `#dbe9ff` / 樱 `#f5b8cd` / 蒸气 `#eef1f4` / 雨 `#a8c0dc` / 雾 `#dfe6ee` / 落叶 `#d98a4f` / 星尘 `#e8efff`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
 | `density` | `100` | 10–300，粒子数量的百分比（相对该形态的预设数量），只改数量不改尺寸 |
 | `size` | `100` | 20–300，粒子半径的缩放百分比 |
 | `intensity` | `100` | 0–300，不透明度百分比 |
-| `speed` | `100` | 20–300，运动速度百分比。缩放整层时钟：位移、摆动、生命期全部同步快慢 |
+| `speed` | `100` | 20–300，运动速度百分比。缩放整层时钟：位移、摆动、生命期全部同步快慢；`stars` 没有位移，只加快闪烁 |
 | `paused` | `false` | 冻结画面并停掉绘制循环，最后一帧留在屏上 |
+
+**`stars` 是满天星点，不是飘落的粒子**：星点钉在画面上，只有明暗在变（两路不同频率的正弦叠加后取平方，所以是「偶尔一闪」而不是整片一起呼吸）；`speed` 只加快闪烁，`density` 默认 200 颗、上限 240。星点用加色叠加，只给画面加光、不会压暗背景；大星同时更亮，避免冒出一大片发灰的糊点。深色背景上效果最好。
+
+```jsx
+<AmbientFx variant="stars" density={160} intensity={130} />   {/* 更密的夜空 */}
+<AmbientFx variant="stars" speed={40} />                      {/* 近乎静止的慢闪 */}
+```
 
 **小雨 / 大雨（以及大雪小雪）不需要新的变体**，组合现有旋钮即可：
 

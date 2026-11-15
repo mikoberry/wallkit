@@ -320,7 +320,7 @@ P4 曾留的「尚未创建」清单（`we/audio.js`、`we/media.js`、`we/pause
 | `MiniSpectrum` | `wallkit/components/mini-spectrum` | 填满父容器的紧凑频谱 | P3 | ✅ |
 | `AlbumArt` | `wallkit/components/album-art` | 专辑卡片：封面 + 曲目信息 + 迷你频谱 | P3 | ✅ |
 | `PointerFx` | `wallkit/components/pointer-fx` | 拖尾 4 种（glow / ribbon / bubble / firework）+ 点击 4 种（ripple / sparks / bubble / firework），气泡与烟花两通道通用，共 16 种组合 | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
-| `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
+| `AmbientFx` | `wallkit/components/ambient-fx` | 全屏氛围粒子层：飘雪 / 樱花 / 上浮气泡 / 水蒸气 / 雨 / 雾 / 落叶 / 星尘，位置是 `(参数, 时间)` 的纯函数，不存粒子数组 | P4 后增量 | ✅ 已实现 |
 | `Spotlight` | `wallkit/components/spotlight` | 跟随指针的聚光遮罩：亮圈跟随鼠标、圈外压暗，直径 / 边缘软硬 / 遮罩浓度 / 高光强度可调；两层 CSS 渐变，无 canvas | P4 后增量 | ✅ 已实现（实机需开启 WE 鼠标交互） |
 | `Frame` | `wallkit/components/frame` | 画面级取景框：4 种边线（括号 / 整框 / 翼型 / 胶片齿孔）+ 可选三分网格、刻度尺、录制点、四角读数与时间码；纯 CSS，无 canvas、无定时器 | P4 后增量 | ✅ 已实现（待 WE 实机逐项验收） |
 | `LightFx` | `wallkit/components/light-fx` | 天气光照层：晴天 / 月光 / 黄昏 / 阴天 / 海边晴天五种预设，从画面某一点斜射下来并朝指针偏移；两层 CSS 渐变 + 锥形光束，无 canvas | P4 后增量 | ✅ 已实现（实机跟随需开启 WE 鼠标交互） |
@@ -356,6 +356,8 @@ x, y = f(seed, t)
 ```
 
 因此整幅画面每帧从一张固定参数表重算，**连环形缓冲都不需要**——`core/ambient.js` 的 `fillAmbientParticles()` 在 variant / count 变化时写一次（扁平 `Float32Array`，固定 stride），绘制循环只读。三条直接后果写进了实现：`paused` 只是「停止推进时间」，恢复时从原处继续而不是重头播；位置全部归一化、不存像素，窗口缩放后下一帧自动正确映射；跑十几个小时不会有状态漂移。每片雪的 `travel` 各不相同，所以不会出现整排同步下落的机械感。
+
+**`stars`（星尘）是这个模型的一个边界样本**：`ambientOffset` 的 stars 分支直接返回种子位置，`progress` 完全不参与——会下落的天空就是雪。整层运动只剩亮度：两路不可通约的正弦叠加再取平方，星点多数时间暗、偶尔一闪，而单个正弦会读成缓慢的呼吸；亮度与粒子尺寸绑定（大星更亮），避免大而淡的糊点。因为光点只该加光，绘制循环切 `'lighter'`，末尾统一复位混合模式。它同样没有粒子数组、没有 wrap 要藏，`paused` / 缩放 / reduced-motion 全部沿用同一套机制，这也是「加形态 = 往预设表加一条 + 加一个绘制分支」不该变成另起一套系统的证据。
 
 这与 §5.1 第 3 条「不使用合成数据兜底」不冲突：那条约束管的是**数据**（音频帧、媒体信息），装饰粒子不声称自己反映任何外部状态，所以不需要「有数据才画」的前置条件。真正需要守的是功耗与视觉纪律——`prefers-reduced-motion` 下只画一帧静止构图，`paused` 彻底停 rAF，粒子数有 `AMBIENT_COUNT_MAX` 上限。
 

@@ -139,6 +139,54 @@ function paintLeaf(ctx, rgb) {
 }
 
 /**
+ * Star: a hot point, a tight halo, and faint four-point diffraction spikes.
+ *
+ * The core is deliberately small relative to the bitmap. Stars are drawn at a
+ * 1–6 px radius, so a sprite whose glow filled the square would land as a fuzzy
+ * dot instead of a point of light; the halo is what sells the brightness, and
+ * the layer composites it additively.
+ */
+function paintStar(ctx, rgb) {
+  const halo = ctx.createRadialGradient(HALF, HALF, 0, HALF, HALF, HALF * 0.86)
+  halo.addColorStop(0, rgba(rgb, 0.95))
+  halo.addColorStop(0.16, rgba(rgb, 0.4))
+  halo.addColorStop(0.42, rgba(rgb, 0.09))
+  halo.addColorStop(1, rgba(rgb, 0))
+  ctx.fillStyle = halo
+  ctx.beginPath()
+  ctx.arc(HALF, HALF, HALF * 0.86, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Spikes: two thin bars fading outwards. At 2–3 px they disappear into the
+  // core; once a hero star is scaled up they appear — which is exactly when a
+  // real one would.
+  for (const angle of [0, Math.PI / 2]) {
+    ctx.save()
+    ctx.translate(HALF, HALF)
+    ctx.rotate(angle)
+    const spike = ctx.createLinearGradient(-HALF, 0, HALF, 0)
+    spike.addColorStop(0, rgba(rgb, 0))
+    spike.addColorStop(0.34, rgba(rgb, 0.2))
+    spike.addColorStop(0.5, rgba(rgb, 0.55))
+    spike.addColorStop(0.66, rgba(rgb, 0.2))
+    spike.addColorStop(1, rgba(rgb, 0))
+    ctx.fillStyle = spike
+    ctx.fillRect(-HALF, -HALF * 0.05, HALF * 2, HALF * 0.1)
+    ctx.restore()
+  }
+
+  // White-hot core last, so nothing translucent sits on top of it.
+  const core = ctx.createRadialGradient(HALF, HALF, 0, HALF, HALF, HALF * 0.26)
+  core.addColorStop(0, 'rgba(255, 255, 255, 1)')
+  core.addColorStop(0.5, rgba(rgb, 0.9))
+  core.addColorStop(1, rgba(rgb, 0))
+  ctx.fillStyle = core
+  ctx.beginPath()
+  ctx.arc(HALF, HALF, HALF * 0.26, 0, Math.PI * 2)
+  ctx.fill()
+}
+
+/**
  * Build the sprite for one variant and colour.
  *
  * @param {string} variant  Already normalised by the caller.
@@ -157,6 +205,7 @@ export function createAmbientSprite(variant, rgb) {
   else if (variant === 'rain') paintRain(ctx, rgb)
   else if (variant === 'fog') paintFog(ctx, rgb)
   else if (variant === 'leaves') paintLeaf(ctx, rgb)
+  else if (variant === 'stars') paintStar(ctx, rgb)
   else paintSnow(ctx, rgb)
 
   return canvas

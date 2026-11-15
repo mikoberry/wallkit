@@ -1365,12 +1365,15 @@ const AMBIENT_VARIANT_LABELS = {
   rain: '雨 — 高速细雨丝，随风斜落',
   fog: '雾 — 大团薄雾横向漂移、边缘涨消',
   leaves: '落叶 — 强风斜落、之字翻滚、逐叶自转',
+  stars: '星尘 — 满天星点，只闪不落',
 }
 
 // Each variant is judged against the backdrop it will actually be used on:
 // flakes need a dark night, petals read best over dusk, bubbles need something
 // with contrast or they disappear, steam and rain are pale and need dark too,
-// fog reads over any busy backdrop, leaves carry their own warm colour.
+// fog reads over any busy backdrop, leaves carry their own warm colour,
+// and stars need the darkest one — an additive point field has nothing to
+// stand on over a pale picture.
 const AMBIENT_STAGES = {
   snow: 'stage--dark',
   sakura: 'stage--photo',
@@ -1379,6 +1382,7 @@ const AMBIENT_STAGES = {
   rain: 'stage--dark',
   fog: 'stage--photo',
   leaves: 'stage--photo',
+  stars: 'stage--dark',
 }
 
 function AmbientFxDemo() {
@@ -1531,12 +1535,14 @@ function AmbientFxDemo() {
       <footer className="foot">
         库的默认值：<code>variant="snow"</code>、<code>visible=true</code>、<code>density=100</code>、
         <code>size=100</code>、<code>intensity=100</code>、<code>speed=100</code>、<code>paused=false</code>。
-        数量按预设基数乘 <code>density</code> 后封顶（共 240 上限：snow 220 / sakura 90 / bubble 80 / steam 30 / rain 220 / fog 30 / leaves 70），
+        数量按预设基数乘 <code>density</code> 后封顶（共 240 上限：snow 220 / sakura 90 / bubble 80 / steam 30 / rain 220 / fog 30 / leaves 70 / stars 240），
         <code>size</code> 只缩放粒子、不改数量。<code>speed</code> 缩放整层时钟，运动、摆动、生命期全部同步快慢。
         <code>colorHex</code> 省略时各形态用自己的固有色
         （雪 <code>#dbe9ff</code> / 樱 <code>#f5b8cd</code> / 蒸气 <code>#eef1f4</code> / 雨 <code>#a8c0dc</code> /
-        雾 <code>#dfe6ee</code> / 落叶 <code>#d98a4f</code>），气泡才回落到 <code>--wallkit-accent</code>——
+        雾 <code>#dfe6ee</code> / 落叶 <code>#d98a4f</code> / 星尘 <code>#e8efff</code>），气泡才回落到 <code>--wallkit-accent</code>——
         具象物件跟着封面色变会像 bug。
+        <code>stars</code> 是唯一<b>不位移</b>的形态：位置固定，<code>speed</code> 只加快闪烁；
+        <code>size</code> 同时决定亮度（大星更亮），否则画面里会出现一片发灰的糊点。
         <code>prefers-reduced-motion</code> 下只画一帧静止画面。
       </footer>
     </>

@@ -54,7 +54,7 @@ function resolveRgb(colorHex, variant, host) {
 
 /**
  * Full-screen ambient particle layer: snow, cherry petals, rising bubbles,
- * water vapour, rain, fog, or falling leaves.
+ * water vapour, rain, fog, falling leaves, or a twinkling star field.
  *
  * This layer collects nothing. It has no input from the host, no pointer
  * listeners, no audio — a particle's position is a pure function of its
@@ -72,14 +72,16 @@ function resolveRgb(colorHex, variant, host) {
  * so `visible={false}` renders nothing and leaves no canvas behind.
  *
  * @param {Object} props
- * @param {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'} [props.variant='snow']
+ * @param {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'|'stars'} [props.variant='snow']
  *   `snow` falls slowly with a narrow sway; `sakura` falls with wind drift,
  *   wide swings and per-petal spin; `bubble` rises with a gentle wobble;
  *   `steam` is fog's vertical twin: huge diffuse banks that rise slowly and
  *   condense and evaporate at the edges;
  *   `rain` falls fast as thin wind-slanted streaks; `fog` banks slide
  *   sideways as huge diffuse masses that condense and evaporate at the
- *   edges; `leaves` tumble down in wind-driven zigzags, each spinning.
+ *   edges; `leaves` tumble down in wind-driven zigzags, each spinning;
+ *   `stars` is a pinned field of points that only varies in brightness —
+ *   nothing crosses the frame, and `speed` scales the twinkle.
  *   Invalid values fall back to `snow`.
  * @param {boolean} [props.visible=true]     Render nothing when false.
  * @param {string} [props.colorHex]          `#rrggbb`. Every variant except

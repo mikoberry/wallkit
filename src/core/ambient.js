@@ -22,7 +22,16 @@
 
 import { isHexColor } from './audio.js'
 
-export const AMBIENT_VARIANTS = ['snow', 'sakura', 'bubble', 'steam', 'rain', 'fog', 'leaves']
+export const AMBIENT_VARIANTS = [
+  'snow',
+  'sakura',
+  'bubble',
+  'steam',
+  'rain',
+  'fog',
+  'leaves',
+  'stars',
+]
 
 export const AMBIENT_SIZE_MIN = 20
 export const AMBIENT_SIZE_MAX = 300
@@ -78,7 +87,8 @@ export const AMBIENT_TWINKLE = 9
  * component scales it by the viewport and by its `size` prop.
  *
  * @type {Record<string, {
- *   count: number, max: number, color: string, direction: 'down'|'up'|'side',
+ *   count: number, max: number, color: string,
+ *   direction: 'down'|'up'|'side'|'still',
  *   baseSize: number, travel: [number, number], swayAmp: [number, number],
  *   swayFreq: [number, number], drift: [number, number],
  *   size: [number, number], spin: [number, number],
@@ -211,6 +221,33 @@ export const AMBIENT_PRESETS = {
     alpha: [0.5, 0.9],
     twinkle: [0, 0.1],
   },
+  stars: {
+    // The odd one out: `direction: 'still'` means the field never crosses the
+    // frame. A sky that falls is snow — what moves in a real night sky is
+    // brightness, so the whole motion budget goes into the twinkle (see the
+    // stars branch in `ambientOffset`). `travel` is therefore unused and is
+    // filled with a constant so the parameter table stays well-formed.
+    count: 200,
+    max: 240,
+    color: '#e8efff',
+    direction: 'still',
+    baseSize: 3.6,
+    travel: [1, 1],
+    // Not zero: a pixel or two of scintillation is what stops a still field
+    // from reading as a flat overlay. Well under the noise floor of a
+    // moving wallpaper, and far too small to read as drift.
+    swayAmp: [0.0008, 0.0025],
+    swayFreq: [0.03, 0.09],
+    drift: [0, 0],
+    // Magnitude spread: most stars are small points, a handful are big enough
+    // to show the sprite's diffraction spikes.
+    size: [0.3, 1.7],
+    spin: [0, 0],
+    alpha: [0.15, 0.95],
+    // Cycles per second, as elsewhere — but here it is the shimmer rate, and
+    // the branch runs it through two incommensurate sines.
+    twinkle: [0.12, 0.55],
+  },
 }
 
 // Per-variant shuffle salt: switching style reshuffles the scatter instead of
@@ -223,7 +260,14 @@ const AMBIENT_SALTS = {
   rain: 0x3c6ef372,
   fog: 0x85c05c1a,
   leaves: 0xd3a2e91b,
+  stars: 0x6a09e5b3,
 }
+
+/**
+ * Upper end of the star radius range, used to correlate brightness with size:
+ * a big faint star reads as a smudge, not a star.
+ */
+const STAR_SIZE_MAX = AMBIENT_PRESETS.stars.size[1]
 
 /**
  * Upward variants rise from the bottom edge instead of falling. Only the
@@ -266,7 +310,7 @@ function span(next, range) {
 
 /**
  * @param {unknown} variant
- * @returns {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'} Always a variant the presets know about.
+ * @returns {'snow'|'sakura'|'bubble'|'steam'|'rain'|'fog'|'leaves'|'stars'} Always a variant the presets know about.
  */
 export function normalizeAmbientVariant(variant) {
   return AMBIENT_VARIANTS.includes(variant) ? variant : 'snow'
@@ -373,6 +417,32 @@ export function ambientOffset(variant, particles, offset, t, out = [0, 0, 0, 0])
   // the result stays correct for the negative values a wrapped phase produces.
   const raw = phase + t / travel
   const progress = raw - Math.floor(raw)
+
+  // Stars do not travel. The seeded point is returned as it is and the entire
+  // motion budget goes into brightness: a star is a fixed speck whose light
+  // arrives and goes, and the moment it translates it becomes a falling flake.
+  if (variant === 'stars') {
+    const twinkle = particles[offset + AMBIENT_TWINKLE]
+    const sizeFactor = particles[offset + AMBIENT_SIZE]
+    // Magnitude is tied to size. Drawn independently, the field fills up with
+    // large pale smudges, which is the one detail that breaks the illusion.
+    const magnitude = 0.45 + (0.55 * Math.min(1, sizeFactor / STAR_SIZE_MAX))
+    // Two incommensurate sines: one alone pulses like a beacon, a pair never
+    // repeats on a watchable timescale, which is what shimmer actually is.
+    const slow = 0.5 + 0.5 * Math.sin(t * twinkle * TAU + phase * TAU)
+    const fast = 0.5 + 0.5 * Math.sin(t * twinkle * 0.41 * TAU + phase * 5.7 * TAU)
+    const shimmer = slow * 0.66 + fast * 0.34
+    // Squared, so the star sits dim most of the time and flares briefly. A
+    // linear ramp reads as a slow pulse rather than a twinkle.
+    const flare = shimmer * shimmer
+    out[0] = x0 + Math.sin(t * swayFreq * TAU + phase * TAU) * swayAmp
+    // `phase` is a uniform draw, so it doubles as the seeded height: nothing
+    // scrolls, so there is no progress to compute.
+    out[1] = phase
+    out[2] = 0
+    out[3] = alpha * magnitude * (0.4 + 0.6 * flare)
+    return out
+  }
 
   // Steam is fog's vertical twin: a bank anchored on one axis that crosses
   // the other, faded in and out by the life ramp instead of exiting the
