@@ -2282,7 +2282,7 @@ function LightFxDemo() {
           <span className="ctl ctl--note">
             <code>size</code> 省略时跟随变体（
             {LIGHT_VARIANTS.map((id) => `${id} ${LIGHT_PRESETS[id].size}`).join(' / ')}px）；
-            滑块的两端是<b>推荐区间</b>，组件并不夹——只要 > 0，4K/8K 想放大就放大。
+            滑块的两端是<b>推荐区间</b>，组件并不夹——只要 &gt; 0，4K/8K 想放大就放大。
             唯一的硬规矩是<b>不能 ≤ 0 或非数字</b>：那会让 <code>radial-gradient</code> 整条声明失效、
             光<b>整层消失</b>（不是变小），所以这种值直接回落预设。
             <code>rays</code> <b>不是亮度</b>，是「这盏灯里有多少比例走成光束」——0 就是一片平光，
