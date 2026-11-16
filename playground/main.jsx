@@ -1267,6 +1267,7 @@ function PointerFxDemo() {
           拖尾 + 点击共用一个覆盖层：把鼠标<b>移进下方格子</b>看拖尾，<b>在格子里点击</b>看点击特效。
           每个格子是一种拖尾 × 点击组合，共 {POINTER_COMBOS.length} 格，每行共用一种拖尾。
           <code>bubble</code> 和 <code>firework</code> 在<b>拖尾和点击两个通道都能用</b>：拖尾版小而稀疏、点击版饱满耐久，共用同一套绘制函数，差别只在预设；粒子都由种子逐帧重算、不存数组。
+          <code>heart</code> 是<b>点击专属</b>的「点赞」反应：点一下浮起一小簇爱心、飘升摆动渐隐，不参与拖尾通道。
           组件自己监听 <code>window</code> 的指针事件，坐标映射到各自盒子，
           盒子外的事件忽略；采样走预分配环形缓冲，<b>零 React 重渲染</b>，空闲时 rAF 自动停止。
           <code>size</code> 是两个通道共用的默认尺寸，打开「分别设定尺寸」后
@@ -1288,7 +1289,7 @@ function PointerFxDemo() {
           <span className="ctl ctl--note">
             拖尾：<code>{POINTER_TRAIL_VARIANTS.join(' / ')}</code> · 点击：
             <code>{POINTER_CLICK_VARIANTS.join(' / ')}</code>，
-            共 {POINTER_COMBOS.length} 格各展示一种组合（试试 <code>bubble + firework</code>）
+            共 {POINTER_COMBOS.length} 格各展示一种组合（试试 <code>bubble + firework</code>，或点一下 <code>heart</code>）
           </span>
         </Row>
 

@@ -10,6 +10,7 @@ import {
   POINTER_BUBBLES_PER_BURST,
   POINTER_BUBBLES_PER_SAMPLE,
   POINTER_CLICK_FIREWORK_PARTICLES,
+  POINTER_HEARTS_PER_BURST,
   POINTER_SPARKS_PER_BURST,
   POINTER_TRAIL_FIREWORK_PARTICLES,
   easeOutCubic,
@@ -18,6 +19,7 @@ import {
   pointerDecay,
   pointerFall,
   pointerFireworkSpark,
+  pointerHeart,
   pointerLife,
   pointerRise,
   pointerSpark,
@@ -75,6 +77,12 @@ const CLICK_FIREWORK = {
   streak: 6,
   core: true,
 }
+const CLICK_HEARTS = {
+  count: POINTER_HEARTS_PER_BURST,
+  spread: 40,
+  rise: 58,
+  sway: 10,
+}
 
 /**
  * Paint one deterministic bubble cluster at (x, y). Shared by both channels.
@@ -124,6 +132,59 @@ function paintBubbles(ctx, x, y, seed, progress, baseRadius, scale, gain, rgb, o
     ctx.beginPath()
     ctx.arc(px - r * 0.32, py - r * 0.34, Math.max(0.5, r * 0.22), 0, Math.PI * 2)
     ctx.fill()
+  }
+}
+
+/**
+ * Paint one deterministic heart cluster at (x, y). The click-only "like"
+ * reaction: hearts float up, drift apart, sway and spin gently as they fade.
+ * The heart path is drawn with two mirrored cubic Bézier lobes over a point, so
+ * the shape scales cleanly instead of relying on an emoji glyph (which would
+ * vary with the host font and can't take a canvas tint). Every heart is rebuilt
+ * from `pointerHeart(seed, index)` each frame, so nothing is stored.
+ *
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} x
+ * @param {number} y
+ * @param {number} seed
+ * @param {number} progress  0..1 through pointerLife('click', 'heart')
+ * @param {number} scale       Size multiplier for the click channel.
+ * @param {number} gain        Shared opacity multiplier.
+ * @param {[number, number, number]} rgb
+ * @param {typeof CLICK_HEARTS} opts
+ */
+function paintHearts(ctx, x, y, seed, progress, scale, gain, rgb, opts) {
+  // Quick pop-in so a fresh heart does not flash at full opacity, then a gentle
+  // fade across the rest of its flight.
+  const alpha = pointerDecay(progress, 1) * Math.min(1, progress * 8) * gain
+
+  for (let h = 0; h < opts.count; h += 1) {
+    const heart = pointerHeart(seed, h)
+    const rise = pointerRise(progress) * opts.rise * scale * heart.rise
+    const sway = Math.sin(progress * Math.PI * 2 + heart.phase)
+      * heart.sway * opts.sway * scale * progress
+    const px = x + heart.drift * opts.spread * scale * progress + sway
+    const py = y - rise
+    const size = Math.max(4, 15 * scale * heart.size * (0.75 + progress * 0.25))
+    const spin = heart.spin * progress * 2
+
+    ctx.save()
+    ctx.translate(px, py)
+    ctx.rotate(spin)
+    // A filled heart with a faint stroke edge, matching the bubble rim so the
+    // two read as siblings in the same effect family.
+    ctx.fillStyle = rgba(rgb, alpha * 0.85)
+    ctx.strokeStyle = rgba(rgb, alpha)
+    ctx.lineWidth = Math.max(0.7, 1.1 * scale)
+    ctx.beginPath()
+    // Two lobes + a point: the classic heart, parameterised by `size`.
+    ctx.moveTo(0, size * 0.35)
+    ctx.bezierCurveTo(size * 0.5, -size * 0.1, size * 0.5, -size * 0.65, 0, -size * 0.25)
+    ctx.bezierCurveTo(-size * 0.5, -size * 0.65, -size * 0.5, -size * 0.1, 0, size * 0.35)
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+    ctx.restore()
   }
 }
 
@@ -367,6 +428,11 @@ export function drawBursts(ctx, bursts, now, settings, rgb) {
 
     if (variant === 'bubble') {
       paintBubbles(ctx, x, y, seed, progress, 7, scale, gain, rgb, CLICK_BUBBLES)
+      continue
+    }
+
+    if (variant === 'heart') {
+      paintHearts(ctx, x, y, seed, progress, scale, gain, rgb, CLICK_HEARTS)
       continue
     }
 

@@ -11,6 +11,12 @@
 
 ### Added
 
+- **`PointerFx` 新增 `heart` 点击变体**（`clickVariant="heart"`）：**点击专属**的「点赞」反应——
+  点一下从点击点浮起一小簇爱心，向外漂散、微微摆动 + 轻旋、渐隐消失。爱心用两条镜像三次贝塞尔
+  曲线画成（不依赖 emoji 字形，可被 canvas 着色、随 `size` / `colorHex` / `intensity` 缩放），
+  每颗由 `pointerHeart(seed, index)` 逐帧确定性重算、不存粒子数组；`prefers-reduced-motion` 下
+  与其它点击变体一样退化成静态圆环。`heart` 只在点击通道生效，拖尾通道不变（`POINTER_CLICK_VARIANTS`
+  现为 `ripple / sparks / bubble / firework / heart`）。
 - **新增 `BurstFx` 组件**（`wallkit/components/burst-fx`）：**命令触发的一次性爆发特效**。
   这是 WallKit 里第三种特效层，也是**唯一接受命令式调用**的控件——`AmbientFx` 什么都不收、
   无限循环，`PointerFx` 采样指针事件，`BurstFx` 则每次由接入方**主动下一道命令**，播一段有限效果、

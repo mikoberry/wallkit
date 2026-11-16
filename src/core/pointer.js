@@ -15,7 +15,7 @@ import { isHexColor } from './audio.js'
 // scale and lifetime, never the drawing primitive. Kept as arrays so a picker
 // can enumerate them without duplicating the list at the call site.
 export const POINTER_TRAIL_VARIANTS = ['glow', 'ribbon', 'bubble', 'firework']
-export const POINTER_CLICK_VARIANTS = ['ripple', 'sparks', 'bubble', 'firework']
+export const POINTER_CLICK_VARIANTS = ['ripple', 'sparks', 'bubble', 'firework', 'heart']
 
 export const POINTER_FX_SIZE_MIN = 20
 export const POINTER_FX_SIZE_MAX = 300
@@ -39,6 +39,9 @@ export const POINTER_BUBBLES_PER_SAMPLE = 2
 export const POINTER_BUBBLES_PER_BURST = 7
 export const POINTER_CLICK_FIREWORK_PARTICLES = 20
 export const POINTER_TRAIL_FIREWORK_PARTICLES = 8
+// Hearts are a single deliberate click burst, so a handful is enough — a full
+// shower of hearts reads as a confetti replacement rather than a "like".
+export const POINTER_HEARTS_PER_BURST = 6
 
 // Seconds. Short enough that a stationary cursor leaves a clean canvas.
 export const POINTER_TRAIL_LIFE = 0.55
@@ -51,6 +54,9 @@ export const POINTER_TRAIL_BUBBLE_LIFE = 1.05
 export const POINTER_CLICK_BUBBLE_LIFE = 1.25
 export const POINTER_TRAIL_FIREWORK_LIFE = 0.8
 export const POINTER_CLICK_FIREWORK_LIFE = 1.35
+// Hearts float up and fade, a little longer than a bubble cluster so they read
+// as a lingering "like" rather than a pop.
+export const POINTER_CLICK_HEART_LIFE = 1.5
 // Reduced motion keeps a brief, non-expanding click marker instead of a trail.
 export const POINTER_REDUCED_LIFE = 0.18
 
@@ -245,6 +251,9 @@ export function pointerLife(channel, variant, reduced = false) {
   if (variant === 'firework') {
     return isTrail ? POINTER_TRAIL_FIREWORK_LIFE : POINTER_CLICK_FIREWORK_LIFE
   }
+  if (variant === 'heart') {
+    return isTrail ? POINTER_CLICK_HEART_LIFE : POINTER_CLICK_HEART_LIFE
+  }
   return isTrail ? POINTER_TRAIL_LIFE : POINTER_BURST_LIFE
 }
 
@@ -343,6 +352,40 @@ export function pointerFireworkSpark(seed, index, count = POINTER_CLICK_FIREWORK
     gravity: 0.5 + fine,
     tint: tintBits,
     twinkle: bits(mixed, 4, 0xff),
+  }
+}
+
+/**
+ * Deterministic rise / drift / size / wobble for one heart of a click burst.
+ * Hearts float up and gently apart — a "like" reaction — so they share the
+ * buoyant-float character of bubbles but carry their own shape, size and sway.
+ * The `index % 2` split mirrors `pointerBubble`: even indices are the larger
+ * leading hearts, odd ones are smaller companions, so a cluster reads varied
+ * instead of one big heart plus a crowd of clones.
+ *
+ * @param {number} seed  The burst's `seeds[slot]`.
+ * @param {number} index  0 .. count - 1
+ * @returns {{ drift: number, size: number, rise: number, sway: number,
+ *   spin: number, phase: number }}
+ */
+export function pointerHeart(seed, index) {
+  const mixed = hash32(seed ^ 0x6a7b9d3e, index)
+  const a = bits(mixed, 0, 0xffff)
+  const b = bits(mixed, 16, 0xffff)
+  const c = bits(mixed, 8, 0xff)
+  const d = bits(mixed, 24, 0xff)
+  const small = index % 2 !== 0
+  return {
+    // Hearts drift outward as they rise, the leading hearts spreading wider.
+    drift: (a * 2 - 1) * (small ? 0.55 : 1),
+    // Size in relative units; the leading hearts are larger.
+    size: (small ? 0.6 : 1) * (0.7 + b * 0.6),
+    // How high each heart floats, scaled by the cluster preset.
+    rise: 0.65 + c * 0.85,
+    // Gentle horizontal sway as it climbs, plus a slight rotation.
+    sway: 0.6 + d * 1.2,
+    spin: (a * 2 - 1) * 0.35,
+    phase: a * Math.PI * 2,
   }
 }
 

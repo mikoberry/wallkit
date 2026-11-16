@@ -82,10 +82,11 @@ function resolveRgb(colorHex, host) {
  *   `firework` emits sparse, short-lived mini bursts along the path (every 4th
  *   sample, so a fast cursor does not flood the canvas). Invalid values fall
  *   back to `glow`.
- * @param {'ripple'|'sparks'|'bubble'|'firework'} [props.clickVariant='ripple']
+ * @param {'ripple'|'sparks'|'bubble'|'firework'|'heart'} [props.clickVariant='ripple']
  *   `ripple` expands concentric rings; `sparks` scatters short-lived dots;
  *   `bubble` releases a fuller cluster of rising bubbles; `firework` bursts
- *   into glowing radial embers that fall under gravity, with a hot core.
+ *   into glowing radial embers that fall under gravity, with a hot core;
+ *   `heart` floats up a small cluster of hearts — a click-only "like" reaction.
  *   Invalid values fall back to `ripple`.
  *   `bubble` and `firework` are available on BOTH props; the channel only
  *   changes scale, density and lifetime. Try `bubble` + `firework` together.
