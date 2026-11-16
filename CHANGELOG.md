@@ -7,6 +7,53 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/)，只记录影响使用方的
 变化（新增能力 / 行为变化 / 破坏性改动），内部重构与纯文档修正从简。
 
+## 2026-11-16
+
+### Added
+
+- **新增 `BurstFx` 组件**（`wallkit/components/burst-fx`）：**命令触发的一次性爆发特效**。
+  这是 WallKit 里第三种特效层，也是**唯一接受命令式调用**的控件——`AmbientFx` 什么都不收、
+  无限循环，`PointerFx` 采样指针事件，`BurstFx` 则每次由接入方**主动下一道命令**，播一段有限效果、
+  播完自动消失。就是「点一下开关，撒彩带 / 喷水」的小游戏。
+  ```jsx
+  import { BurstFx } from 'wallkit/components/burst-fx'
+
+  const fx = useRef(null)
+  // 接入方在 project.json 挂个开关，用户点一下，应用层调：
+  <BurstFx ref={fx} />
+  fx.current.burst('confetti')                 // 彩带：右侧居中向左上 45° 喷出彩虹纸条
+  fx.current.burst('spray', { x: 0.5, y: 0.2, angle: -Math.PI / 4 })  // 喷水：指定原点与方向
+  ```
+  `burst(kind, opts)` 是组件通过 `ref` 暴露的命令：`kind` 为 `confetti` / `spray`，`opts` 可选
+  `{ x, y, angle, size, intensity, count, speed }`（0–1 归一化坐标 + 弧度 + 百分比 +
+  粒子数），**每一项都可单独覆盖、省略则回落组件 prop / 形态预设**——所以一次调用只改自己想改的
+  那一项，不会牵动别的触发。每次调用往预分配环形缓冲压一条记录，粒子由 `(seed, index)` 逐帧重算、
+  **不存粒子数组**，空闲时 rAF 自动停。
+- **三种形态**：`confetti`（彩虹纸条向上喷出、翻转 + 摆动 + 自转下落，庆祝语义）、`spray`
+  （扇形喷出液滴，带拖尾、抛物线坠落）、`yogurt`（黏稠团块甩出、拉丝坠落、比水更重更快落地）。
+  粒子数彩带 90 / 喷水 110 / 酸奶 60（默认），生命周期彩带 2.4s / 喷水 1.6s / 酸奶 1.9s
+  （`prefers-reduced-motion` 下缩短）。
+- **逐发可调**：`opts.size`（20–300%）、`opts.intensity`（0–300%）、`opts.count`（4–400）、
+  `opts.speed`（20–300%）在每次触发时单独覆盖，爆发记录按条存
+  `size` / `intensity` / `count` / `speed`，两发不同参数的爆发互不串扰；组件级
+  `size` / `intensity` / `speed` prop 只是命令未指定时的默认值。
+- **`intensity` 是「爆发力」，不是透明度**：它决定**初速度**，进而通过斜抛物理决定
+  **喷多远、喷多高**（强度越高初速度越大，射程越远、顶点越高；斜着发射比竖直发射更高——
+  这是抛物线的自然结果，`dy ∝ v₀·sinθ·t + ½·g·t²`）。对喷水还决定**聚散形态**：强度高时水柱
+  **一开始聚成一股、后段才破碎成水珠**（`burstBreakup` 把散开时间点往后推、且更陡），强度低时
+  一上来就是散水珠。彩带则让强度驱动「喷多高 + 撒多散」，保留纸片的飘落质感。
+- **配色**：彩带默认**内置彩虹多色**（`BURST_CONFETTI_PALETTE`，7 色，每片按种子取色）——单色彩带像 bug；
+  喷水默认水蓝 `#7fc8f0`，跟随 `--wallkit-accent`；喷酸奶默认乳白 `#f6efe0`（黏稠乳品色，非纯白）。
+  传 `colorHex` 则三者都换成单色。
+- **尺寸接口沿用其它特效层**：`size`（20–300%）、`intensity`（0–300%）、`speed`（20–300%）、
+  `visible`、`paused`。覆盖层铺满定位上下文（`position: absolute; inset: 0; pointer-events: none`），
+  没有 `anchor` / `offsetX` / `offsetY`；`z-index: 4` 与 `PointerFx` 平级。
+- **`paused` 时丢弃新命令并清空在飞记录**：暂停期间写入的时间戳会远在过去，恢复时不能画出一片
+  已经过期的爆发，所以冻结时 `burst()` 直接 return、恢复时先清一次。
+- **playground 画廊新增 BurstFx 页**：hero 大画面放「触发彩带 / 触发喷水 / 触发喷酸奶」三个命令按钮
+  + 尺寸 / 强度 / 颜色 / 显示 / 暂停滑块；下面三格各放一个实例，每格带一个「放一发」按钮，用于单独观察。
+  侧栏 `COMPONENTS` 与 `App` 分支已加 `burst` 入口。
+
 ## 2026-11-15
 
 ### Added

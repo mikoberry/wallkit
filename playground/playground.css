@@ -650,3 +650,66 @@ body {
   color: #cbd6ea;
   font-weight: 600;
 }
+
+/* BurstFx is judged at wallpaper scale, and a burst is a full-height fountain,
+ * so the hero is a tall, wall-sized box — a 260px cell cannot show a confetti
+ * cone falling out. The grid below keeps the furniture off and gives each kind
+ * its own stage so a single fire can be watched in isolation. */
+.burst-hero-cell {
+  margin-bottom: 20px;
+}
+
+.burst-hero {
+  height: 460px;
+  background:
+    radial-gradient(circle at 50% 118%, rgba(122, 162, 255, 0.22), transparent 58%),
+    linear-gradient(170deg, #141b2e 0%, #0e1424 60%, #070b14 100%);
+}
+
+/* Stand-in for the control layer text, same role as the light probe: it shows
+ * the burst passes behind nothing and does not flatten the type. */
+.burst-probe {
+  position: absolute;
+  left: 24px;
+  bottom: 22px;
+  z-index: 5;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #dce4f6;
+  pointer-events: none;
+}
+
+/* A real fire button inside each cell. Unlike the gallery's other overlays this
+ * one is inert (`pointer-events: none` on the canvas), so the button has to sit
+ * above it and carry its own pointer events. */
+.burst-fire {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #e8ecf8;
+  background: rgba(26, 32, 48, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.burst-fire:hover {
+  border-color: rgba(125, 211, 252, 0.7);
+  color: #7dd3fc;
+}
+
+.grid--burst {
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+}
+
+.grid--burst .stage {
+  height: 340px;
+}

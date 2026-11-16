@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useState } from 'react'
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Clock } from '../src/components/clock/index.js'
 import { Spectrum, SPECTRUM_STYLES } from '../src/components/spectrum/index.js'
@@ -48,6 +48,19 @@ import {
   FRAME_SIZE_MAX,
   formatTimecode,
 } from '../src/components/frame/index.js'
+import {
+  BurstFx,
+  BURST_SIZE_MIN,
+  BURST_SIZE_MAX,
+  BURST_INTENSITY_MIN,
+  BURST_INTENSITY_MAX,
+  BURST_COUNT_MIN,
+  BURST_COUNT_MAX,
+  BURST_SPEED_MIN,
+  BURST_SPEED_MAX,
+  BURST_DEFAULT_COLOR,
+  BURST_YOGURT_COLOR,
+} from '../src/components/burst-fx/index.js'
 import {
   LightFx,
   LIGHT_VARIANTS,
@@ -110,6 +123,7 @@ const COMPONENTS = [
   { id: 'spotlight', label: 'Spotlight', hint: '跟随鼠标的聚光灯' },
   { id: 'frame', label: 'Frame', hint: 'REC 取景框' },
   { id: 'light', label: 'LightFx', hint: '天气光照层' },
+  { id: 'burst', label: 'BurstFx', hint: '命令触发的一次性爆发特效' },
 ]
 
 // Every trail / click combination gets its own cell. The lists come from the
@@ -2396,6 +2410,289 @@ function LightFxDemo() {
   )
 }
 
+const BURST_VARIANT_LABELS = {
+  confetti: '彩带 — 向上喷出彩虹纸条，翻转下落',
+  spray: '喷水 — 扇形喷出液滴，抛物线坠落',
+  yogurt: '喷酸奶 — 甩出黏稠团块，拉丝坠落',
+}
+
+// One burst is a commanded, finite effect, so the demo keeps a ref per cell and
+// fires it from a button. The hero owns the shared sliders; the grid cells each
+// hold their own instance so a burst can be inspected in isolation.
+const BURST_STAGES = [
+  { stage: 'stage--dark', kind: 'confetti', caption: 'confetti · 深色壁纸（彩虹最清楚）' },
+  { stage: 'stage--light', kind: 'spray', caption: 'spray · 亮色壁纸（水蓝高对比）' },
+  { stage: 'stage--photo', kind: 'yogurt', caption: 'yogurt · 彩色壁纸（乳白团块）' },
+]
+
+function BurstFxDemo() {
+  const [colorHex, setColorHex] = useState('#7fc8f0')
+  const [colorOn, setColorOn] = useState(false)
+  const [size, setSize] = useState(100)
+  const [intensity, setIntensity] = useState(100)
+  const [paused, setPaused] = useState(false)
+  const [visible, setVisible] = useState(true)
+
+  // Per-fire overrides for the hero: where it fires, how hard it launches, how
+  // many particles, how fast. Each is optional (omit to fall back to the
+  // component default), so the toggles gate whether the slider actually
+  // overrides.
+  const [posOn, setPosOn] = useState(false)
+  const [x, setX] = useState(1)
+  const [y, setY] = useState(0.5)
+  const [angle, setAngle] = useState(-135)
+  const [countOn, setCountOn] = useState(false)
+  const [count, setCount] = useState(120)
+  const [speedOn, setSpeedOn] = useState(false)
+  const [speed, setSpeed] = useState(100)
+
+  // One ref per hero burst; the grid cells fire their own fixed variant.
+  const heroRef = useRef(null)
+
+  const shared = {
+    visible,
+    paused,
+    size,
+    intensity,
+    ...(colorOn ? { colorHex } : {}),
+  }
+
+  const fire = (ref, kind) => {
+    if (!ref || !ref.current) return
+    const opts = {}
+    if (posOn) {
+      opts.x = x
+      opts.y = y
+      opts.angle = (angle * Math.PI) / 180
+    }
+    if (countOn) opts.count = count
+    if (speedOn) opts.speed = speed
+    ref.current.burst(kind, opts)
+  }
+
+  return (
+    <>
+      <header className="head">
+        <h1>BurstFx</h1>
+        <p className="hint">
+          一次性爆发特效：<b>不是指针、不是氛围、不是光照</b>，而是接入方<b>主动下命令</b>放一发，
+          播完自动消失——就是你想要的那个「点一下开关，撒彩带 / 喷水」的小游戏。
+          组件通过 <code>ref</code> 暴露一个 <code>burst(kind, opts)</code> 方法，调用即触发；
+          <code>kind</code> 是 <code>confetti</code> / <code>spray</code> / <code>yogurt</code>，<code>opts</code> 可选
+          <code>{'{'} x, y, angle, size, intensity, count, speed {'}'}</code>——位置（0–1）、
+          方向（弧度）、尺寸 / 强度 / 速度（百分比）、数量（粒子数），每一项都可单独覆盖、
+          省略就回落组件默认。
+          每次调用往预分配环形缓冲里压一条记录，粒子由 <code>(seed, index)</code> 逐帧重算、
+          <b>不存粒子数组</b>，空闲时 rAF 自动停。<b>不查背景、不读 <code>window.wallpaper*</code></b>。
+          <code>visible=false</code> 不渲染 DOM，<code>paused</code> 冻结并丢弃新命令。
+          彩带默认是<b>内置彩虹多色</b>（庆祝语义），传 <code>colorHex</code> 才换成单色；
+          喷水默认水蓝、喷酸奶默认乳白，同样都可被 <code>colorHex</code> 覆盖。
+        </p>
+      </header>
+
+      <section className="panel">
+        <Row title="命令">
+          <button type="button" className="ctl ctl--btn" onClick={() => fire(heroRef, 'confetti')}>
+            触发彩带 burst('confetti')
+          </button>
+          <button type="button" className="ctl ctl--btn" onClick={() => fire(heroRef, 'spray')}>
+            触发喷水 burst('spray')
+          </button>
+          <button type="button" className="ctl ctl--btn" onClick={() => fire(heroRef, 'yogurt')}>
+            触发喷酸奶 burst('yogurt')
+          </button>
+          <span className="ctl ctl--note">
+            下方 hero 大画面里放；点完看它喷出去、落下、自己停掉
+          </span>
+        </Row>
+
+        <Row title="表现（默认值，每次触发可单独覆盖）">
+          <label className={`ctl ${colorOn ? '' : 'ctl--off'}`}>
+            <span className="ctl__label">
+              颜色 colorHex <b>{colorOn ? colorHex : '(彩虹 / 水蓝)'}</b>
+            </span>
+            <input
+              type="color"
+              value={colorHex}
+              disabled={!colorOn}
+              onChange={(e) => setColorHex(e.target.value)}
+            />
+          </label>
+          <Toggle label="覆盖颜色" on={colorOn} onChange={setColorOn} />
+          <Slider
+            label="尺寸 size"
+            value={size}
+            min={BURST_SIZE_MIN}
+            max={BURST_SIZE_MAX}
+            step={10}
+            suffix="%"
+            onChange={setSize}
+          />
+          <Slider
+            label="强度 intensity"
+            value={intensity}
+            min={BURST_INTENSITY_MIN}
+            max={BURST_INTENSITY_MAX}
+            step={10}
+            suffix="%"
+            onChange={setIntensity}
+          />
+          <span className="ctl ctl--note">
+            <code>size</code> 与 <code>intensity</code> 是<b>组件级默认值</b>——每次
+            <code>burst(kind, opts)</code> 都能用 <code>opts.size</code> / <code>opts.intensity</code>{' '}
+            单独覆盖那一发，不覆盖就回落这里。<code>size</code> 只缩放粒子大小与线宽；
+            <code>intensity</code> 是<b>爆发力</b>：决定初速度，进而通过斜抛物理决定喷多远、喷多高，
+            以及喷水是「先聚成一股、后段才散成水珠」（强度高）还是「一上来就散」（强度低）。
+          </span>
+        </Row>
+
+        <Row title="位置 / 方向（opts.x / y / angle，可选覆盖）">
+          <Toggle label="覆盖位置与方向" on={posOn} onChange={setPosOn} />
+          <Slider
+            label="原点 x"
+            value={Math.round(x * 100)}
+            min={0}
+            max={100}
+            step={5}
+            suffix="%"
+            disabled={!posOn}
+            onChange={(v) => setX(v / 100)}
+          />
+          <Slider
+            label="原点 y"
+            value={Math.round(y * 100)}
+            min={0}
+            max={100}
+            step={5}
+            suffix="%"
+            disabled={!posOn}
+            onChange={(v) => setY(v / 100)}
+          />
+          <Slider
+            label="方向 angle"
+            value={angle}
+            min={-180}
+            max={180}
+            step={5}
+            suffix="°"
+            disabled={!posOn}
+            onChange={setAngle}
+          />
+          <span className="ctl ctl--note">
+            <code>x</code> / <code>y</code> 是 0–1 归一化坐标（<code>x=1</code> 是右边、<code>y=0.5</code> 是垂直居中），
+            <code>angle</code> 是弧度（<code>-135°</code> = 向左上 45°）。不开「覆盖」时用默认
+            （右侧居中、向左上 45° 喷）；开了之后每个按钮都会从你设的点、朝你设的方向喷。
+          </span>
+        </Row>
+
+        <Row title="数量（opts.count，可选覆盖）">
+          <Toggle label="覆盖数量" on={countOn} onChange={setCountOn} />
+          <Slider
+            label="粒子数 count"
+            value={count}
+            min={BURST_COUNT_MIN}
+            max={BURST_COUNT_MAX}
+            step={10}
+            suffix=""
+            disabled={!countOn}
+            onChange={setCount}
+          />
+          <span className="ctl ctl--note">
+            <code>opts.count</code> 覆盖这一发的粒子数（范围 {BURST_COUNT_MIN}–{BURST_COUNT_MAX}）；
+            不覆盖则用形态默认（彩带 90 / 喷水 110）。<code>size</code> 不改变粒子数，只改变大小与线宽。
+          </span>
+        </Row>
+
+        <Row title="速度（opts.speed，可选覆盖）">
+          <Toggle label="覆盖速度" on={speedOn} onChange={setSpeedOn} />
+          <Slider
+            label="速度 speed"
+            value={speed}
+            min={BURST_SPEED_MIN}
+            max={BURST_SPEED_MAX}
+            step={10}
+            suffix="%"
+            disabled={!speedOn}
+            onChange={setSpeed}
+          />
+          <span className="ctl ctl--note">
+            <code>opts.speed</code> 缩放整发的<b>时间轴</b>，快慢只改变节奏（喷得快、死得也快），
+            粒子参数与弹道不变——它和 <code>intensity</code>（决定初速度/弹道/聚散形态）是两回事。
+            不覆盖则回落组件 prop（默认 100%）。
+          </span>
+        </Row>
+
+        <Row title="运行">
+          <Toggle label="显示 visible" on={visible} onChange={setVisible} />
+          <Toggle label="暂停 paused" on={paused} onChange={setPaused} />
+        </Row>
+      </section>
+
+      <figure className="cell burst-hero-cell">
+        <div className="stage stage--b burst-hero">
+          <BurstFx {...shared} ref={heroRef} />
+          <p className="burst-probe">点上面的「触发」按钮，彩带 / 喷水 / 喷酸奶就在这里喷出</p>
+        </div>
+        <figcaption>hero：命令、尺寸、强度、颜色都在这一格里生效</figcaption>
+      </figure>
+
+      <section className="grid grid--burst">
+        {BURST_STAGES.map((entry) => (
+          <BurstCell
+            key={`${entry.stage}-${entry.kind}`}
+            entry={entry}
+            kind={entry.kind}
+            shared={shared}
+          />
+        ))}
+      </section>
+
+      <footer className="foot">
+        库的默认值：<code>kind="confetti"</code>（<code>burst()</code> 首个参数，非法值回落彩带）、
+        <code>size=100</code>、<code>intensity=100</code>、<code>colorHex</code> 省略时彩带用彩虹、
+        喷水用 <code>--wallkit-accent</code>（默认 <code>{BURST_DEFAULT_COLOR}</code>）、
+        喷酸奶用乳白 <code>{BURST_YOGURT_COLOR}</code>、<code>visible=true</code>、<code>paused=false</code>。
+        <code>burst(kind, opts)</code> 的 <code>opts</code> 可逐发覆盖
+        <code>x</code> / <code>y</code>（0–1）、<code>angle</code>（弧度）、<code>size</code> /
+        <code>intensity</code>（百分比）、<code>count</code>（粒子数 {BURST_COUNT_MIN}–
+        {BURST_COUNT_MAX}）、<code>speed</code>（节奏 {BURST_SPEED_MIN}–
+        {BURST_SPEED_MAX}%）；每一项省略就回落组件 prop / 形态预设，所以一次调用只改自己想改的那一项。
+        覆盖层铺满定位上下文（<code>position: absolute; inset: 0</code>），没有
+        <code>anchor</code> / <code>offsetX</code> / <code>offsetY</code>；层级
+        <code>z-index: 4</code> 与 <code>PointerFx</code> 平级。
+        生命周期：彩带 <code>{'2.4'}</code>s、喷水 <code>{'1.6'}</code>s、喷酸奶 <code>{'1.9'}</code>s
+        （<code>prefers-reduced-motion</code> 下缩短），粒子数默认彩带 <code>90</code> / 喷水
+        <code>110</code> / 喷酸奶 <code>60</code>；<code>size</code> 只缩放粒子大小、
+        <code>intensity</code> 决定初速度（进而喷多远 / 多高 / 聚散形态）、<code>speed</code> 只缩放节奏，
+        三者独立。
+        这是 WallKit 里<b>唯一一个接受命令式调用</b>的控件——因为爆发是一次「事件」，不是数据；
+        接入方在 <code>project.json</code> 里挂个开关，用户点一下，应用层调
+        <code>ref.current.burst('confetti')</code> 即可。WE 桌面壁纸本身不投递鼠标事件，所以这个开关
+        要接在引擎的用户属性（<code>wallpaperPropertyListener</code>）上，而不是靠指针点击。
+      </footer>
+    </>
+  )
+}
+
+function BurstCell({ entry, kind, shared }) {
+  const ref = useRef(null)
+  return (
+    <figure className="cell">
+      <div className={`stage ${entry.stage}`}>
+        <BurstFx {...shared} ref={ref} />
+        <button
+          type="button"
+          className="burst-fire"
+          onClick={() => ref.current && ref.current.burst(kind)}
+        >
+          放一发 {BURST_VARIANT_LABELS[kind].split(' ')[0]}
+        </button>
+      </div>
+      <figcaption>{entry.caption}</figcaption>
+    </figure>
+  )
+}
+
 function App() {
   const [active, setActive] = useState('clock')
 
@@ -2437,6 +2734,7 @@ function App() {
         {active === 'spotlight' && <SpotlightDemo />}
         {active === 'frame' && <FrameDemo />}
         {active === 'light' && <LightFxDemo />}
+        {active === 'burst' && <BurstFxDemo />}
       </main>
     </div>
   )

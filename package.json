@@ -18,6 +18,7 @@
     "./components/spotlight": "./src/components/spotlight/index.js",
     "./components/frame": "./src/components/frame/index.js",
     "./components/light-fx": "./src/components/light-fx/index.js",
+    "./components/burst-fx": "./src/components/burst-fx/index.js",
     "./project": "./src/project/index.js",
     "./we": "./src/we/index.js",
     "./we/vite": "./src/we/vite-plugin.js",
