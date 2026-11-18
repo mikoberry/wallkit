@@ -1,35 +1,37 @@
 # WallKit
 
-Wallpaper Engine 网页壁纸的**控件浮层库**。
+Reusable control overlays for Wallpaper Engine web wallpapers.
 
-提供时钟、音频频谱、专辑卡片、指针特效等可复用控件，叠加在壁纸背景之上。不包含背景渲染，不包含音频 / 媒体数据采集。
+Clocks, audio spectrums, album cards, pointer effects and more, layered on top of a wallpaper background. WallKit does **not** render the background and does **not** collect audio or media data.
 
----
-
-## 定位
-
-```
-背景层（Spine / Live2D / video …）   ← 各游戏仓库自己实现
-外壳层（WE 集成、部署脚本）           ← 各游戏仓库自建，走同一份模板
-控件浮层（Clock / Spectrum / …）     ← WallKit 负责
-数据采集（音频帧、媒体信息）          ← 各项目自己构建
-```
-
-**只做展示。** 组件接收纯数据 props，不读全局状态，不感知背景是什么。
-
-### 不包含
-
-- Spine / Live2D / WebGL 背景渲染
-- 音频与媒体数据采集
-- 设置抽屉、国际化
-- 普通浏览器支持（浏览器读不到系统音频与媒体信息；`PointerFx` / `Spotlight` 只依赖指针事件，浏览器里可直接用，但库仍不为其它控件做浏览器降级）
-- npm 发布
+[中文文档](./README.zh-CN.md) · [Changelog](./CHANGELOG.md)
 
 ---
 
-## 使用方式
+## Scope
 
-WallKit 通过 GitHub git 引用分发，不发布 npm。
+```
+Background layer (Spine / Live2D / video …)   ← implemented in each game repo
+Shell layer (WE integration, deploy scripts)  ← built in each game repo
+Control overlay (Clock / Spectrum / …)        ← WallKit
+Data collection (audio frames, media info)    ← built by each project
+```
+
+**Rendering only.** Components take pure data props. They do not read global state and do not know what the background is.
+
+### Out of scope
+
+- Spine / Live2D / WebGL background rendering
+- Audio and media data collection
+- Settings drawers, internationalization
+- General browser support for every widget (a browser cannot read system audio or media info; `PointerFx` and `Spotlight` only need pointer events and work in a browser, but the library does not provide browser fallbacks for the other widgets)
+- npm publishing
+
+---
+
+## Usage
+
+WallKit is distributed through a GitHub git reference; it is not published on npm.
 
 ```json
 {
@@ -39,7 +41,7 @@ WallKit 通过 GitHub git 引用分发，不发布 npm。
 }
 ```
 
-固定 `<commit-sha>` 即锁定行为；各 commit 改了什么见 [CHANGELOG.md](CHANGELOG.md)。
+Pinning `<commit-sha>` pins the behavior. See [CHANGELOG.md](./CHANGELOG.md) for what changed in each commit.
 
 ```jsx
 import { Clock } from 'wallkit/components/clock'
@@ -54,72 +56,68 @@ function Controls() {
     return () => clearInterval(id)
   }, [])
 
-  return (
-    <Clock
-      now={now}
-      labels={{ locale: 'zh-CN', weekday: '周四', aria: '当前时间与日期' }}
-    />
-  )
+  return <Clock now={now} />
 }
 ```
 
-数据由使用方构建。没有数据时组件不渲染——**不会用假数据兜底**。
+Data is built by the caller. When there is no data, a component renders nothing — **no fake data fallback**.
 
-`labels` 只承载**需要本地化的文本**，全部字段都是可选的：
+`labels` only carries **text that needs localization**; every field is optional:
 
-| 字段 | 作用 |
+| Field | Purpose |
 |---|---|
-| `locale` | 交给 `Intl` 决定月名与日期格式（默认 `en-GB`） |
-| `weekday` | 星期文本，覆盖 `Intl` 的结果 |
-| `dateWithWeekday` | 整行「日期 星期」，覆盖组件的拼接 |
-| `aria` | 无障碍名称 |
+| `locale` | Passed to `Intl` for month names and date formatting (default `en-GB`) |
+| `weekday` | Weekday text; overrides the `Intl` result |
+| `dateWithWeekday` | Whole "date + weekday" line; overrides the component's own concatenation |
+| `aria` | Accessible name |
 
-日期文本由组件内部的 `formatClockDateParts(now, locale)` 生成，**没有 `date` 或 `dateFormat` 字段**——格式交给 `Intl`，要完全自定义就传 `dateWithWeekday`。
+Date text is produced internally by `formatClockDateParts(now, locale)`; **there is no `date` or `dateFormat` field**. Formatting is delegated to `Intl`; pass `dateWithWeekday` for full control.
 
-### 常用配置
+### Common configuration
 
 ```jsx
-// 布局：card | bar | minimal | cyberpunk | infobar | split | poster | ring | segments | stamp
+// Placement: card | bar | minimal | cyberpunk | infobar | split | poster | ring | segments | stamp
 <Clock now={now} placement="minimal" />
-<Clock now={now} placement="ring" />      // 环形进度：外环一天、内环一小时
-<Clock now={now} placement="segments" />  // 三段进度条：时 / 分 / 秒
-<Clock now={now} placement="stamp" />     // 记录卡：日期 + 年内天数 + 周数
+<Clock now={now} placement="ring" />      // Ring progress: outer = day, inner = hour
+<Clock now={now} placement="segments" />  // Three segment bars: hours / minutes / seconds
+<Clock now={now} placement="stamp" />     // Log card: date + day of year + week
 
-// 主题：dark = 深色文字（配浅色壁纸），light = 浅色文字（配深色壁纸）
+// Theme: dark = dark text (for light wallpapers), light = light text (for dark wallpapers)
 <Clock now={now} theme="light" />
 
-// 位置：先选锚点，再从锚点向内偏移。0 = 完全贴角；偏移可以是 CSS 长度
+// Position: pick an anchor first, then offset inwards from it. 0 = flush to the corner;
+// offsets can also be CSS lengths.
 <Clock now={now} anchor="top-right" offsetX={4} offsetY={4} />
 <Clock now={now} anchor="top-left" offsetX="100px" offsetY="100px" />
-<Clock now={now} anchor="bottom-left" size={120} />   // 默认锚点
+<Clock now={now} anchor="bottom-left" size={120} />   // default anchor
 
-// 指针倾斜：false 关闭，或传对象调强度
+// Pointer tilt: false disables it, or pass an object to tune it
 <Clock now={now} tilt={false} />
 <Clock now={now} tilt={{ maxTilt: 25, speed: 4 }} />
 
-// 音频响应：beat 是使用方算好的 0..1 数值
+// Audio response: `beat` is a 0..1 value computed by the caller
 <Clock now={now} beat={bass} beatIntensity={150} beatCurve={1.2} />
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `now` | — | **必选**。`Date`，由使用方驱动，组件不持有定时器 |
-| `visible` | `true` | `false` 时不渲染 DOM（倾斜的 rAF 也停止） |
-| `placement` | `'card'` | 10 种布局之一，非法值回退 `card` |
-| `theme` | `'dark'` | `dark` = 深色文字（配浅色壁纸），`light` = 浅色文字。需与壁纸底色相配 |
-| `color` | — | `#rrggbb`，覆盖主文字色（优先于 `theme`），暗 / 淡两级文字从同一色派生。**布局强调色不受它影响**（`ring` / `segments` 的进度填充、`stamp` 刻线、`cyberpunk` 霓虹标题是刻意独立的另一色相）——要用文字同色或换强调色，在包裹层写 CSS 变量（`--wallkit-clock-seg-accent` / `--wallkit-clock-ring-accent` / `--wallkit-clock-stamp-accent` / `--wallkit-clock-cyber-accent`），变量继承进组件即生效 |
-| `use24Hour` | `true` | 12 / 24 小时制 |
-| `size` | `100` | 尺寸百分比，40–400 |
-| `anchor` | `'bottom-left'` | 贴哪个锚点：四角 + 四边中点 + 居中，共 9 个，见下方「锚点与偏移」 |
-| `offsetX` / `offsetY` | `0` | 从锚点**向内**的偏移。数字 = 视口百分比，字符串 = 任意 CSS 长度（`'100px'`）。0 完全贴边 |
-| `beat` | `0` | 音频节拍 0..1，由使用方算好传入。组件按帧缓动它，直接把原始值喂进来即可 |
-| `beatIntensity` | `100` | 音频响应的整体幅度，0–1000 |
-| `beatCurve` | `0.62` | 音频响应曲线，0.2–2。越小越平坦，越大越尖锐 |
-| `tilt` | `true` | `false` 关闭；`{ maxTilt, speed }` 调节；`maxTilt: 0` 等同关闭 |
-| `labels` | `{}` | `{ locale, weekday, dateWithWeekday, aria }`，见上文 |
-| `onToggleHourFormat` | — | 可选回调，参数为 `'12'` 或 `'24'` |
+| `now` | — | **Required.** A `Date`, driven by the caller; the component owns no timer |
+| `visible` | `true` | `false` renders no DOM (and stops the tilt rAF) |
+| `placement` | `'card'` | One of 10 layouts; invalid values fall back to `card` |
+| `theme` | `'dark'` | `dark` = dark text (light wallpaper), `light` = light text. Match the wallpaper background |
+| `color` | — | `#rrggbb`; overrides the main text color (wins over `theme`); dim/light text derived from it. **Layout accent colors are intentionally independent** (`ring` / `segments` progress fill, `stamp` ticks, `cyberpunk` neon title). To match or replace them, set CSS variables on a wrapper (`--wallkit-clock-seg-accent`, `--wallkit-clock-ring-accent`, `--wallkit-clock-stamp-accent`, `--wallkit-clock-cyber-accent`); they inherit into the component |
+| `use24Hour` | `true` | 12 / 24-hour clock |
+| `size` | `100` | Size percentage, 40–400 |
+| `anchor` | `'bottom-left'` | Anchor point: four corners + four edge midpoints + center (9 total); see "Anchors and offsets" below |
+| `offsetX` / `offsetY` | `0` | Offset **inwards** from the anchor. Number = percentage of the viewport; string = any CSS length (`'100px'`). 0 is fully flush |
+| `beat` | `0` | Audio beat 0..1, computed by the caller. The component eases it per frame, so raw values are fine |
+| `beatIntensity` | `100` | Overall amplitude of the audio response, 0–1000 |
+| `beatCurve` | `0.62` | Response curve, 0.2–2. Lower is flatter, higher is sharper |
+| `tilt` | `true` | `false` disables; `{ maxTilt, speed }` tunes it; `maxTilt: 0` also disables |
+| `labels` | `{}` | `{ locale, weekday, dateWithWeekday, aria }`, see above |
+| `onToggleHourFormat` | — | Optional callback, receives `'12'` or `'24'` |
 
-**锚点与偏移**：三个浮动控件（`Clock` / `Spectrum` / `AlbumArt`）用同一套定位。`anchor` 描述**两个点重合**：视口上的一个点，和控件上的同名点。`top-left` 把控件左上角钉在视口左上角；`center-left` 把控件左中点钉在视口左中点；`center` 让两个中心重合——所以两个不同尺寸的控件写同一个 `anchor` + 同一个 `offsetX` 就必然同心。
+**Anchors and offsets**: the three floating widgets (`Clock` / `Spectrum` / `AlbumArt`) share one positioning model. `anchor` means **two points coincide**: a point on the viewport and the same named point on the widget. `top-left` pins the widget's top-left corner to the viewport's; `center-left` pins the widget's left-middle to the viewport's; `center` aligns the two centers — so two differently sized widgets with the same `anchor` and `offsetX` are necessarily concentric.
 
 ```
 top-left    top-center    top-right
@@ -127,19 +125,19 @@ center-left    center     center-right
 bottom-left bottom-center bottom-right
 ```
 
-`offsetX` / `offsetY` 从锚点向内计：数字是视口百分比，字符串是任意 CSS 长度（`'100px'`）。所以 `0` 永远等于“完全贴边”，把控件从左边换到右边不需要改偏移量的正负。居中轴上偏移是**带符号的位移**（正 = 右 / 下），这是唯一会用负值的方向；`offset` 一律支持负值，用于有意让控件出血到屏幕外。`ANCHORS` 从 `wallkit/core` 导出，按行排列，可直接拿来生成 3×3 选择器。
+`offsetX` / `offsetY` are measured inwards from the anchor: numbers are viewport percentages, strings are any CSS length (`'100px'`). `0` always means fully flush, so moving a widget from the left edge to the right does not require flipping the sign. On the centered axis the offset is a **signed displacement** (positive = right / down); that is the only direction where negatives are normally useful. Negative offsets are always allowed, e.g. to bleed a widget off-screen. `ANCHORS` is exported from `wallkit/core` in row order, ready for a 3×3 picker.
 
-这套组合能表达三种常用几何：
+This combination expresses three common geometries:
 
 ```jsx
-// 贴底满宽：宽度交给视口，厚度固定
+// Full-width, bottom-docked: the viewport owns the width, the height is fixed
 <Spectrum bars={bars} anchor="bottom-center" width="100vw" height="14vh" />
 
-// 距角固定像素：偏移量用 CSS 长度
+// Fixed pixel distance from a corner: use a CSS length as the offset
 <Clock now={now} anchor="top-left" offsetX="100px" offsetY="100px" />
 
-// 同心：两个控件钉在同一个点，尺寸各写各的绝对长度
-// （vinyl 自带外圈频谱，不需要再叠；这里用 classic 圆盘 + 外部悬浮环）
+// Concentric: same anchor, independent absolute sizes
+// (vinyl has its own ring spectrum, so use a classic disc + a separate floating ring)
 <AlbumArt track={track} anchor="center" offsetX={-30} size="34vh" />
 <Spectrum bars={bars} variant="ring" anchor="center" offsetX={-30} width="46vh" height="46vh" />
 ```
@@ -150,35 +148,35 @@ bottom-left bottom-center bottom-right
 import { Spectrum } from 'wallkit/components/spectrum'
 import { extractSpectrumBars } from 'wallkit/core'
 
-// 原始 128 帧（0..1）→ 128 根柱；没有数据时得到 null
+// Raw 128-frame array (0..1) → 128 bars; null when there is no data
 const bars = frame ? extractSpectrumBars(frame) : null
 
 <Spectrum bars={bars} variant="mirror" colorHex="#7dd3fc" size={100} />
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `bars` | — | **必选**。`Float32Array \| number[]`，各值 0..1。**长度即柱数**（规范 128）；`null` 时不渲染 |
-| `visible` | `true` | `false` 不渲染 DOM，也不启动绘制循环 |
+| `bars` | — | **Required.** `Float32Array \| number[]`, values 0..1. **Length = bar count** (128 by convention); `null` renders nothing |
+| `visible` | `true` | `false` renders no DOM and starts no draw loop |
 | `variant` | `'bars'` | `bars` / `mirror` / `curve` / `pill` / `ring` / `ringwave` / `dots` / `ripples` / `aurora` |
-| `colorHex` | — | 只接受 `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
-| `size` | `100` | 20–500。100 = 正常大小（条状基准 `30vw × 15vh`）。两轴同比缩放 |
-| `width` / `height` | — | 精确覆盖盒子尺寸，优先于 `size` 与各 variant 的规则。数字 = px，字符串 = 任意 CSS 长度。要“贴边满宽、厚度固定”就两个都给 |
-| `anchor` | `'bottom-left'` | 同 Clock，9 个锚点 |
-| `offsetX` / `offsetY` | `0` | 从锚点向内，0 完全贴边；可传 CSS 长度 |
-| `intensity` | `100` | 0–1000。100 = 原始柱高 |
-| `curve` | `1` | 0.2–2。响应曲线指数 |
-| `paused` | `false` | `true` 冻结画面（取消 rAF），保留控件在屏上 |
+| `colorHex` | — | Accepts `#rrggbb` only; falls back to `--wallkit-accent`, then `#a8c4ff` |
+| `size` | `100` | 20–500. 100 = normal size (base bar box `30vw × 15vh`); scales both axes |
+| `width` / `height` | — | Exact box override, wins over `size` and variant rules. Number = px, string = any CSS length. Supply both for "full-width, fixed-thickness" |
+| `anchor` | `'bottom-left'` | Same 9 anchors as `Clock` |
+| `offsetX` / `offsetY` | `0` | Inwards from the anchor, 0 = fully flush; CSS lengths accepted |
+| `intensity` | `100` | 0–1000. 100 = original bar height |
+| `curve` | `1` | 0.2–2. Response curve exponent |
+| `paused` | `false` | `true` freezes the image (cancels rAF) but keeps the widget on screen |
 
-**盒子规则分两组**：条状样式（`bars` / `mirror` / `curve` / `pill` / `dots`）用 `30vw × 15vh` 宽条；径向样式（`ring` / `ringwave` / `ripples` / `aurora`）强制方形 `min(30vw, 28vh)` 保正圆——所以同一 `size` 下环形显示范围比柱状小一圈，属刻意设计。`intensity` / `curve` 在绘制入口统一整形，九种样式行为一致；径向样式另有随时间的自转/涟漪/极光动画（`prefers-reduced-motion` 下冻结动画、保留电平响应）。
+**Box rules fall into two groups**: bar styles (`bars` / `mirror` / `curve` / `pill` / `dots`) use a wide `30vw × 15vh` box; radial styles (`ring` / `ringwave` / `ripples` / `aurora`) force a square `min(30vw, 28vh)` to stay circular — so at the same `size`, radial styles cover a smaller area by design. `intensity` / `curve` are applied once at the draw entry, so all nine styles behave consistently; radial styles also have time-based rotation / ripple / aurora animation (frozen under `prefers-reduced-motion`, with level response kept).
 
-**柱数不由组件决定**：要画更少/更多柱子，先 `resampleBars(bars, count)` 折叠再传入。九种样式都遵守这一条，`aurora` 也不例外——每根柱子就是一个光晕，128 根就是 128 道细光，折到 7 根才是那几条宽光带。`dots` 是唯一例外：它按画布宽度自动折成 6–48 列。
+**The component does not decide the bar count**: to draw fewer/more bars, call `resampleBars(bars, count)` before passing them in. All nine styles follow this rule, including `aurora` — each bar is one glow, so 128 bars are 128 thin rays and only 7 bars produce a few broad bands. `dots` is the exception: it folds itself into 6–48 columns based on canvas width.
 
-`visible` 与 `paused` 的区别：前者完全不渲染，后者保留画面但冻结，两者都停止绘制循环。
+`visible` vs `paused`: the former renders nothing, the latter keeps the image but freezes it; both stop the draw loop.
 
 ### MiniSpectrum
 
-填满父容器的频谱，**没有尺寸与位置 props**——盒子由父容器决定，所以能嵌进卡片。与 `Spectrum` 共用同一套绘制循环（`components/shared/`），像素完全一致，差别只在盒子怎么来的。
+A spectrum that fills its parent, with **no size or position props** — the box comes from the parent, so it can be embedded in a card. It shares the draw loop and renderer with `Spectrum` (`components/shared/`) and is pixel-identical; only the box source differs.
 
 ```jsx
 import { MiniSpectrum } from 'wallkit/components/mini-spectrum'
@@ -188,18 +186,18 @@ import { MiniSpectrum } from 'wallkit/components/mini-spectrum'
 </div>
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `bars` | — | **必选**。同 `Spectrum`；`null` 时不渲染 |
-| `variant` | `'bars'` | 同 `Spectrum` 的 9 种 |
-| `colorHex` | — | 同 `Spectrum` |
-| `barCount` | `32` | 折叠到几根柱子。小尺寸下 128 根会变成一条条线；传 `bars.length` 可关闭折叠 |
-| `intensity` / `curve` | `100` / `1` | 同 `Spectrum` |
-| `ringBase` | — | 仅 `ring` / `ringwave`：中心空白占半径的比例（0.05–0.98）。调大把柱子推到边缘——专辑卡的唱片环就是这么落到碟缘外侧、留出一圈空隙的。省略用渲染器默认 `0.46` |
-| `ringSpin` | `true` | 仅 `ring` / `ringwave`：环是否自转。父容器自己已经在转时传 `false`，否则两个转速会互相打架 |
-| `visible` / `paused` | `true` / `false` | 同 `Spectrum` |
+| `bars` | — | **Required.** Same as `Spectrum`; `null` renders nothing |
+| `variant` | `'bars'` | Same nine styles as `Spectrum` |
+| `colorHex` | — | Same as `Spectrum` |
+| `barCount` | `32` | Fold to this many bars. At small sizes 128 bars become thin lines; pass `bars.length` to disable folding |
+| `intensity` / `curve` | `100` / `1` | Same as `Spectrum` |
+| `ringBase` | — | `ring` / `ringwave` only: empty center as a fraction of the radius (0.05–0.98). Larger pushes bars towards the edge — this is how the album card's ring sits outside the record, with a gap. Omitted = renderer default `0.46` |
+| `ringSpin` | `true` | `ring` / `ringwave` only: whether the ring rotates. Pass `false` when the parent already animates, or the two speeds fight |
+| `visible` / `paused` | `true` / `false` | Same as `Spectrum` |
 
-> 父容器必须有确定高度，否则 `height: 100%` 会塌成 0。
+> The parent must have a definite height; otherwise `height: 100%` collapses to 0.
 
 ### AlbumArt
 
@@ -208,189 +206,183 @@ import { AlbumArt } from 'wallkit/components/album-art'
 
 <AlbumArt
   track={track}        // { title, artist, albumTitle, thumbnail, primaryColor, playback }
-  bars={bars}          // 可选，卡片内嵌频谱
+  bars={bars}          // optional embedded spectrum
   variant="classic"    // classic | glass | vinyl | minimal | type | bar | cassette | polaroid | cd | poster | ticket
-  theme="light"        // light = 浅色文字（深色壁纸），dark = 深色文字（浅色壁纸）
-  labels={{ aria: '正在播放' }}
+  theme="light"        // light = light text (dark wallpaper), dark = dark text (light wallpaper)
+  labels={{ aria: 'Now playing' }}
 />
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `track` | — | **必选**。`null` 时不渲染 |
-| `bars` | — | 可选。没有时卡片照常显示，只是少了频谱；预留槽位的布局（`bar` / `cassette` / `polaroid` / `ticket`）会连槽位一起收掉，`poster` 的均衡器区消失 |
-| `spectrum` | 按布局 | 是否画内嵌频谱。省略即跟随布局：`vinyl` 默认 `false`（干净碟面），其余默认 `true`。传 `true` 可把唱片的环形柱状频谱放回来，传 `false` 可让任何布局保持安静 |
-| `variant` | `'classic'` | 11 种布局；`type` 不渲染封面，`vinyl` 开了频谱后环形柱状图会画到 `size` 之外。列表见 `ALBUM_ART_VARIANTS` |
-| `theme` | `'light'` | 与 `Clock` 同一套约定：名字指文字色。`'dark'` 会把卡片自绘的表面（毛玻璃、胶囊、唱片标签）翻成浅色，并把默认 accent 压暗。纸面样式（磁带标签 / 拍立得 / 票根）用固定深色墨、海报用固定浅色墨，不随主题翻转 |
-| `colorHex` | — | **只作用于内嵌频谱**；卡片主色来自 `track.primaryColor`。默认 `--wallkit-accent` |
-| `size` | `100` | 数字：20–300（`ALBUM_ART_SIZE_MIN/MAX`），100 = 正常大小（封面直径基准 `18vh`）。字符串：封面直径的绝对长度（`'34vh'`），整张卡片都由它派生 |
-| `anchor` | `'bottom-left'` | 同 Clock / Spectrum，9 个锚点 |
-| `offsetX` / `offsetY` | `0` | 从锚点向内，0 完全贴边；可传 CSS 长度 |
-| `paused` | `false` | 停转封面并冻结频谱 |
-| `labels` | `{}` | `{ aria, coverAlt }`。`coverAlt` 原样使用（传 `''` 表示装饰图），否则回退到曲名、专辑名 |
+| `track` | — | **Required.** `null` renders nothing |
+| `bars` | — | Optional. Without it the card still renders, just without a spectrum; layouts with a reserved slot (`bar` / `cassette` / `polaroid` / `ticket`) drop the slot, and `poster` drops its equalizer area |
+| `spectrum` | By layout | Whether to draw the embedded spectrum. Omitted follows the layout: `vinyl` defaults to `false` (clean disc), all others to `true`. Pass `true` to restore the vinyl ring, `false` to silence any layout |
+| `variant` | `'classic'` | 11 layouts; `type` renders no cover; with a spectrum on, `vinyl`'s ring extends beyond `size`. See `ALBUM_ART_VARIANTS` |
+| `theme` | `'light'` | Same convention as `Clock`: the name describes the **text** color. `'dark'` also flips self-drawn surfaces (frosted glass, pills, record label) to light and darkens the default accent. Paper styles (cassette label / polaroid / ticket) use fixed dark ink, posters fixed light ink, and do not flip |
+| `colorHex` | — | **Embedded spectrum only**; the card's main color comes from `track.primaryColor`. Default `--wallkit-accent` |
+| `size` | `100` | Number: 20–300 (`ALBUM_ART_SIZE_MIN/MAX`), 100 = normal (base cover diameter `18vh`). String: absolute cover diameter (`'34vh'`), and the whole card derives from it |
+| `anchor` | `'bottom-left'` | Same as Clock / Spectrum, 9 anchors |
+| `offsetX` / `offsetY` | `0` | Inwards from the anchor, 0 = fully flush; CSS lengths accepted |
+| `paused` | `false` | Stops cover rotation and freezes the spectrum |
+| `labels` | `{}` | `{ aria, coverAlt }`. `coverAlt` is used verbatim (`''` means decorative), otherwise it falls back to track and album names |
 
-内嵌频谱的强度与曲线是**内部常量**（130 / 0.7），不暴露成 props：这组值是为卡片尺寸定的，放出去只能把它改坏；要调响应请直接用 `MiniSpectrum`。
+The embedded spectrum's intensity and curve are **internal constants** (130 / 0.7), not props: they are tuned for a card, and exposing them would only break that. Use `MiniSpectrum` directly to tweak the response.
 
-**两种"不渲染"**：`track == null` 不渲染；`track.playback === 'stopped'` 也不渲染。`playback === null` 表示**未知**，按正在播放处理——引擎只在切歌时推送，把未知当成停止会让封面永久消失。
+**Two ways to render nothing**: `track == null` renders nothing; `track.playback === 'stopped'` also renders nothing. `playback === null` means **unknown** and is treated as playing — the engine only pushes on track changes, so treating unknown as stopped would hide the cover permanently.
 
-十一种布局各自绑定频谱样式：classic→bars、glass→curve、vinyl→ring、minimal→bars、type→dots、bar→curve、cassette→bars、polaroid→dots、cd→curve、poster→bars、ticket→bars。**`vinyl` 是唯一默认不画频谱的布局**（省略 `spectrum` 就是一张干净唱片），要那条环就显式传 `spectrum`；反过来对所有布局传 `spectrum={false}` 也能一键静音。`vinyl` 的 `ring` 是一圈**从碟缘外侧向外长的柱子**：柱基与碟缘之间留 `0.03 ×` 直径的空隙（300px 唱片约 9px，安静时也保持），柱尖最大探出 `0.22 ×` 直径，所以柱子自身最长行程约 `0.19 ×` 直径；柱数固定 128（`VINYL_RING_BARS`）——取满整个频段，同样 32 根在直条上是正常密度、摊到整个圆周就成了稀疏栅栏（画布还是唱片的 1.44 倍），128 根在这条半径上刚好是几像素一根的连续电平表。为此覆盖层四周各向外出血 22%，所以开了频谱时这个布局的**视觉范围比 `size` 大一圈**——唱片本身和锚点都没变，只是光画到了盒子外面；贴边锚点（`offsetX/Y = 0`）会被视口裁掉柱尖。环是唱片元素的子节点，跟着 24s 一起转、一起暂停，因此对渲染器关了自转（`ringSpin={false}`），两者不会互相追。`type` 是纯排版布局：完全不渲染封面，唯一图形是封面主色（`track.primaryColor`）的竖线和底部一排淡频谱点，卡片高度随内容走。封面每 24s 转一圈，`prefers-reduced-motion` 下不转。
+Each layout binds a spectrum style: classic→bars, glass→curve, vinyl→ring, minimal→bars, type→dots, bar→curve, cassette→bars, polaroid→dots, cd→curve, poster→bars, ticket→bars. **`vinyl` is the only layout that skips the spectrum by default** (omitting `spectrum` gives a clean record); pass `spectrum` explicitly for the ring, or `spectrum={false}` on any layout to silence it. Vinyl's `ring` is a row of **bars growing outwards from the disc edge**: a gap of `0.03 ×` the diameter (about 9px at 300px, kept even at rest) separates the bar bases from the edge, and tips reach at most `0.22 ×` the diameter, so travel is about `0.19 ×` the diameter. The bar count is fixed at 128 (`VINYL_RING_BARS`) — the full frequency range; 32 bars are fine in a straight strip but become a sparse fence around a circle (the canvas is still 1.44× the record). The overlay bleeds 22% on every side, so with a spectrum on, this layout's **visual footprint is larger than `size`** — the record and anchor are unchanged, only the drawing leaves the box; an edge anchor (`offsetX/Y = 0`) will clip the bar tips. The ring is a child of the record element, inheriting its 24s rotation and pause, so its own spin is disabled (`ringSpin={false}`). `type` is pure typography: no cover at all, only a vertical line in the cover's primary color (`track.primaryColor`) and a faint row of spectrum dots at the bottom; the card height follows its content. The cover rotates once every 24s and stops under `prefers-reduced-motion`.
 
 ### PointerFx
 
-把鼠标拖尾和点击特效合成一个覆盖层，共用一块 canvas 和一条**按需** rAF 循环。父容器既决定尺寸，也决定指针坐标的原点。
+Pointer trails and click effects merged into one overlay, sharing a canvas and an **on-demand** rAF loop. The parent decides both the size and the origin of pointer coordinates.
 
 ```jsx
 import { PointerFx } from 'wallkit/components/pointer-fx'
 
-// 壁纸里：让定位上下文铺满视口，特效就铺满视口
+// In a wallpaper: make the positioning context fill the viewport
 <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
   <PointerFx trailVariant="glow" clickVariant="ripple" />
 </div>
 
-// 想更热闹：上浮气泡拖尾 + 点击烟花（两者叠在同一块 canvas 上）
-<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-  <PointerFx trailVariant="bubble" clickVariant="firework" />
-</div>
+// Busier: rising bubble trail + firework clicks (both on the same canvas)
+<PointerFx trailVariant="bubble" clickVariant="firework" />
 
-// 反过来也成立：气泡和烟花在拖尾、点击两个通道都能用
-<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-  <PointerFx trailVariant="firework" clickVariant="bubble" />
-</div>
+// The reverse works too: bubbles and fireworks are valid on both channels
+<PointerFx trailVariant="firework" clickVariant="bubble" />
 
-// 拖尾精细、点击张扬：两个通道分别设定尺寸
-<div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-  <PointerFx trailVariant="bubble" clickVariant="firework" trailSize={60} clickSize={180} />
-</div>
+// Fine trail, loud clicks: size each channel separately
+<PointerFx trailVariant="bubble" clickVariant="firework" trailSize={60} clickSize={180} />
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `visible` | `true` | `false` 不渲染 DOM |
-| `trail` / `click` | `true` | 分别开关拖尾与点击特效 |
-| `trailVariant` | `'glow'` | `glow` 柔光粒子 / `ribbon` 丝带轨迹 / `bubble` 气泡（小簇上浮、摆动）/ `firework` 烟花（沿途每 4 个采样点一朵小烟花，稀疏轻量） |
-| `clickVariant` | `'ripple'` | `ripple` 点击涟漪 / `sparks` 星尘碎点 / `bubble` 气泡（更饱满的一簇上浮）/ `firework` 烟花（中心闪光 + 20 道放射余烬 + 重力下坠） |
-| `colorHex` | — | `#rrggbb`；省略时读 `--wallkit-accent`，非法值回退 `#a8c4ff` |
-| `size` | `100` | 20–300，拖尾与点击**共用**的默认尺寸，缩放半径、位移与线宽 |
-| `trailSize` | 继承 `size` | 20–300，只覆盖拖尾通道；省略 / `null` / 非法值时回退到 `size` |
-| `clickSize` | 继承 `size` | 20–300，只覆盖点击通道；省略 / `null` / 非法值时回退到 `size` |
-| `intensity` | `100` | 0–300，不透明度百分比（仍是两个通道共用） |
-| `paused` | `false` | 冻结画面、丢弃新事件、停掉绘制循环 |
+| `visible` | `true` | `false` renders no DOM |
+| `trail` / `click` | `true` | Toggle trail and click effects independently |
+| `trailVariant` | `'glow'` | `glow` soft particles / `ribbon` ribbon trail / `bubble` small rising, swaying clusters / `firework` one small firework every 4 samples (sparse and light) |
+| `clickVariant` | `'ripple'` | `ripple` click ripple / `sparks` sparks / `bubble` fuller rising cluster / `firework` center flash + 20 radial embers with gravity / `heart` a small cluster of rising hearts (click only) |
+| `colorHex` | — | `#rrggbb`; falls back to `--wallkit-accent`, then `#a8c4ff` |
+| `size` | `100` | 20–300, shared default for trail and click; scales radius, displacement and line width |
+| `trailSize` | inherits `size` | 20–300, trail channel only; omitted / `null` / invalid falls back to `size` |
+| `clickSize` | inherits `size` | 20–300, click channel only; omitted / `null` / invalid falls back to `size` |
+| `intensity` | `100` | 0–300, opacity percentage (shared by both channels) |
+| `paused` | `false` | Freezes the image, discards new events, stops the draw loop |
 
-**它和另外四个控件有一处不同**：这是唯一自己采集输入的控件——在 `window` 上监听 `pointermove` / `pointerdown`，与 `Clock` 的 `tilt` 跟随用的是同一套先例（壁纸画布持有指针事件）。事件坐标会映射到覆盖层自身的盒子，落在盒子外的一律忽略，所以一页挂多个实例互不干扰。它**不读 `window.wallpaper*`、不感知背景层、也不生成假轨迹**。
+**It differs from the other widgets in one way**: this is the only control that collects its own input — it listens to `pointermove` / `pointerdown` on `window`, the same precedent as `Clock`'s tilt following (the wallpaper canvas owns pointer events). Coordinates are mapped to the overlay's own box; events outside it are ignored, so multiple instances on one page do not interfere. It **does not read `window.wallpaper*`**, does not inspect the background, and **never generates fake trails**.
 
-**`bubble` 和 `firework` 在两个通道里都能用**：`trailVariant` 与 `clickVariant` 各接受 4 种取值，共 16 种组合。渲染代码只有一套——`paintBubbles()` / `paintFirework()` 只认「原点 + 种子 + 归一化进度 + 预设」，拖尾与点击各自遍历自己的缓冲调用它，差别只在密度、尺寸和时长：拖尾每 1.2px 就有一个采样点，所以每点只出 2 个气泡、烟花每 4 个 slot 才出 1 朵且只有 8 道余烬；点击是单一事件，气泡出 7 个、烟花出 20 道并带热核。
+**`bubble` and `firework` work on both channels**: `trailVariant` takes four values and `clickVariant` five (adding `heart`), giving 20 combinations. There is still only one rendering path — `paintBubbles()` / `paintFirework()` take "origin + seed + normalized progress + preset"; each channel walks its own buffer and calls them, differing only in density, size and lifetime. Trails sample every 1.2px, so each sample emits 2 bubbles or one firework every 4 slots with 8 embers; a click is a single event, emitting 7 bubbles or a 20-ember firework with a hot core. `heart` is click-only: a few hearts rise, drift apart, sway and fade; they are drawn from two mirrored cubic Bézier curves (no emoji glyph, so canvas can tint them).
 
-高频采样写进预分配的环形缓冲，绘制循环只在有新事件时启动、最后一个粒子消亡后立即停止，**不触发任何 React 重渲染**。两种粒子形态也**不存数组**：每个采样点带一个种子，`pointerBubble()` / `pointerFireworkSpark()` 每帧按 `(seed, index)` 重算出同一批粒子，缓冲始终是固定大小。`pointerLife(channel, variant, reduced)` 集中管理 4 类时长（拖尾气泡 1.05s / 点击气泡 1.25s / 拖尾烟花 0.8s / 点击烟花 1.35s，另有扁平形态 0.55s / 0.72s），渲染器用它同时驱动动画与 `alive` 判断。烟花用 `globalCompositeOperation = 'lighter'` 让重叠的光点发亮而不是发灰，`pointerFall()` 做二次下坠。
+High-frequency samples go into a preallocated ring buffer; the loop only runs while something is alive and **causes no React re-renders**. Neither particle form stores an array: every sample carries a seed, and `pointerBubble()` / `pointerFireworkSpark()` / `pointerHeart()` recompute the same particles each frame from `(seed, index)`. `pointerLife(channel, variant, reduced)` centralizes all lifetimes and drives both animation and the `alive` check. Fireworks use `globalCompositeOperation = 'lighter'` so overlapping light adds up instead of graying out, and `pointerFall()` adds quadratic descent.
 
-**两个通道可以分别设定尺寸**：`size` 是共同默认值，`trailSize` / `clickSize` 各覆盖一个通道（`trailSize ?? size`、`clickSize ?? size`，三者都限制在 20–300）。`core` 的 `pointerSizeScale(value, fallback)` 把它们解析成 `trailScale` / `clickScale` 存进绘制设置；`drawTrail` 只读 `trailScale`、`drawBursts` 只读 `clickScale`，共用绘制函数接的是数值 `scale` 而不是整份 settings，所以渲染代码没有按通道复制。尺寸只乘到半径、位移和线宽上，**不改变覆盖层盒子、1.2px 的采样密度和生命周期**，放大点击特效不会连带放大拖尾。
+**The channels have separate sizes**: `size` is the shared default; `trailSize` / `clickSize` override one channel each (`trailSize ?? size`, `clickSize ?? size`, all clamped to 20–300). `pointerSizeScale(value, fallback)` in `core` resolves them into `trailScale` / `clickScale` in the draw settings; `drawTrail` reads only `trailScale`, `drawBursts` only `clickScale`, and shared paint functions take a numeric `scale` rather than the whole settings object, so no rendering code is duplicated per channel. Size only multiplies radius, displacement and line width — **not** the overlay box, the 1.2px sampling density or lifetimes.
 
-`prefers-reduced-motion` 下拖尾关闭，点击只留一个短暂的静态圆环（四种点击形态统一降级）。
+Under `prefers-reduced-motion` the trail is disabled and clicks degrade to a short static ring (all click variants).
 
-> **WE 环境提醒**：Wallpaper Engine 的桌面壁纸默认不向网页投递鼠标事件（`AGENTS.md` 里也记着「WE 里没有鼠标和键盘焦点」）。收不到事件时画布保持空白，这是正确行为。要在实机看到效果，需要在 WE 里为该壁纸开启鼠标交互；浏览器与 WE 预览窗口可直接看到。因此 `wallpaper.html` 测试页**没有**挂这个组件——那里按 8 秒自动轮换布局，本来也没有鼠标可点。
+> **WE note**: Wallpaper Engine desktop wallpapers do not deliver mouse events by default ("there is no mouse and keyboard focus in WE", as recorded in `AGENTS.md`). With no events the canvas stays blank, which is correct. To see the effect in a real wallpaper, enable mouse interaction for it in WE; the browser and WE preview window work directly. For this reason the `wallpaper.html` test page **does not** mount this component — it rotates layouts every 8 seconds and has no mouse to click anyway.
 
-覆盖层是 `position: absolute; inset: 0; pointer-events: none`，**没有** `anchor` / `offsetX` / `offsetY`——它铺满定位容器，位置由容器决定（`size` / `trailSize` / `clickSize` 只缩放笔触，不移动盒子）。父容器必须有确定尺寸且是定位上下文。局部 `z-index: 4`，需要压在别的控件之上时抬高父容器。
+The overlay is `position: absolute; inset: 0; pointer-events: none` and has **no** `anchor` / `offsetX` / `offsetY` — it fills its positioning context and the parent decides where it is (`size` / `trailSize` / `clickSize` only scale strokes). The parent needs a definite size and a positioning context. Local `z-index: 4`; raise the parent to place it above other widgets.
 
 ### AmbientFx
 
-全屏氛围粒子层：飘雪、樱花、上浮气泡、水蒸气、雨、雾、落叶。和 `PointerFx` 一样铺满定位容器，也**没有** `anchor` / `offsetX` / `offsetY`。
+A full-screen ambient particle layer: snow, sakura petals, rising bubbles, steam, rain, fog, falling leaves and stardust. Like `PointerFx`, it fills the positioning context and has **no** `anchor` / `offsetX` / `offsetY`.
 
 ```jsx
 import { AmbientFx } from 'wallkit/components/ambient-fx'
 
 <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-  <AmbientFx variant="snow" />          {/* 飘雪 */}
-  <AmbientFx variant="sakura" />        {/* 樱花瓣 */}
-  <AmbientFx variant="bubble" />       {/* 上浮气泡，跟随主题强调色 */}
-  <AmbientFx variant="steam" />        {/* 水蒸气：雾的竖直孪生，大团缓升 */}
-  <AmbientFx variant="rain" />         {/* 雨：高速细雨丝，随风斜落 */}
-  <AmbientFx variant="fog" />          {/* 雾：大团薄雾横向漂移 */}
-  <AmbientFx variant="leaves" />       {/* 落叶：之字翻滚、逐叶自转 */}
-  <AmbientFx variant="stars" />        {/* 星尘：满天星点，只闪不落 */}
-  <Clock now={now} />                  {/* 控件在它的上层 */}
+  <AmbientFx variant="snow" />          {/* falling snow */}
+  <AmbientFx variant="sakura" />        {/* cherry petals */}
+  <AmbientFx variant="bubble" />        {/* rising bubbles, following the theme accent */}
+  <AmbientFx variant="steam" />         {/* steam: the vertical twin of fog */}
+  <AmbientFx variant="rain" />          {/* fast, fine rain, slanted by wind */}
+  <AmbientFx variant="fog" />           {/* broad, thin mist drifting sideways */}
+  <AmbientFx variant="leaves" />        {/* tumbling leaves with per-leaf spin */}
+  <AmbientFx variant="stars" />         {/* starry sky: twinkle only, no falling */}
+  <Clock now={now} />                  {/* widgets sit above this layer */}
 </div>
 ```
 
-| 选项 | 默认 | 说明 |
+| Option | Default | Description |
 |---|---|---|
-| `variant` | `'snow'` | `snow` 匀速下落 + 窄幅横摆 / `sakura` 带风向偏移、大幅摆动、逐片自转 / `bubble` 匀速上浮 + 轻微摇摆 / `steam` 雾的竖直孪生：大团薄雾缓升、边缘淡入淡出 / `rain` 高速细雨丝、随风整体倾斜 / `fog` 大团薄雾横向漂移、边缘淡入淡出 / `leaves` 强风斜落、之字翻滚、逐叶自转 / `stars` 满天星点、位置固定只闪烁。非法值回退 `snow` |
-| `visible` | `true` | `false` 不渲染 DOM，也不留 canvas |
-| `colorHex` | — | `#rrggbb`。除 `bubble` 外每种形态都有自己的固有色（雪 `#dbe9ff` / 樱 `#f5b8cd` / 蒸气 `#eef1f4` / 雨 `#a8c0dc` / 雾 `#dfe6ee` / 落叶 `#d98a4f` / 星尘 `#e8efff`），只有 `bubble` 省略时才回退 `--wallkit-accent` |
-| `density` | `100` | 10–300，粒子数量的百分比（相对该形态的预设数量），只改数量不改尺寸 |
-| `size` | `100` | 20–300，粒子半径的缩放百分比 |
-| `intensity` | `100` | 0–300，不透明度百分比 |
-| `speed` | `100` | 20–300，运动速度百分比。缩放整层时钟：位移、摆动、生命期全部同步快慢；`stars` 没有位移，只加快闪烁 |
-| `paused` | `false` | 冻结画面并停掉绘制循环，最后一帧留在屏上 |
+| `variant` | `'snow'` | `snow` steady fall + narrow sway / `sakura` wind offset, wide sway, per-petal spin / `bubble` steady rise + slight sway / `steam` fog's vertical twin: big soft plumes rising slowly / `rain` fast fine streaks, slanted together by wind / `fog` broad thin mist drifting sideways / `leaves` falling at an angle, zig-zag tumble, per-leaf spin / `stars` fixed points that only twinkle. Invalid values fall back to `snow` |
+| `visible` | `true` | `false` renders no DOM and leaves no canvas |
+| `colorHex` | — | `#rrggbb`. Every form except `bubble` has its own fixed color (snow `#dbe9ff` / sakura `#f5b8cd` / steam `#eef1f4` / rain `#a8c0dc` / fog `#dfe6ee` / leaves `#d98a4f` / stars `#e8efff`); only `bubble` falls back to `--wallkit-accent` |
+| `density` | `100` | 10–300, particle count as a percentage of the preset; changes count only, not size |
+| `size` | `100` | 20–300, particle radius scale |
+| `intensity` | `100` | 0–300, opacity percentage |
+| `speed` | `100` | 20–300, motion speed. Scales the whole layer clock: displacement, sway and lifetime together; `stars` has no displacement, so only twinkling speeds up |
+| `paused` | `false` | Freezes the image and stops the loop, leaving the last frame on screen |
 
-**`stars` 是满天星点，不是飘落的粒子**：星点钉在画面上，只有明暗在变（两路不同频率的正弦叠加后取平方，所以是「偶尔一闪」而不是整片一起呼吸）；`speed` 只加快闪烁，`density` 默认 200 颗、上限 240。星点用加色叠加，只给画面加光、不会压暗背景；大星同时更亮，避免冒出一大片发灰的糊点。深色背景上效果最好。
-
-```jsx
-<AmbientFx variant="stars" density={160} intensity={130} />   {/* 更密的夜空 */}
-<AmbientFx variant="stars" speed={40} />                      {/* 近乎静止的慢闪 */}
-```
-
-**小雨 / 大雨（以及大雪小雪）不需要新的变体**，组合现有旋钮即可：
+**`stars` is a starry sky, not falling particles**: points are pinned to the picture and only their brightness changes (two incommensurable sine waves squared, so an occasional flash rather than a whole-sky breathe); `speed` only speeds up the twinkle, `density` defaults to 200 with a hard cap of 240. Stars use additive blending, so they only add light and never darken the wallpaper; larger stars are brighter too, to avoid a field of gray blobs. Best on dark backgrounds.
 
 ```jsx
-<AmbientFx variant="rain" density={45} size={75} intensity={60} speed={70} />   {/* 毛毛雨：稀、短、淡、慢 */}
-<AmbientFx variant="rain" />                                                    {/* 中雨：默认 */}
-<AmbientFx variant="rain" density={250} intensity={150} speed={160} />          {/* 暴雨：密、浓、急 */}
+<AmbientFx variant="stars" density={160} intensity={130} />   {/* denser night sky */}
+<AmbientFx variant="stars" speed={40} />                      {/* nearly still, slow twinkle */}
 ```
 
-**这一层不采集任何东西**：没有指针监听、没有音频、没有宿主回调。粒子的位置是 `(参数, 时间)` 的纯函数，所以整幅画面每帧从一张固定的参数表重算，**不存粒子数组**（`core/ambient.js` 的 `fillAmbientParticles()` 只写一次，绘制循环只读）。
+**Light / heavy rain (or snow) needs no new variant** — combine the existing knobs:
 
-由此带来三个实际好处：`paused` 只是停止推进时间，恢复时从原处继续、不会跳；窗口缩放后下一帧自动正确映射（位置全部归一化，不存像素）；连续跑十几个小时也不会有状态漂移。每个粒子的下落时长各不相同，所以不会出现「一排雪同时落下」的机械感。
+```jsx
+<AmbientFx variant="rain" density={45} size={75} intensity={60} speed={70} />   {/* drizzle: sparse, short, faint, slow */}
+<AmbientFx variant="rain" />                                                    {/* moderate rain: default */}
+<AmbientFx variant="rain" density={250} intensity={150} speed={160} />          {/* downpour */}
+```
 
-**软边不在绘制循环里算**：`shadowBlur` 和每帧新建渐变的开销在 60fps × 数小时下不可接受，所以每种形态只在离屏 canvas 里画一张 64px 精灵（`sprites.js`），绘制时只做 `drawImage` + 旋转（樱花用 `setTransform`，省掉每片的 `save` / `restore`）。
+**This layer collects nothing**: no pointer listeners, no audio, no host callbacks. Particle positions are pure functions of `(parameters, time)`, so each frame is recomputed from one fixed parameter table — **no particle array** (`fillAmbientParticles()` in `core/ambient.js` writes once; the draw loop only reads).
 
-`prefers-reduced-motion` 下只画一帧静止构图，不动。
+Three practical consequences: `paused` just stops advancing time, so resuming continues from the same place without a jump; after a resize the next frame maps correctly (positions are normalized, no stored pixels); and a run of many hours has no state drift. Each particle has a different fall duration, so there is no mechanical "row of snow landing together" look.
 
-`z-index: 1`，**在全部控件之下**（库的层级是 ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7），所以雪从时钟背后穿过，文字始终可读。**背景里已经有粒子时不要叠这一层**——WE 编辑器自带粒子效果层，两层不同步的雪比没有更难看；该不该显示由应用层决定，用 `visible` 关掉。
+**Soft edges are not computed in the draw loop**: `shadowBlur` and per-frame gradients are too costly at 60fps for hours, so each form is pre-rendered once into a 64px offscreen sprite (`sprites.js`); drawing is only `drawImage` + rotation (sakura uses `setTransform`, skipping per-petal `save` / `restore`).
+
+Under `prefers-reduced-motion` a single static frame is drawn and nothing moves.
+
+`z-index: 1`, **below all widgets** (layer order: ambient 1 → light 2 → spectrum 3 → pointer/burst 4 → clock / album 5 → spotlight 6 → frame 7), so snow passes behind the clock and text stays readable. **Do not stack this layer when the background already has particles** — WE's editor has its own particle layer, and two out-of-sync snows look worse than none; visibility is the application's decision, use `visible` to turn it off.
 
 ### Spotlight
 
-跟随指针的聚光灯 / 关灯效果：一个亮圈跟着鼠标走，圈外被压暗。和 `PointerFx` / `AmbientFx` 一样铺满定位容器，**没有** `anchor` / `offsetX` / `offsetY`。
+A pointer-following spotlight / lights-out effect: a bright circle follows the mouse and darkens everything outside it. Like `PointerFx` / `AmbientFx`, it fills the positioning context and has **no** `anchor` / `offsetX` / `offsetY`.
 
 ```jsx
 import { Spotlight } from 'wallkit/components/spotlight'
 
-<Spotlight />                                      {/* 默认：直径 420、软边、圈外压暗 72% */}
-<Spotlight size={240} feather={0.1} />             {/* 小光斑 + 接近硬边 */}
-<Spotlight dim={0.92} glow={0.35} />               {/* 几乎全黑，只有光圈那点亮 */}
-<Spotlight darkColor="#0b1020" lightColor="#ffd9a0" />  {/* 夜色遮罩 + 暖光 */}
-<Spotlight smoothing={0} />                        {/* 逐事件直贴，连 rAF 都不开 */}
+<Spotlight />                                      {/* default: 420px circle, soft edge, 72% dim outside */}
+<Spotlight size={240} feather={0.1} />             {/* small spot, nearly hard edge */}
+<Spotlight dim={0.92} glow={0.35} />               {/* almost black, only the ring is lit */}
+<Spotlight darkColor="#0b1020" lightColor="#ffd9a0" />  {/* night mask + warm light */}
+<Spotlight smoothing={0} />                        {/* snap to each event, no rAF at all */}
 ```
 
-| prop | 默认 | 说明 |
+| prop | Default | Description |
 |---|---|---|
-| `size` | `420` | 光圈直径，px，80–3000 |
-| `feather` | `0.45` | 边缘软硬，占半径的比例 0–1；`0` 是硬边，`1` 的过渡区和一个光圈一样宽 |
-| `dim` | `0.72` | 圈外遮罩浓度 0–1 |
-| `glow` | `0.22` | 圈内高光强度 0–1；`screen` 混合，只提亮不遮盖，`0` 时不渲染高光层 |
-| `darkColor` | `'#000000'` | 暗部颜色（`#rrggbb`） |
-| `lightColor` | `'#ffffff'` | 高光颜色（`#rrggbb`） |
-| `smoothing` | `0.05` | 跟随延迟，时间常数（秒）0–0.5；`0` 逐事件直贴 |
-| `visible` | `true` | `false` 不渲染 DOM |
-| `paused` | `false` | 冻结画面并停止监听指针 |
+| `size` | `420` | Circle diameter in px, 80–3000 |
+| `feather` | `0.45` | Edge softness as a fraction of the radius, 0–1; `0` hard edge, `1` a transition as wide as the circle |
+| `dim` | `0.72` | Darkness outside the circle, 0–1 |
+| `glow` | `0.22` | Highlight inside the circle, 0–1; `screen` blend, brightens only, and the highlight layer is skipped at `0` |
+| `darkColor` | `'#000000'` | Dark color (`#rrggbb`) |
+| `lightColor` | `'#ffffff'` | Highlight color (`#rrggbb`) |
+| `smoothing` | `0.05` | Follow lag as a time constant in seconds, 0–0.5; `0` snaps per event |
+| `visible` | `true` | `false` renders no DOM |
+| `paused` | `false` | Freezes the image and stops listening to the pointer |
 
-**整层是两层 CSS 径向渐变，没有 canvas、没有绘制循环。** 鼠标移动只改写 `--wallkit-spotlight-x` / `-y` 两个 CSS 变量（百分比，窗口缩放后光圈不跑），零 React 重渲染；`smoothing: 0` 时连 rAF 都不开。
+**The whole layer is two CSS radial gradients — no canvas, no draw loop.** Pointer moves only rewrite `--wallkit-spotlight-x` / `-y` (percentages, so resizing keeps the circle in place) with zero React re-renders; at `smoothing: 0` no rAF is opened.
 
-**收到第一个指针事件前遮罩保持全透明**：WE 桌面壁纸默认不投递鼠标事件，若首帧就压黑，整张壁纸会黑屏。没有合成光标来「模拟」这件事——和 `PointerFx` 同一条原则。要在实机看到效果必须在 WE 里为该壁纸开启鼠标交互，浏览器 / 预览窗口可直接看。
+**The mask stays fully transparent until the first pointer event**: WE desktop wallpapers do not deliver mouse events by default, and starting fully dark would black out the wallpaper. There is no synthetic cursor "simulating" this — same principle as `PointerFx`. To see it in a real wallpaper, enable mouse interaction in WE; browser / preview window works directly.
 
-`z-index: 6`，**压在全部控件之上**（ambient 1 → spectrum 3 → 指针特效 4 → clock / album 5 → spotlight 6 → frame 7）：遮罩的意义就是把下面的一切压暗。想让时钟始终亮着，在自己的样式表里调低这个值。
+`z-index: 6`, **above all widgets** (ambient 1 → light 2 → spectrum 3 → pointer/burst 4 → clock / album 5 → spotlight 6 → frame 7): the point of a mask is to darken what is below. To keep the clock always lit, lower this value in your own stylesheet.
 
 ### Frame
 
-REC 相机式的取景框：四角括号 / 细线整框 / 翼型轨 / 胶片齿孔，可选三分网格、刻度尺、录制红点、四角读数与时间码。
+A REC-camera viewfinder: corner brackets / thin full frame / wing rails / film perforations, with optional rule-of-thirds grid, tick scale, red record dot, corner readouts and timecode.
 
-它装饰的是**整个画面**，铺满定位容器，所以**没有** `anchor` / `offsetX` / `offsetY`；也**没有子元素**——不要用它包住某个控件（给卡片加角饰请在应用层写两行 `border`）。
+It decorates **the whole picture**, fills the positioning context, and therefore has **no** `anchor` / `offsetX` / `offsetY` — and **no children**: do not wrap a widget in it (to add corner accents to a card, write two `border` lines in your app).
 
 ```jsx
 import { Frame, formatTimecode } from 'wallkit/components/frame'
 
-<Frame />                                     {/* 默认：四角括号，inset 28 */}
-<Frame variant="frame" grid="thirds" />       {/* 细线框 + 虚线安全框 + 三分网格 */}
-<Frame variant="bracket" ticks />             {/* 上下翼型轨 + 底部刻度尺 */}
-<Frame variant="film" theme="light" />        {/* 胶片齿孔；浅色线配深色壁纸 */}
+<Frame />                                     {/* default: corner brackets, inset 28 */}
+<Frame variant="frame" grid="thirds" />       {/* thin frame + dashed safe area + thirds grid */}
+<Frame variant="bracket" ticks />             {/* upper/lower wing rails + bottom tick scale */}
+<Frame variant="film" theme="light" />        {/* film perforations; light lines on a dark wallpaper */}
 
 <Frame
   rec="REC"
@@ -399,46 +391,127 @@ import { Frame, formatTimecode } from 'wallkit/components/frame'
 />
 ```
 
-`rec="REC"` 的红点与文字、`timecode` 的时间码、`labels` 的四角读数都是可选的：只写 `rec="REC"` 就只剩红点加文字，`timecode` 的内容完全由你算好传入（组件不计时），`labels` 里没有的角就空着。
+`rec="REC"`'s dot and text, `timecode` and the four `labels` are all optional: `rec="REC"` alone draws just the dot and text; timecode content is entirely computed by the caller (the component owns no timer); missing corners stay empty.
 
-| prop | 默认 | 说明 |
+| prop | Default | Description |
 |---|---|---|
-| `variant` | `'corners'` | `corners` / `frame` / `bracket` / `film`；非法值回退 `corners` |
-| `inset` | `28` | 框线距画面边缘，px，0–240 |
-| `thickness` | `1.5` | 线宽，px，0.5–8。默认不是 1：WE 跑在桌面 DPR 下，1px 线会糊成灰边 |
-| `length` | `56` | 括号臂长，px，0–240；`frame` / `film` 不用 |
-| `size` | `1` | 统一倍率，同乘 `inset` / `thickness` / `length` 与字号，0.5–3 |
-| `color` | — | `#rrggbb` 覆盖线色，优先于 `theme` |
-| `grid` | `'none'` | `'none'` / `'thirds'` / `'cross'`；`true` 等于 `thirds` |
-| `ticks` | `false` | 底边刻度尺 |
-| `rec` | `false` | `true` 只画红点；传字符串额外画该文本（如 `rec="REC"`） |
-| `timecode` | `''` | 已格式化字符串，空则不显示 |
-| `labels` | — | `{ tl, tr, bl, br }`，逐项字符串，空项不渲染 |
-| `theme` | `'dark'` | 与 `Clock` 同义：`'light'` 是浅色线（深壁纸），`'dark'` 是深色线 |
-| `visible` | `true` | `false` 不渲染 DOM |
-| `paused` | `false` | 冻结录制红点的闪烁 |
+| `variant` | `'corners'` | `corners` / `frame` / `bracket` / `film`; invalid values fall back to `corners` |
+| `inset` | `28` | Distance from the frame lines to the picture edge, px, 0–240 |
+| `thickness` | `1.5` | Line width, px, 0.5–8. Not 1 by default: at WE's desktop DPR a 1px line blurs into gray |
+| `length` | `56` | Bracket arm length, px, 0–240; unused by `frame` / `film` |
+| `size` | `1` | Global multiplier applied to `inset` / `thickness` / `length` and font size, 0.5–3 |
+| `color` | — | `#rrggbb` line color override, wins over `theme` |
+| `grid` | `'none'` | `'none'` / `'thirds'` / `'cross'`; `true` means `thirds` |
+| `ticks` | `false` | Bottom tick scale |
+| `rec` | `false` | `true` draws only the red dot; a string adds that text (e.g. `rec="REC"`) |
+| `timecode` | `''` | Preformatted string; empty hides it |
+| `labels` | — | `{ tl, tr, bl, br }`, individual strings; empty entries are skipped |
+| `theme` | `'dark'` | Same meaning as `Clock`: `'light'` = light lines (dark wallpaper), `'dark'` = dark lines |
+| `visible` | `true` | `false` renders no DOM |
+| `paused` | `false` | Freezes the record dot's blink |
 
-**时间码不由组件计时**：`timecode` 收成品字符串，`formatTimecode(seconds, fps = 24)` 只负责把秒数写成 `HH:MM:SS:FF`。壁纸被 WE 暂停时，读数和闪烁一起停——这也是组件不持定时器的原因。
+**The component does not run a timecode clock**: `timecode` takes a finished string, and `formatTimecode(seconds, fps = 24)` only formats seconds as `HH:MM:SS:FF`. When WE pauses the wallpaper, readout and blink stop together — another reason the component owns no timer.
 
-**变体只管「边怎么画」**，网格 / 刻度 / 红点 / 读数都是正交开关；四个角上的 `rec` 与 `timecode` 各占一角，同位置的 `labels` 会自动让开一行。
+**Variants only decide "how the border is drawn"**; grid / ticks / record dot / readouts are orthogonal switches. `rec` and `timecode` each claim a corner, and a `labels` entry at the same position automatically moves down a line.
 
-`z-index: 7`，**比 `Spotlight` 的 6 再高一层**：取景线与读数是叠加在画面上的仪表，不该跟着曝光压暗一起消失。想让聚光灯连框一起压暗，在自己样式表里调低这个值。
+`z-index: 7`, **one layer above `Spotlight`'s 6**: framing lines and readouts are instruments over the picture and should not vanish with the exposure mask. To have the spotlight dim the frame too, lower this value in your own stylesheet.
 
-### WE 集成（可选）
+### LightFx
 
-安装 Vite 插件即可自动把 WE 监听器注入 `index.html` 的 `<head>` 最前面（classic script，早于模块入口）：
+Weather lighting over the whole picture: sunny, moonlight, dusk, overcast, or a hard midday sun with lens flare. Like the other effect layers it fills the positioning context, with **no** `anchor` / `offsetX` / `offsetY` in the widget sense — here `anchor` places the **light source point**.
+
+```jsx
+import { LightFx } from 'wallkit/components/light-fx'
+
+<LightFx variant="sun" />                                  {/* warm midday sun, top-left */}
+<LightFx variant="moon" intensity={70} />                   {/* dimmer moonlight */}
+<LightFx variant="dusk" anchor="top-right" sway={0} />     {/* low sun, no shaft lean */}
+<LightFx variant="overcast" rays={0} />                    {/* flat cool wash, no shafts */}
+<LightFx variant="clear-sky" flare={0.8} />                {/* blown-out disc + lens-flare chain */}
+<LightFx variant="sun" smoothing={0.12} follow={0.45} />  {/* tune pointer following */}
+```
+
+| prop | Default | Description |
+|---|---|---|
+| `variant` | `'sun'` | `sun` warm wash + distinct shafts / `moon` cool, dim, soft / `dusk` low orange sun raking across the frame / `overcast` huge flat cool wash, no shafts / `clear-sky` hard white disc + lens ghosts and aperture rings |
+| `anchor` | `'top-left'` | Where the light comes from: one of nine anchors. It places the **light center**, not a box corner, and is also what the base shaft direction is derived from, so no second prop can contradict it. Offsets grow inwards just like a widget's |
+| `offsetX` / `offsetY` | `0` | Distance from the anchor point towards the interior. Negative pushes the source out of frame, which is legal — a window just out of shot |
+| `intensity` | `100` | Brightness of the whole light as a percentage of the preset's alphas. One gain over wash + hotspot + shafts + flare. **No upper bound** (alphas saturate on their own); a negative value means no light |
+| `size` | preset | Radius of the wide wash in px, any positive number; omitted uses the preset (sun 1400 / moon 1100 / dusk 1750 / overcast 2400). A non-positive or non-finite value falls back to the preset rather than being clamped: an invalid CSS radius silently drops the whole `background-image` |
+| `rays` | `1` | 0–1, share of the light that becomes shafts rather than a flat pool — a **ratio, not brightness**. `0` is flat light; `overcast` has no shafts to scale. Use `intensity` to dim |
+| `flare` | `1` | 0–1, multiplier on the lens-flare chain. `0` removes it; variants without a flare ignore this. Same axis as `rays`: a share of the effect, also scaled by `intensity` |
+| `follow` | `0.45` | 0–1, how far the light travels towards the pointer. `0` pins it to the anchor |
+| `smoothing` | `0.12` | Follow lag as a time constant in seconds. `0` snaps per event; no upper bound (a slow two-second drag is a legitimate look), negative also means no lag |
+| `sway` | `16` | Degrees the shaft fan may lean while the light moves. `0` keeps shafts parallel to the anchor-derived direction; negative leans the other way; large values approach aiming at the frame center. Direction is always derived from the light's actual position, and variants without shafts (`overcast`) ignore it |
+| `colorHex` | — | `#rrggbb` override of the light color; the hotspot stays a pale version of it |
+| `visible` | `true` | `false` renders no DOM |
+| `paused` | `false` | Keeps the current frame and stops listening to the pointer |
+
+**It is visible from the first frame, unlike `Spotlight`.** A wallpaper with no pointer input still has weather, so the light rests at the anchor and simply stops following; follow is an enhancement, not a prerequisite. A spotlight without a pointer would be a black screen, so it hides. The light never drops below the horizon: the pointer's y is clamped to the top band (`LIGHT_ORIGIN_MAX_Y`) before mixing by `follow`, or dragging to the bottom would light the picture from below like a floor lamp.
+
+**Three custom properties, no canvas and no gradient string rebuilds**: moving the light rewrites `--wallkit-light-x` / `-y` / `-angle`; the gradient strings already reference them. At `smoothing: 0` the write happens right in the event handler. The fan is not merely dragged — `lightBeamSway()` leans it towards the frame center from the light's position, capped by `sway`, so translation reads as a distant source rather than a sliding decal. Beam direction is derived from the anchor (with the preset's `angleOffset`, e.g. dusk −20°), never specified by a separate angle prop.
+
+**Parameter domains**: `rays` / `flare` / `follow` are clamped to 0–1 (a share cannot exceed the whole); `intensity` / `smoothing` have no upper bound and `sway` is signed; `size` has no ceiling. The `LIGHT_*_MIN/MAX` constants are only recommended **playground slider ranges**, not component limits — leave limiting to the caller. The one hard rule is invalid-value fallback, because negative / NaN gradient radii silently kill the whole layer.
+
+Shafts are **masked** (unmasked, the cone converges into a star-filter artifact); if `mask-image` is unsupported the layer is not drawn at all. `z-index: 2`, above ambient particles and below widgets (ambient 1 → light 2 → spectrum 3 → pointer/burst 4 → clock / album 5 → spotlight 6 → frame 7). `clear-sky`'s `disc` and `flare` are bound to that preset, not exposed as cross-cutting toggles: a soft light with aperture rings makes no sense.
+
+### BurstFx
+
+One-shot burst effects fired by command: confetti, water spray and yogurt. This is the third kind of effect layer and the **only component with an imperative API**. `AmbientFx` collects nothing and loops forever; `PointerFx` samples pointer events; `BurstFx` plays a finite effect each time the host explicitly fires a command — no command, no effect, no loop. The parent supplies the positioning context and size; like the other effect layers there is no `anchor` / `offsetX` / `offsetY`.
+
+```jsx
+import { BurstFx } from 'wallkit/components/burst-fx'
+
+const fx = useRef(null)
+
+<BurstFx ref={fx} />
+
+// App layer fires a command when a project.json switch is toggled:
+fx.current.burst('confetti')
+fx.current.burst('spray', { x: 0.5, y: 0.2, angle: -Math.PI / 4 })
+fx.current.burst('yogurt', { x: 0.3, y: 0.1, count: 80 })
+```
+
+`burst(kind, opts)`:
+
+| Field | Description |
+|---|---|
+| `kind` | `confetti` rainbow streamers / `spray` fan of droplets with trails / `yogurt` thick blobs with strings, heavier and faster to the ground |
+| `opts.x` / `opts.y` | 0–1 normalized origin within the overlay |
+| `opts.angle` | Launch angle in radians; omitted uses the kind's preset |
+| `opts.size` | 20–300% scale |
+| `opts.intensity` | 0–300% launch force |
+| `opts.count` | 4–400 particles |
+| `opts.speed` | 20–300% motion pace |
+
+Every `opts` field is optional and falls back to the component prop or the kind's preset, so one fire can change just what it needs without affecting others. Defaults: 90 confetti pieces / 110 droplets / 60 blobs, with lifetimes 2.4s / 1.6s / 1.9s (shortened under `prefers-reduced-motion`).
+
+| prop | Default | Description |
+|---|---|---|
+| `colorHex` | — | `#rrggbb`; recolors spray and forces confetti to a single tint. By default spray uses `--wallkit-accent` (or `#7fc8f0`) and confetti uses its built-in 7-color rainbow; yogurt is creamy `#f6efe0` |
+| `size` | `100` | Default scale percentage (20–300) for fires that do not override it |
+| `intensity` | `100` | Default launch-force percentage (0–300), **not opacity**: it sets initial velocity and therefore reach, peak height and (for spray) how the water column breaks up. Higher force keeps the column together longer before it breaks into droplets |
+| `speed` | `100` | Default motion-pace percentage (20–300) |
+| `visible` | `true` | `false` renders no DOM |
+| `paused` | `false` | Freezes the canvas, drops new commands and stops the loop |
+
+Each command pushes one record into a preallocated ring buffer; particles are recomputed from `(seed, index)` every frame — **no particle array**, zero React re-renders. The loop starts on the first command and stops as soon as the last burst expires. While paused, `burst()` returns immediately and the loop is torn down; on resume, stale records are cleared first. Overlay `z-index: 4`, level with `PointerFx`.
+
+### WE integration (optional)
+
+Adding the Vite plugin injects the WE listeners at the very start of `index.html`'s `<head>` (classic script, before the module entry):
 
 ```js
 // vite.config.js
 import { wallkitWE } from 'wallkit/we/vite'
 
 export default defineConfig({
-  plugins: [react(), wallkitWE()],  // 默认 audio + media + pause
-  // plugins: [react(), wallkitWE({ timeline: true })],  // 需要播放进度时
+  plugins: [react(), wallkitWE()],  // audio + media + pause by default
+  // plugins: [react(), wallkitWE({ timeline: true })],  // playback progress
 })
 ```
 
-React 侧用便利 hooks 把桥接数据变成 props（组件本身仍只认 props，不依赖这层）：
+On the React side, convenience hooks turn bridge data into props (the components themselves still only take props):
 
 ```jsx
 import {
@@ -447,73 +520,75 @@ import {
   useWallpaperProperties,
 } from 'wallkit/we'
 
-const bars = useWallpaperAudio()       // Float32Array：稳定引用、原地改写；无数据时全零
-const beat = useWallpaperBeat()        // 0..1，供 Clock.beat
+const bars = useWallpaperAudio()       // Float32Array: stable reference, mutated in place; all zeros with no data
+const beat = useWallpaperBeat()        // 0..1, for Clock.beat
 const paused = useWallpaperPaused()
 const track = useWallpaperMedia(paused)
-const props = useWallpaperProperties() // project.json 里声明的用户属性快照
+const props = useWallpaperProperties() // snapshot of user properties declared in project.json
 ```
 
-用户属性是 `project.json` → 页面的单向推送，没有双向绑定：在 `general.properties` 声明 key，`wallpaperPropertyListener.applyUserProperties` 推给页面（加载时全量，之后只推变化的 key），`useWallpaperProperties()` 读快照。值的量纲要留神——`color` 推下来是 `0..1` 浮点（manifest 里写的是 `0..255`），`file` / `directory` 的路径要拼 `file:///`，未声明的 key 是 `undefined` 而不是 `false`。
+User properties are a one-way push from `project.json` to the page, with no two-way binding: declare keys in `general.properties`, push them via `wallpaperPropertyListener.applyUserProperties` (all keys on load, then only changed keys), and read the snapshot with `useWallpaperProperties()`. Watch the units — `color` arrives as `0..1` floats (the manifest uses `0..255`), `file` / `directory` paths need `file:///`, and undeclared keys are `undefined`, not `false`.
 
-`timeline` 默认关闭：WE 官方明确警告 `wallpaperRegisterMediaTimelineListener` 可能永不触发。需要 `useWallpaperTimeline()` 时显式打开；取不到值就保持 `null`，不要用 `0:00` 兜底。
+`timeline` is off by default: WE officially warns that `wallpaperRegisterMediaTimelineListener` may never fire. Enable it explicitly if you need `useWallpaperTimeline()`; keep `null` when no value arrives, do not substitute `0:00`.
 
-不使用 Vite 的项目仍可手动粘贴四段（加可选 timeline 共五段）内联脚本，见 [WE 集成指南](./docs/we-integration.md) §2.2；`project.json` 的形状仍由使用方保证，库不碰。接口与接线细节见 [`wallkit/we` 设计规格](./docs/we-design.md)。
+Projects not using Vite can paste the four (or five with timeline) inline scripts manually; see [WE integration guide](./docs/we-integration.md) §2.2. The shape of `project.json` remains the caller's responsibility; the library does not touch it. See the [`wallkit/we` design spec](./docs/we-design.md) for interface and wiring details.
 
-### project.json 生成（可选，构建期）
+### project.json generation (optional, build-time)
 
-`project.json` 里三个坑都是静默失败：`supportsaudioprocessing` 写在顶层（音频回调 0 次）、颜色写成 0–1 浮点（显示黑色）、属性改名后忘改应用层。`wallkit/project` 把形状收进代码，只留会变的部分让人写：
+Three `project.json` mistakes fail silently: `supportsaudioprocessing` placed at the top level (zero audio callbacks), colors as `0..1` floats (displayed black), and forgetting to update the app layer after renaming a property. `wallkit/project` encodes the shape so only changing parts are written by hand:
 
 ```js
-// project.config.js —— 放在你自己的壁纸仓库里
+// project.config.js — in your own wallpaper repo
 import { color, slider, bool } from 'wallkit/project'
 
 export default {
   file: 'index.html',
-  title: '你的壁纸名',
-  description: ['这是什么、有什么可调。', '主页 https://… · 源码 https://…'],
+  title: 'Your wallpaper name',
+  description: ['What it is and what can be configured.', 'Homepage https://… · Source https://…'],
   properties: {
-    accentColor: color({ text: '强调色', value: '#a8c4ff' }),
-    sizeScale: slider({ text: '尺寸倍率', value: 1, min: 0, max: 2, fraction: true }),
-    showSeconds: bool({ text: '显示秒', value: true }),
+    accentColor: color({ text: 'Accent color', value: '#a8c4ff' }),
+    sizeScale: slider({ text: 'Size scale', value: 1, min: 0, max: 2, fraction: true }),
+    showSeconds: bool({ text: 'Show seconds', value: true }),
   },
 }
 ```
 
 ```bash
-node scripts/gen-project.mjs           # 合并写入 public/project.json
-node scripts/gen-project.mjs --check   # 只报告漂移，不一致时退出码 1
-npm run test:project                   # 工具自测（50 条断言，不需要 WE）
+node scripts/gen-project.mjs           # merge into public/project.json
+node scripts/gen-project.mjs --check   # only report drift; exit 1 if out of date
+npm run test:project                   # tool self-test (50 assertions, no WE needed)
 ```
 
-这是**手动步骤，不是构建钩子**：编辑器会整份重写这份文件，构建期覆盖会和它打架。合并时 `workshopid` / `version` / `snapshotformat` / `snapshotoverlay` 无条件保留——丢了 `workshopid`，下次发布会变成新建 Workshop 条目。完整规则与属性构造器表见 [project.json 生成工具](./docs/project-tool.md)。
+This is a **manual step, not a build hook**: the editor rewrites this file wholesale, and a build-time overwrite would fight it. Merging always preserves `workshopid` / `version` / `snapshotformat` / `snapshotoverlay` — losing `workshopid` would publish a new Workshop entry instead of updating the existing one. Full rules and property constructors: [project.json tool](./docs/project-tool.md).
 
 ---
 
-## 入口一览
+## Entry points
 
-| 入口 | 内容 |
+| Entry | Contents |
 |---|---|
-| `wallkit` | 根入口 |
-| `wallkit/core` | 环境探测、存储工具、时钟与音频纯函数、锚点常量、类型约定 |
-| `wallkit/components/clock` | 日期时间控件 |
-| `wallkit/components/spectrum` | 独立浮动的音频频谱控件 |
-| `wallkit/components/mini-spectrum` | 填满父容器的频谱（卡片内嵌用） |
-| `wallkit/components/album-art` | 专辑卡片控件 |
-| `wallkit/components/pointer-fx` | 鼠标拖尾 + 点击特效覆盖层 |
-| `wallkit/components/ambient-fx` | 全屏氛围粒子层（飘雪 / 樱花 / 气泡） |
-| `wallkit/components/spotlight` | 跟随指针的聚光遮罩（亮圈 + 圈外压暗） |
-| `wallkit/components/frame` | 画面级 REC 取景框（括号 / 整框 / 翼型 / 齿孔 + 网格、刻度、录制点、读数） |
-| `wallkit/we` | WE 数据源 hooks（audio / beat / media / timeline / paused / properties） |
-| `wallkit/we/vite` | Vite 插件 `wallkitWE()`，注入 `<head>` 监听器 |
-| `wallkit/project` | project.json 生成工具（构建期纯函数，不进运行时） |
-| `wallkit/styles` | 主题变量 |
+| `wallkit` | Root entry |
+| `wallkit/core` | Environment detection, storage helpers, clock / audio pure functions, anchor constants, type conventions |
+| `wallkit/components/clock` | Date and time widget |
+| `wallkit/components/spectrum` | Standalone floating spectrum |
+| `wallkit/components/mini-spectrum` | Parent-filling spectrum (for cards) |
+| `wallkit/components/album-art` | Album card widget |
+| `wallkit/components/pointer-fx` | Pointer trails + click effects overlay |
+| `wallkit/components/ambient-fx` | Full-screen ambient particles (snow / sakura / bubbles / stars …) |
+| `wallkit/components/spotlight` | Pointer-following spotlight mask (lit circle + dimmed outside) |
+| `wallkit/components/frame` | Picture-level REC viewfinder (brackets / full frame / wings / perforations + grid, ticks, record dot, readouts) |
+| `wallkit/components/light-fx` | Weather lighting layer (sun / moon / dusk / overcast / clear sky) |
+| `wallkit/components/burst-fx` | Command-triggered one-shot burst effects (confetti / spray / yogurt) |
+| `wallkit/we` | WE data hooks (audio / beat / media / timeline / paused / properties) |
+| `wallkit/we/vite` | Vite plugin `wallkitWE()`, injects `<head>` listeners |
+| `wallkit/project` | project.json generator (build-time pure functions, not in runtime) |
+| `wallkit/styles` | Theme variables |
 
 ---
 
-## 主题
+## Theming
 
-通过 CSS 变量覆盖：
+Override CSS variables:
 
 ```css
 :root {
@@ -525,19 +600,23 @@ npm run test:project                   # 工具自测（50 条断言，不需要
 
 ---
 
-## 文档
+## Documentation
 
-- [架构方案](./docs/architecture.md) — 定位、分层、接口原则、阶段计划
-- [Spectrum 设计](./docs/spectrum-design.md) — 频谱组件的接口、定位与渲染方案
-- [Frame 设计](./docs/frame-design.md) — 取景框的定位契约、变体与层级取舍
-- [WE 集成指南](./docs/we-integration.md) — 内联脚本、`project.json`、音频排查
-- [抽取映射](./docs/extraction-map.md) — 从现有壁纸项目迁移的代码归属
+Documentation is currently written in Chinese.
+
+- [Architecture](./docs/architecture.md) — scope, layering, interface principles, phase plan
+- [Spectrum design](./docs/spectrum-design.md) — spectrum interfaces, positioning and rendering
+- [Frame design](./docs/frame-design.md) — the viewfinder's positioning contract, variants and layering trade-offs
+- [WE integration guide](./docs/we-integration.md) — inline scripts, `project.json`, audio troubleshooting
+- [Extraction map](./docs/extraction-map.md) — where migrated code came from in the original wallpaper project
+- [project.json tool](./docs/project-tool.md) — property constructors and merge rules
+- [WE design spec](./docs/we-design.md) — hook and bridge design
 
 ---
 
-## 本地预览
+## Local preview
 
-`playground/` 是一个独立的小 Vite 工程，直接引用 `../src` 的源码，用来查看组件的实际渲染。
+`playground/` is a standalone Vite project that imports source directly from `../src`, for viewing actual rendering.
 
 ```bash
 cd playground
@@ -545,104 +624,104 @@ npm install
 npm run dev          # http://localhost:5174/
 ```
 
-演示页分五个画廊：**Clock**（10 种布局、深浅主题、尺寸缩放、合成节拍）、**Spectrum**（9 种 `variant`）、**MiniSpectrum**（填满父容器的 9 种样式）、**AlbumArt**（6 种卡片布局、3 组合成曲目、6 种运行状态）和 **PointerFx**（4 种拖尾 × 4 种点击 = 16 组组合，4×4 排布、每行共用一种拖尾，把鼠标移进格子看拖尾、点击看爆点；控制面板可在共用 `size` 与分别设定 `trailSize` / `clickSize` 之间切换）。**合成数据只存在于 playground**，库本身不会生成假数据；PointerFx 不需要合成数据，它消费的是你真实的鼠标事件。
+There are ten galleries: **Clock** (10 layouts, light/dark themes, size scaling, synthetic beat), **Spectrum** (9 variants), **MiniSpectrum** (9 parent-filling styles), **AlbumArt** (6 card layouts, 3 synthetic tracks, 6 playback states), **PointerFx** (4 trails × 5 clicks; move the mouse into a cell for the trail, click for the burst), **AmbientFx** (8 particle forms), **Spotlight**, **Frame**, **LightFx** (with a prop × variant applicability table so a grayed-out slider tells you a variant has no such layer) and **BurstFx** (three command buttons in the hero plus one instance per cell). **Synthetic data exists only in the playground**; the library never invents data. PointerFx and BurstFx use your real pointer events / commands.
 
-### Wallpaper Engine 测试页
+### Wallpaper Engine test page
 
-画廊之外还有一个**给 WE 用的单页**：同一屏同时挂载四个控件，音频与媒体数据来自真实的宿主回调，按 8 秒轮换布局并更换背景（2 深 2 亮，主题随背景走），左上角 HUD 显示 WE 探测、音频帧龄、媒体字段与暂停状态。
+Besides the galleries there is a **single page for WE**: four widgets on one screen, audio and media from real host callbacks, layouts rotating every 8 seconds with changing backgrounds (2 dark, 2 light, theme following the background), and a top-left HUD showing WE detection, audio frame age, media fields and pause state.
 
 ```bash
 cd playground
-npm run dev                    # 浏览器预览 http://localhost:5174/wallpaper.html
-npm run build:wallpaper        # 产出 dist-wallpaper/，含 project.json
-npm run deploy:wallpaper       # 构建并直接同步到 WE 项目目录
+npm run dev                    # browser preview: http://localhost:5174/wallpaper.html
+npm run build:wallpaper        # dist-wallpaper/, including project.json
+npm run deploy:wallpaper       # build and sync directly to the WE project directory
 ```
 
-同一份构建里还有第二个页面 **`layout.html`**（几何验证页）：它同时展示「贴底满宽频谱」「距角 100px 的时钟」「同心唱片 + 环形频谱」三种定位，带参考线（`G` 显隐）和锚点十字。数据是合成的，所以浏览器里就能看，不依赖 WE 回调：
+The same build also contains **`layout.html`** (geometry verification): it shows a full-width bottom spectrum, a clock 100px from a corner, and a concentric record + ring spectrum, with reference lines (`G` toggles) and anchor crosses. Its data is synthetic, so it works in a browser without WE callbacks:
 
 ```bash
 cd playground
 npm run dev                    # http://localhost:5174/layout.html
 ```
 
-`build:wallpaper` 会把两个页面一起打进 `dist-wallpaper/`。想在 WE 里看这一页，把项目里 `project.json` 的 `"file"` 改成 `"layout.html"`。
+`build:wallpaper` produces both pages. To view `layout.html` in WE, change `"file"` in the project's `project.json` to `"layout.html"`.
 
-`deploy:wallpaper` 默认同步到 `F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\wallpaper`，换机器时用环境变量覆盖：
+`deploy:wallpaper` syncs to `F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\wallpaper` by default; override it on another machine:
 
 ```bash
 WE_PROJECT_DIR="D:\path\to\your\we\project" npm run deploy:wallpaper
 ```
 
-同步只覆盖构建产物（`assets/`、`wallpaper.html`），**不动** WE 编辑器写的 `preview.gif` 和 `project.json`；`assets/` 会整体替换，避免旧 hash 文件堆积。壁纸正在运行时文件被占用，先切走再重试。`deploy:wallpaper` 只负责拷贝，所以第一次仍需要在 WE 里新建 Web 壁纸并让它指向那个目录。
+Sync only overwrites build outputs (`assets/`, `wallpaper.html`); it does **not** touch the WE editor's `preview.gif` and `project.json`. `assets/` is replaced wholesale so old hashed files do not pile up. Switch away from the running wallpaper first, since its files are locked. `deploy:wallpaper` only copies files, so the first time you still need to create a Web wallpaper in WE pointing at that directory.
 
-内联脚本与 `project.json` 的坑（`supportsaudioprocessing` 必须嵌在 `general` 内、属性值的量纲）见 [WE 集成指南](./docs/we-integration.md)。
+The inline-script and `project.json` pitfalls (`supportsaudioprocessing` must be nested inside `general`; property value units) are covered in the [WE integration guide](./docs/we-integration.md).
 
 ---
 
-## 状态
+## Status
 
-P0–P4 已完成，并全部在 Wallpaper Engine 中对接验证正常。P4 验的是插件注入 + hooks 这条新接线，控件 API 未变；P5 起未开始。
+P0–P4 are complete and verified in Wallpaper Engine. P4 verified the plugin injection + hooks wiring; the widget APIs were unchanged. P5 onward has not started.
 
-P4 之后追加了 `wallkit/we` 的 `properties` 段（`project.json` 用户属性 → `useWallpaperProperties()`）：静态验证通过并已部署到 WE 测试工程，`accentColor` 实机确认能改画面颜色，其余属性的渲染映射与 `PointerFx` / `AmbientFx` / `Spotlight` 三个增量组件见各自设计文档。
+Since P4, `wallkit/we` gained the `properties` section (`project.json` user properties → `useWallpaperProperties()`): static verification passed and it was deployed to the WE test project, where `accentColor` was confirmed to change the picture. Rendering mappings for the other properties, plus the added `PointerFx` / `AmbientFx` / `Spotlight` / `Frame` / `LightFx` / `BurstFx` components, are described in their sections above and in the changelog.
 
-| 阶段 | 内容 | 状态 |
+| Phase | Contents | Status |
 |---|---|---|
-| P0 | `core` + `styles` 骨架 | ✅ 完成 |
-| P1 | `Clock` | ✅ 完成 |
-| P2 | `Spectrum` | ✅ 完成（WE 实机验证通过） |
-| P3 | `MiniSpectrum` + `AlbumArt` | ✅ 完成（WE 实机验证通过） |
-| P4 | `wallkit/we` + Vite 插件 | ✅ 完成（WE 实机接线复验通过） |
-| P5 | 新项目验证 | 未开始 |
-| P6 | 模板仓库 | 未开始（等第二个游戏落地后） |
+| P0 | `core` + `styles` skeleton | ✅ Done |
+| P1 | `Clock` | ✅ Done |
+| P2 | `Spectrum` | ✅ Done (verified in WE) |
+| P3 | `MiniSpectrum` + `AlbumArt` | ✅ Done (verified in WE) |
+| P4 | `wallkit/we` + Vite plugin | ✅ Done (wiring re-verified in WE) |
+| P5 | New-project validation | Not started |
+| P6 | Template repository | Not started (after a second game lands) |
 
 ---
 
-## 使用与修改
+## Use and modify
 
-### 直接使用
+### Just use it
 
-git 引用即可，无需其他操作。见上文「使用方式」。
+A git reference is all you need; see "Usage" above.
 
-### 修改 WallKit 本身
+### Modify WallKit itself
 
-`node_modules` 中的副本是只读安装结果，直接改不会生效。需要：
+The copy in `node_modules` is a read-only install result; editing it directly will not stick. You need to:
 
-1. Fork 本仓库到自己账号
-2. 在自己的 fork 上修改
-3. 把依赖改为 fork 地址：
+1. Fork this repository to your account
+2. Make changes in your fork
+3. Point the dependency at your fork:
 
 ```json
-"wallkit": "github:<你的用户名>/wallkit#<commit>"
+"wallkit": "github:<your-username>/wallkit#<commit>"
 ```
 
-注意：fork 之后**不会自动获得上游更新**，需手动 rebase 或 cherry-pick。这是 git 引用模式的固有特性。
+Note: after forking, **upstream updates are not automatic**; rebase or cherry-pick manually. That is inherent to git-reference distribution.
 
-### 提交改动
+### Contributing changes
 
-欢迎提 PR，但是否合并完全由作者判断，没有响应时间承诺。
-
----
-
-## 许可
-
-代码以 [MIT](./LICENSE) 协议开源，可自由使用、修改、分发、商用，需保留版权与许可声明。
-
-### 模型资产不在许可范围内
-
-**MIT 只覆盖本仓库的代码。**
-
-Wallpaper Engine 壁纸所使用的模型、贴图、音频等资产，版权通常属于原游戏或其发行方，**不属于本项目**。本仓库不包含任何此类资产。
-
-如果你要用本库制作壁纸，你需要自行确保所使用资产的合法来源与使用权限。
+PRs are welcome, but whether to merge is entirely at the author's discretion and no response time is promised.
 
 ---
 
-## 维护说明
+## License
 
-本项目主要服务于作者自己的壁纸项目。
+The code is open source under [MIT](./LICENSE): use, modify, distribute and commercialize freely, keeping the copyright and license notice.
 
-- 没有 issue 响应时间承诺
-- 没有向后兼容承诺
-- 没有固定的发布节奏
+### Model assets are not covered
 
-开源目的是让他人可以自由使用，而非提供支持服务。
+**MIT covers only the code in this repository.**
+
+Models, textures, audio and other assets used by Wallpaper Engine wallpapers are usually owned by the original game or its publisher, **not by this project**. This repository contains no such assets.
+
+If you build a wallpaper with this library, you are responsible for the legal provenance and usage rights of the assets you use.
+
+---
+
+## Maintenance notes
+
+This project mainly serves the author's own wallpaper projects.
+
+- No issue response time commitment
+- No backward compatibility commitment
+- No fixed release cadence
+
+The point of open sourcing is to let others use it freely, not to provide a support service.

@@ -520,7 +520,7 @@ src/
 
 ## Reference documents
 
-- [README.md](README.md) — 项目简介、git 引用方式、入口一览
+- [README.md](README.md) — 默认英文 README：项目简介、git 引用方式、入口一览；中文版在 [README.zh-CN.md](README.zh-CN.md)。两份需保持同步。
 - [docs/architecture.md](docs/architecture.md) — 定位、分层、接口原则、阶段计划
 - [docs/we-integration.md](docs/we-integration.md) — 内联脚本、`project.json` 形状、音频排查清单
 - [docs/we-design.md](docs/we-design.md) — `wallkit/we` 的 hooks / 插件接口规格与 playground 接线改造（P4）
